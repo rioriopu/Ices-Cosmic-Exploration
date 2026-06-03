@@ -133,7 +133,7 @@ namespace ICE.Ui.MainUi.Settings
                 {
                     bool isSelected = C.Overlay_FilterJobs.Contains(jobId);
                     var icon = isSelected
-                        ? CosmicHelper.ClassInfoDict.TryGetValue(jobId, out var tex) ? tex.JobIcon.GetWrapOrEmpty() : null
+                        ? CosmicHelper.JobIconDict.TryGetValue(jobId, out var tex) ? tex.GetWrapOrEmpty() : null
                         : ImGui_Ice.GetGreyscaleJob(jobId);
                     if (icon != null && ImGui_Ice.DrawStyledImageButton(icon, new Vector2(iconSize, iconSize), isSelected))
                     {

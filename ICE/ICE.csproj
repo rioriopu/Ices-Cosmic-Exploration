@@ -2,7 +2,7 @@
 <Project Sdk="Dalamud.NET.Sdk/15.0.0">
 
 	<PropertyGroup>
-		<Version>0.0.78.2</Version>
+		<Version>0.0.77.13</Version>
 		<Description>Who said we couldn't explore the moon!.</Description>
 		<PackageProjectUrl>https://github.com/goatcorp/ICE</PackageProjectUrl>
 		<PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression>
@@ -16,7 +16,6 @@
 
 	<ItemGroup>
 		<Content Include="ICE.json" />
-		<EmbeddedResource Include="Resources\Auxesia.png" />
 		<EmbeddedResource Include="Resources\ResearchIcons\advance.png" />
 		<EmbeddedResource Include="Resources\ResearchIcons\expert.png" />
 		<EmbeddedResource Include="Resources\ResearchIcons\novice.png" />
@@ -24,6 +23,7 @@
 		<EmbeddedResource Include="Resources\CosmicClassTracker.png" />
 		<EmbeddedResource Include="Resources\Red_Alert.png" />
 		<EmbeddedResource Include="Resources\Oizys.png" />
+		<EmbeddedResource Include="Resources\Auxesia.png" />
 		<Content Include="utilities\Z_RandomNotes.yaml" />
 		<EmbeddedResource Include="Resources\GreyscaleJobs\ALC.png" />
 		<EmbeddedResource Include="Resources\GreyscaleJobs\ARM.png" />
@@ -54,15 +54,14 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="ECommons" Version="3.2.1.6" />
 		<PackageReference Include="NAudio" Version="2.3.0" />
-		<PackageReference Include="Pictomancy" Version="1.0.9" />
 		<PackageReference Include="TerraFX.Interop.Windows" Version="10.0.26100.6" />
-		<PackageReference Include="YamlDotNet" Version="18.0.0" />
+		<PackageReference Include="YamlDotNet" Version="17.1.0" />
 	</ItemGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="..\OtterGui\OtterGui.csproj" />
+		<ProjectReference Include="..\ECommons\ECommons\ECommons.csproj" />
+		<ProjectReference Include="..\ffxiv_pictomancy\Pictomancy\Pictomancy.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -72,13 +71,5 @@
 
 	<ItemGroup>
 	  <Folder Include="Resources\GatheringRoutes\1310_Oizys\" />
-	  <Folder Include="Resources\GatheringRoutes\1319_Auxesia\" />
 	</ItemGroup>
-
-	<!-- OtterGui depends on nested submodule OtterGuiInternal; init recursively if missing -->
-	<Target Name="EnsureOtterGuiSubmodules" BeforeTargets="BeforeBuild"
-	        Condition="!Exists('$(MSBuildThisFileDirectory)..\OtterGui\OtterGuiInternal\OtterGuiInternal.csproj')">
-		<Exec Command="git submodule update --init --recursive OtterGui"
-		      WorkingDirectory="$(MSBuildThisFileDirectory).." />
-	</Target>
 </Project>

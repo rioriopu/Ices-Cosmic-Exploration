@@ -8,8 +8,16 @@ namespace ICE.Ui.DebugWindowTabs
     {
         public static unsafe void Draw()
         {
+            uint currentScore = 0;
+            uint silverScore = 0;
+            uint goldScore = 0;
+
             if (GenericHelpers.TryGetAddonMaster<WKSMissionInfomation>("WKSMissionInfomation", out var x) && x.IsAddonReady)
             {
+                // currentScore = x.CurrentScore;
+                // silverScore = x.SilverScore;
+                // goldScore = x.GoldScore;
+
                 var isAddonReady = AddonHelper.IsAddonActive("WKSMissionInfomation");
                 ImGui.Text($"Addon Ready: {isAddonReady}");
                 if (isAddonReady)
@@ -119,28 +127,27 @@ namespace ICE.Ui.DebugWindowTabs
                     }
 
                     var wks = WKSManager.Instance();
-                    if (wks == null)
-                        return;
-
-                    var scores = wks->State.Scores;
 
                     ImGui.TableNextRow();
                     ImGui.TableSetColumnIndex(0);
                     ImGui.Text("Score 1");
                     ImGui.TableNextColumn();
-                    ImGui.Text($"{scores.Length}");
+                    ImGui.Text($"{wks->State.Scores.Length}");
 
-                    for (int score = 0; score < scores.Length; score++)
+                    int score = 0;
+
+                    foreach (var item in wks->State.Scores)
                     {
                         ImGui.TableNextRow();
                         ImGui.TableSetColumnIndex(0);
                         ImGui.Text($"Score: [{score}]");
                         ImGui.TableNextColumn();
-                        ImGui.Text($"{scores[score]}");
+                        ImGui.Text($"{wks->State.Scores[score]}");
+                        score += 1;
                     }
 
                     /*
-                    var currentlyEquippped = wks->FishingBait | 0;
+                    var currentlyEquippped = wks->State.FishingBait | 0;
 
                     ImGui.TableNextRow();
                     ImGui.TableSetColumnIndex(0);
@@ -164,7 +171,7 @@ namespace ICE.Ui.DebugWindowTabs
             var managerPtr = WKSManager.Instance();
             if (managerPtr == null) return 0;
 
-            return managerPtr->State.CurrentMission.Score;
+            return managerPtr->State.CurrentScore;
         }
     }
 }

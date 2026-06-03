@@ -81,6 +81,7 @@ namespace ICE.Ui.MainUi.Settings
                 C.DelayPostRelic = delayRelic;
                 C.SaveDebounced();
             }
+            // 公式0.0.78.1より移植: 採取前に人間らしいランダム遅延を入れる(検知回避)
             bool gatherDelay = C.Delay_Gather;
             if (ImGui.Checkbox("Add delay to gather", ref gatherDelay))
             {

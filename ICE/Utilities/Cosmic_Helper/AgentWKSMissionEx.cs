@@ -1,4 +1,4 @@
-﻿using Dalamud.Plugin.Services;
+using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.UI.Agent;
 using FFXIVClientStructs.STD;
 using System.Runtime.InteropServices;
@@ -8,6 +8,7 @@ namespace ICE.Utilities.Cosmic_Helper;
 /// <summary>
 /// Shim for AgentWKSMission members not yet in the shipped FFXIVClientStructs DLL.
 /// Remove once upstream CS ships GetCriticalMissions.
+/// 公式0.0.78.1より移植: ジョブタブ選択をUIクリック非依存のゲーム内部API直叩きにする(タブ選択不成立による棒立ち回避)。
 /// </summary>
 public static unsafe class AgentWKSMissionEx
 {
@@ -54,8 +55,13 @@ public static unsafe class AgentWKSMissionEx
     /// Sets the agent's selected job tab by ClassJob ID (8–18), resolving it to the
     /// internal 0–11 job index. Also syncs MissionData and clears HasSavedTab.
     /// Returns false if the sig wasn't found or the agent/data is null.
+    /// <para>
+    /// selectBasicTab=true (公式既定) は上段タブを基本(0)へ強制する。MINEは basic/critical の上段タブを
+    /// OpenCorrectTab 側で別管理しているため、ジョブサブタブのみAPIで決定したい場合は false を渡す
+    /// (false にしないと critical タブ表示中に基本タブへ戻されてタブ選択がping-pongし棒立ちになる)。
+    /// </para>
     /// </summary>
-    public static bool SetSelectedJobTab(AgentWKSMission* agent, byte classJobId)
+    public static bool SetSelectedJobTab(AgentWKSMission* agent, byte classJobId, bool selectBasicTab = true)
     {
         if (_jobIndexToClassJobId == null || agent == null || agent->Data == null) return false;
 
@@ -67,7 +73,8 @@ public static unsafe class AgentWKSMissionEx
             break;
         }
 
-        agent->SelectedTab = 0;
+        if (selectBasicTab)
+            agent->SelectedTab = 0;
         agent->Data->SelectedJobIndex = jobIndex;
         agent->Data->UpdateFlags = 1;
         // Clear HasSavedTab to prevent the game from overwriting our set on the next tick
@@ -83,5 +90,17 @@ public static unsafe class AgentWKSMissionEx
 
         if (_jobIndexToClassJobId == null || agent == null || agent->Data == null) return -1;
         return agent->SelectedTab;
+    }
+
+    /// <summary>上段タブ(0=Basic/1=Provisional/2=Critical/3=Mastership)をゲーム内部の SelectedTab フィールド直書きで切り替える。
+    /// マスターシップタブ(3)は ECommons にボタン定義が無い/ボタンクリックが効かない環境向けの確実な切替手段。</summary>
+    public static bool SetSelectedTab(byte tab)
+    {
+        var agent = AgentWKSMission.Instance();
+        if (agent == null || agent->Data == null) return false;
+        agent->SelectedTab = tab;
+        agent->Data->UpdateFlags = 1;
+        *(bool*)((byte*)agent + 0x35) = false; // HasSavedTab をクリアして次tickでの上書きを防ぐ
+        return true;
     }
 }

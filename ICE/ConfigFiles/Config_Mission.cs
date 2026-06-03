@@ -37,6 +37,10 @@ public partial class Config
         16, 17, 18                     // Gatherers: MIN, BTN, FSH
     };
     public bool AutoSelectMoon { get; set; } = true;
+    public bool ShowSinusMissions { get; set; } = true;
+    public bool ShowPhaennaMissions { get; set; } = true;
+    public bool ShowOizysMissions { get; set; } = true;
+    public bool ShowAuxesiaMissions { get; set; } = true;
     public bool RemoveAfterGold { get; set; } = false;
     public bool KeepARanks { get; set; } = false;
     public bool ShowExtraMissionInfo { get; set; } = true;
@@ -49,17 +53,15 @@ public partial class Config
     public bool Relic_IncludeCriticals { get; set; } = true;
     public bool DisableHub_Critical { get; set; } = false;
 
-    // New Table Settings
-    public ItemFilter ItemFilter { get; set; } = ItemFilter.All;
-    public MissionFilter MissionFilter { get; set; } = MissionFilter.All;
-    public JobFilter JobFilter { get; set; } = JobFilter.All;
-
     public class MissionSettings
     {
         public bool Enabled { get; set; } = false;
         public bool ManualMode { get; set; } = false;
         public int GProfileId { get; set; } = 0;
-        public TurninState TurninGoal { get; set; } = TurninState.Gold;
+        public bool AutoTurnin { get; set; } = true;
+        public bool TurninGold { get; set; } = false;
+        public bool TurninSilver { get; set; } = false;
+        public bool TurninBronze { get; set; } = false;
         public bool Use_BuildinPreset { get; set; } = false;
         public string AutoHookPresetName { get; set; } = string.Empty;
         public double BestTime { get; set; } = double.MaxValue;
@@ -99,16 +101,8 @@ public partial class Config
             public int MinStepsForMiracle { get; set; } = -1;
             public uint ExpertProfileId = 0;
         };
-
-        [Obsolete]
-        public bool AutoTurnin { get; set; } = true;
-        [Obsolete]
-        public bool TurninGold { get; set; } = false;
-        [Obsolete]
-        public bool TurninSilver { get; set; } = false;
-        [Obsolete]
-        public bool TurninBronze { get; set; } = false;
     }
+
     public class FishingLocations
     {
         public uint ZoneId { get; set; } = 0;

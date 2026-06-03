@@ -6,6 +6,7 @@ using FFXIVClientStructs.FFXIV.Client.System.Framework;
 using FFXIVClientStructs.FFXIV.Client.UI.Agent;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using System.Collections.Generic;
+using ICE.Utilities.Cosmic_Helper;
 using Callback = ECommons.Automation.Callback;
 using Time = (int start, int end);
 
@@ -14,6 +15,7 @@ namespace ICE.Scheduler.Handlers;
 internal static unsafe class PlayerHandlers
 {
     private static readonly uint stellarSprintID = 4398;
+    private static long _wksRewardSeenTick = 0; // WKSReward報酬ポップアップが開いた時刻(強制クローズ用)
 
     public static unsafe bool IsMoving()
     {
@@ -47,6 +49,42 @@ internal static unsafe class PlayerHandlers
             if (EzThrottler.Throttle("Closing the reward popup"))
             {
                 GenericHandlers.FireCallback("WKSReward", true, -1);
+            }
+
+            // 7.51でコールバック(-1)では閉じずWKSRewardが開きっぱなしになりループする事例に対するフォールバック。
+            // 報酬は完了時に確定済みのサマリー表示なので、一定時間閉じなければアドオンを直接クローズして進行不能を防ぐ。
+            if (_wksRewardSeenTick == 0)
+                _wksRewardSeenTick = Environment.TickCount64;
+            else if (Environment.TickCount64 - _wksRewardSeenTick > 3000 && EzThrottler.Throttle("Force closing reward popup", 1000))
+            {
+                IceLogging.Warning("WKSReward報酬画面がコールバックで閉じないため、強制クローズします (7.51フォールバック)");
+                addon->Close(true);
+            }
+        }
+        else
+        {
+            _wksRewardSeenTick = 0;
+        }
+
+        // === 一時診断: WKSMission窓が開いている間、各ミッションリストの中身とタブをファイルへ出力 ===
+        // マスターシップミッションがどのリスト(basic/special/visible)・どのSelectedTabに現れるか実機特定するため。
+        if (GenericHelpers.TryGetAddonByName<AtkUnitBase>("WKSMission", out var wmAddon) && GenericHelpers.IsAddonReady(wmAddon))
+        {
+            if (EzThrottler.Throttle("MasterDiagFile", 2000))
+            {
+                try
+                {
+                    int tab = -99; try { tab = AgentWKSMissionEx.selectedTab(); } catch { }
+                    var basic = CosmicHandler.Basic_AvailableMissions();
+                    var special = CosmicHandler.Provisional_AvailableMissions();
+                    var visible = CosmicHandler.VisibleMissions();
+                    var line = $"[{System.DateTime.Now:HH:mm:ss}] SelectedTab={tab}\n" +
+                               $"  basic({basic.Count})=[{string.Join(",", basic)}]\n" +
+                               $"  special({special.Count})=[{string.Join(",", special)}]\n" +
+                               $"  visible({visible.Count})=[{string.Join(",", visible)}]\n";
+                    System.IO.File.AppendAllText(@"\\rio-pc\DevPlugins\master_diag.log", line);
+                }
+                catch { }
             }
         }
 

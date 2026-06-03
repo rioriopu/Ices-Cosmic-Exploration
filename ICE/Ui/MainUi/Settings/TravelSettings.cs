@@ -103,6 +103,14 @@ namespace ICE.Ui.MainUi.Settings.Settings_Table
                 C.Save();
             }
 
+            bool useBoards = C.UseBoards;
+            if (ImGui.Checkbox("Use Boards (hover platforms)", ref useBoards))
+            {
+                C.UseBoards = useBoards;
+                C.Save();
+            }
+            ImGuiEx.HelpMarker("乗り口へ歩くと自動発進してショートカット先へ運ばれる連絡ボードを移動に使います(オルジュス/Auxesia)。");
+
             bool useRedAlertNpc = C.UseRedAlertNpc;
             if (ImGui.Checkbox("Use Red Alert NPC for travel", ref useRedAlertNpc))
             {
@@ -159,14 +167,14 @@ namespace ICE.Ui.MainUi.Settings.Settings_Table
                 C.Save();
             }
 
+            // 公式0.0.78.1より移植: エーテネット/NPCテレポート前にランダム遅延(検知回避)
             bool delayAether = C.Delay_Aethernet;
-            if (ImGui.Checkbox("Add delay to athernet / npc travel", ref delayAether))
+            if (ImGui.Checkbox("Add delay to aethernet / npc travel", ref delayAether))
             {
                 C.Delay_Aethernet = delayAether;
                 C.Save();
             }
-            ImGuiEx.HelpMarker("Adds a random delay before interacting with the aethershard / red alert npc travel.\n" +
-                "The delays will be before, and a little bit inbetween interacting with menus");
+            ImGuiEx.HelpMarker("Adds a random delay before interacting with the aethershard / red alert npc travel.");
         }
         private static void StuckSettings()
         {
@@ -273,7 +281,7 @@ namespace ICE.Ui.MainUi.Settings.Settings_Table
             {
                 ImGui.Text($"Planet: {Player.Territory.Value.PlaceName.Value.Name}");
                 ImGui.Checkbox("Show fishing spot raycast", ref _fishingDebug.ShowFishRay);
-                if (Player.Object is { } player && _fishingDebug.ShowFishRay)
+                if (PlayerHelper.LocalPlayer is { } player && _fishingDebug.ShowFishRay)
                 {
                     _fishingDebug.Draw();
                 }

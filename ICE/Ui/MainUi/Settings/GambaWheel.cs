@@ -52,10 +52,15 @@ namespace ICE.Ui.MainUi.Settings
             if (PlayerHelper.IsInCosmicZone())
             {
                 var territory = Player.Territory.RowId;
-                if (CosmicMoonRegistry.TryGetPlanetCreditItemId(territory, out var itemId))
+                // 未対応惑星でも設定ウィンドウが落ちないようTryGetValueでガード
+                if (CosmicHelper.PlanetCreditInfo.TryGetValue(territory, out var itemId))
                 {
                     PlayerHelper.GetItemCount(itemId, out var credits);
                     ImGui.Text($"Current location: {territory} | Currency Amount: {credits}");
+                }
+                else
+                {
+                    ImGui.Text($"Current location: {territory} | Currency: (未対応)");
                 }
             }
 
@@ -129,10 +134,15 @@ namespace ICE.Ui.MainUi.Settings
             if (PlayerHelper.IsInCosmicZone())
             {
                 var territory = Player.Territory.RowId;
-                if (CosmicMoonRegistry.TryGetPlanetCreditItemId(territory, out var itemId))
+                // 未対応惑星でも設定ウィンドウが落ちないようTryGetValueでガード
+                if (CosmicHelper.PlanetCreditInfo.TryGetValue(territory, out var itemId))
                 {
                     PlayerHelper.GetItemCount(itemId, out var credits);
                     ImGui.Text($"Current location: {territory} | Currency Amount: {credits}");
+                }
+                else
+                {
+                    ImGui.Text($"Current location: {territory} | Currency: (未対応)");
                 }
             }
 

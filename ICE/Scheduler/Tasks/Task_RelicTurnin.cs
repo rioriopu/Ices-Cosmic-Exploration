@@ -75,7 +75,7 @@ namespace ICE.Scheduler.Tasks
             string handle = "[Task_Relic: PathTo]";
             var zoneId = Player.Territory;
 
-            if (NpcData.TryGetNpc(Player.Territory.RowId, NpcData.NpcType.Relic, out var npcEntry))
+            if (NpcData.MoonNpcs[Player.Territory.RowId].TryGetValue(NpcData.NpcType.Relic, out var npcEntry))
             {
                 Vector3 randomPos = NpcData.GetRandomPointInCircle(npcEntry.Location_Circle, 0.5f);
                 if (!Task_NavmeshMove.Task_NavTo(randomPos, distance: 5, npcLoc: npcEntry.Location_Npc).Value)
@@ -101,6 +101,17 @@ namespace ICE.Scheduler.Tasks
 
         public static bool? TalkToResearchWay()
         {
+            // 代用確認ダイアログが早期に出た場合もここでYes(代用する)を押す
+            if (GenericHelpers.TryGetAddonMaster<SelectYesno>("SelectYesno", out var subYesno) && subYesno.IsAddonReady)
+            {
+                if (EzThrottler.Throttle("Relic substitute yesno (talk)", 200))
+                {
+                    IceLogging.Info("代用確認ダイアログを検出 → Yes(代用する)を選択");
+                    subYesno.Yes();
+                }
+                return false;
+            }
+
             if (GenericHelpers.TryGetAddonMaster<SelectString>("SelectString", out var selectString) && selectString.IsAddonReady)
             {
                 IceLogging.Info("Talk to researchway complete");
@@ -114,7 +125,7 @@ namespace ICE.Scheduler.Tasks
                 }
             }
 
-            if (NpcData.TryGetNpc(Player.Territory.RowId, NpcData.NpcType.Relic, out var npcEntry))
+            if (NpcData.MoonNpcs[Player.Territory.RowId].TryGetValue(NpcData.NpcType.Relic, out var npcEntry))
             {
                 Utils.TryGetObjectByDataId(npcEntry.NpcId, out var researchNpc);
                 if (EzThrottler.Throttle("Interacting with researchingway"))
@@ -129,6 +140,18 @@ namespace ICE.Scheduler.Tasks
 
         public static bool? SelectReport()
         {
+            // 「メインアームと一致するアイテムが無い→代用しますか?」等の確認ダイアログが出たら即Yes(代用する)
+            // このダイアログをここで拾わないとSelectIconString待ちのまま固まる(低LV主道具の強化時に発生)
+            if (GenericHelpers.TryGetAddonMaster<SelectYesno>("SelectYesno", out var subYesno) && subYesno.IsAddonReady)
+            {
+                if (EzThrottler.Throttle("Relic substitute yesno (report)", 200))
+                {
+                    IceLogging.Info("代用確認ダイアログを検出 → Yes(代用する)を選択");
+                    subYesno.Yes();
+                }
+                return false;
+            }
+
             if (GenericHelpers.TryGetAddonMaster<SelectIconString>("SelectIconString", out var selectIconString) && selectIconString.IsAddonReady)
             {
                 IceLogging.Info("We're onto selecting the class to turnin, woo!");

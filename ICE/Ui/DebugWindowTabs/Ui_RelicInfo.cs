@@ -5,7 +5,7 @@ namespace ICE.Ui.DebugWindowTabs
 {
     internal class Ui_RelicInfo
     {
-        public static List<string> XPtypes = ["I", "II", "III", "IV", "V", "VI"];
+        public static List<string> XPtypes = ["I", "II", "III", "IV", "V", "VI", "VII"];  // 2026.05.25でⅦ追加
         public static List<(string Name, uint Id)> jobOptions = new()
         {
             ("CRP", 8),
@@ -27,7 +27,9 @@ namespace ICE.Ui.DebugWindowTabs
             if (wksManager == null || wksManager->ResearchModule == null || !wksManager->ResearchModule->IsLoaded)
                 return;
 
-            if (ImGui.BeginTable("Relic Info", 15, ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.Borders))
+            // 列数 = Class + Stage + (タイプ数 × Current/Need/Max) + Score。XPtypes(=Ⅶまで)に追従させて整合を保つ
+            int totalColumns = 2 + XPtypes.Count * 3 + 1;
+            if (ImGui.BeginTable("Relic Info", totalColumns, ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.Borders))
             {
                 ImGui.TableSetupColumn("Class");
                 ImGui.TableSetupColumn("Stage");
@@ -54,7 +56,7 @@ namespace ICE.Ui.DebugWindowTabs
                     var stage = wksManager->ResearchModule->CurrentStages[toolClassId - 1];
                     ImGui.TextUnformatted(stage.ToString());
 
-                    for (byte type = 1; type <= 4; type++)
+                    for (byte type = 1; type <= XPtypes.Count; type++)  // 4固定→XPtypes.Count(Ⅶまで)
                     {
                         if (!wksManager->ResearchModule->IsTypeAvailable(toolClassId, type))
                             break;
@@ -75,7 +77,7 @@ namespace ICE.Ui.DebugWindowTabs
                         ImGui.TextUnformatted($"{maxXP}");
                     }
 
-                    ImGui.TableSetColumnIndex(14);
+                    ImGui.TableSetColumnIndex(2 + XPtypes.Count * 3);  // Score列(最終列)。14固定→タイプ数追従
                     var scores = wksManager->State.Scores;
                     int classScore = scores[(int)job.Id - 8];
 

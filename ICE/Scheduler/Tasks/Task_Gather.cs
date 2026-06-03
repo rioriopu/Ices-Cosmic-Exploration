@@ -9,7 +9,7 @@ using ICE.Utilities.GatheringHelper;
 using System.Collections.Generic;
 using static ECommons.UIHelpers.AddonMasterImplementations.AddonMaster;
 using static ICE.ConfigFiles.Config;
-using MissionRank = FFXIVClientStructs.FFXIV.Client.Game.WKS.WKSMissionModule.MissionRank;
+using static FFXIVClientStructs.FFXIV.Client.Game.WKS.WKSManager;
 
 namespace ICE.Scheduler.Tasks
 {
@@ -17,6 +17,21 @@ namespace ICE.Scheduler.Tasks
     {
         private static int _lastCollectability = -1;
         private static DateTime _lastCollectProgress = DateTime.MinValue;
+
+        // 公式0.0.78.1より移植: 採取前の人間らしいランダム遅延(検知回避・C.Delay_Gather)
+        private static int GatherDelayThrottle = 0;
+        private static Random random = new();
+
+        // ノード到達タイムアウト用。一定時間あるノードへ到達できない(キノコの傘=vnavmeshが歩行/ジャンプ可能と
+        // 誤判定する高所ノード等)場合、ジャンプ連発/スタックを避けて次ノードへスキップする。
+        private static int _stuckNodeIndex = -1;
+        private static DateTime _stuckNodeSince = DateTime.MinValue;
+        private const double NodeSkipSeconds = 8.0; // 10秒ハードストップより前にスキップさせる
+
+        // 採取ノードが0件のまま続いた時間を計測。枯渇/ストリームイン不可で永久に0件スキャンし続けるのを防ぎ、
+        // 一定時間でランクに応じて納品/放棄に決着させる。
+        private static DateTime _zeroNodeSince = DateTime.MinValue;
+        private const double ZeroNodeResolveSeconds = 30.0;
 
         public static void Enqueue()
         {
@@ -48,9 +63,6 @@ namespace ICE.Scheduler.Tasks
             }
         }
 
-        private static int GatherDelayThrottle = 0;
-        private static Random random = new();
-
         public static bool? GatherInteractV2()
         {
             string tag = "Gather: Gather Interacting";
@@ -59,6 +71,7 @@ namespace ICE.Scheduler.Tasks
             bool collectableItem = missionInfo.Attributes.HasFlag(MissionAttributes.Collectables);
             bool reduceItems = missionInfo.Attributes.HasFlag(MissionAttributes.ReducedItems);
 
+            // 公式0.0.78.1より移植: Delay_Gather有効時、採取アクション直前に500-1000msのランダム待ちを2回通す
             bool CheckDelay()
             {
                 if (C.Delay_Gather)
@@ -76,10 +89,9 @@ namespace ICE.Scheduler.Tasks
                     else
                     {
                         if (EzThrottler.Throttle("Ready for gathering"))
-                            IceLogging.Verbose("No delay is activated for gathering, going to just go ahead and shoot", tag);
+                            IceLogging.Verbose("Gather delay passed, going ahead and gathering", tag);
                         return false;
                     }
-
                 }
                 else
                 {
@@ -286,9 +298,10 @@ namespace ICE.Scheduler.Tasks
             var zoneId = Player.Territory;
             var missionEntry = CosmicHelper.CurrentMissionInfo;
             var missionFlag = missionEntry.MapPosition;
-            var gatherInfo = GatheringRouteLoader.GetRoute(zoneId.RowId, missionFlag);
+            // 静的yamlが無ければ実機ノードから動的生成(Auxesia等の未yamlゾーンで採集を機能させる)
+            var gatherInfo = GatheringRouteLoader.GetRouteOrDynamic(zoneId.RowId, missionFlag);
 
-            if (gatherInfo != null)
+            if (gatherInfo.Count > 0)
             {
                 if (Mission_Settings.previousMap != missionFlag)
                 {
@@ -312,16 +325,11 @@ namespace ICE.Scheduler.Tasks
                     var closestDistance = gatherInfo.Where(x => Player.DistanceTo(x.Position) < 5).FirstOrDefault();
                     if (closestDistance == null)
                     {
-                        // We're currently too far from any node
-                        if (C.ClosestNodeSelection)
-                        {
-                            SetClosestTargetableNode(gatherInfo);
-                        }
-                        else if (Mission_Settings.nodeCounter >= gatherInfo.Count)
-                        {
-                            // resetting it back to 0 because we're outside the normal index array
-                            Mission_Settings.nodeCounter = 0;
-                        }
+                        // We're currently too far from any node。
+                        // 実際に出現している(光っている)ノードへ確実に向かうため、常に最寄りの採取可能ノードを選ぶ。
+                        // (旧: ClosestNodeSelectionがfalseだとindex順巡回となり、出現していないauthored座標へ
+                        //  寄り道して歩き回る原因になっていた。ユーザー要望により最近傍の実出現ノード優先へ変更)
+                        SetClosestTargetableNode(gatherInfo);
                         return true;
 
                     }
@@ -343,21 +351,9 @@ namespace ICE.Scheduler.Tasks
                         }
                         else
                         {
-                            if (C.ClosestNodeSelection)
-                            {
-                                SetClosestTargetableNode(gatherInfo);
-                            }
-                            else
-                            {
-                                // Node is not targetable, increment to next node
-                                Mission_Settings.nodeCounter++;
-
-                                // Check if we're out of bounds and wrap back to 0
-                                if (Mission_Settings.nodeCounter >= gatherInfo.Count)
-                                {
-                                    Mission_Settings.nodeCounter = 0;
-                                }
-                            }
+                            // 目の前のノードが枯渇(非targetable)していたら、最寄りの採取可能ノードへ切り替える。
+                            // 実際に出現しているノードを常に優先することで、空ノードを巡回して歩き回るのを防ぐ。
+                            SetClosestTargetableNode(gatherInfo);
                             return true;
                         }
                     }
@@ -401,20 +397,86 @@ namespace ICE.Scheduler.Tasks
 
         public static bool? PathandCheckNode()
         {
+            string tag = "Gather: Navmesh Movement";
+
             var zoneId = Player.Territory;
             var missionEntry = CosmicHelper.CurrentMissionInfo;
             var missionFlag = missionEntry.MapPosition;
-            var gatherInfo = GatheringRouteLoader.GetRoute(zoneId.RowId, missionFlag);
+            // 静的yamlが無ければ動的生成ルートを使用。空・範囲外を安全にガード(旧実装はGetRouteがnull/範囲外で例外の恐れ)
+            var gatherInfo = GatheringRouteLoader.GetRouteOrDynamic(zoneId.RowId, missionFlag);
+
+            if (gatherInfo.Count == 0)
+            {
+                // ノードが0件のまま一定時間続いたら、無限スキャンを避けて決着をつける。
+                // 採取ノードの枯渇後、設定ランク未達等でGather_V2が納品に移行できず固まるケースの保険。
+                if (_zeroNodeSince == DateTime.MinValue)
+                {
+                    _zeroNodeSince = DateTime.Now;
+                }
+                else if ((DateTime.Now - _zeroNodeSince).TotalSeconds >= ZeroNodeResolveSeconds)
+                {
+                    var rank = Task_CheckScore.CurrentRank();
+                    if (P.Navmesh.Installed && P.Navmesh.IsRunning())
+                        P.Navmesh.Stop();
+
+                    // MissionRank: None=0/Bronze=1/Silver=2/Gold=3/Failed=5。Failedは納品不可なので放棄へ。
+                    if (rank >= MissionRank.Bronze && rank <= MissionRank.Gold)
+                    {
+                        IceLogging.Info($"採取ノードが{ZeroNodeResolveSeconds}秒間0件(枯渇)かつランク{rank}到達のため、納品に移行します", "[Gather: ZeroNodeResolve]");
+                        SchedulerMain.State = IceState.TurninMission;
+                    }
+                    else
+                    {
+                        IceLogging.Info($"採取ノードが{ZeroNodeResolveSeconds}秒間0件(枯渇)かつランク未達のため、ミッションを放棄します", "[Gather: ZeroNodeResolve]");
+                        SchedulerMain.State = IceState.AbandonMission;
+                    }
+                    P.TaskManager.Tasks.Clear();
+                    _zeroNodeSince = DateTime.MinValue;
+                    return true;
+                }
+                return false;
+            }
+
+            // ノードが見つかったので0件タイマーをリセット
+            _zeroNodeSince = DateTime.MinValue;
+
+            if (Mission_Settings.nodeCounter >= gatherInfo.Count)
+                Mission_Settings.nodeCounter = 0;
 
             var location = gatherInfo[Mission_Settings.nodeCounter];
 
+            // 現在対象のノードが変わったらタイムアウト計測をリセット
+            if (_stuckNodeIndex != Mission_Settings.nodeCounter)
+            {
+                _stuckNodeIndex = Mission_Settings.nodeCounter;
+                _stuckNodeSince = DateTime.Now;
+            }
+
             if (!Task_NavmeshMove.Task_GatherMove(location).Value)
             {
+                // 一定時間そのノードに到達できない場合は次ノードへスキップ。
+                // キノコの傘など登れない/採取範囲外のノードでジャンプ連発・スタックするのを防ぐ。
+                if ((DateTime.Now - _stuckNodeSince).TotalSeconds >= NodeSkipSeconds)
+                {
+                    if (P.Navmesh.Installed && P.Navmesh.IsRunning())
+                        P.Navmesh.Stop();
+
+                    IceLogging.Info($"ノード {Mission_Settings.nodeCounter} に {NodeSkipSeconds}秒以内に到達できないためスキップします(到達不能ノードの可能性)", "[Gather: NodeSkip]");
+                    Mission_Settings.nodeCounter++;
+                    if (Mission_Settings.nodeCounter >= gatherInfo.Count)
+                        Mission_Settings.nodeCounter = 0;
+                    _stuckNodeIndex = -1; // 次回呼び出しでタイマー再セット
+                    return false;
+                }
+
                 UseCordial();
                 return false;
             }
             else
             {
+                // 到達できたのでスキップ計測をリセット
+                _stuckNodeIndex = -1;
+
                 var rank = Task_CheckScore.CurrentRank();
 
 
@@ -726,7 +788,12 @@ namespace ICE.Scheduler.Tasks
             var jobId = (uint)Player.Job;
 
             var actionId = collectorAction[action].ClassAction[jobId];
-            ActionManager.Instance()->UseAction(ActionType.Action, actionId);
+            // スロットルのみ追加(エラートースト連発を緩和)。※GetActionStatusガードは収集品アクションで
+            // 使用可能でも非0を返し純化を撃たず採取停止する恐れがあったため撤回(機能優先)。
+            if (EzThrottler.Throttle("Using Collectable Action", 100))
+            {
+                ActionManager.Instance()->UseAction(ActionType.Action, actionId);
+            }
         }
         public static bool? CheckReduceMission()
         {
@@ -885,6 +952,7 @@ namespace ICE.Scheduler.Tasks
         }
         private static bool WillOvercap(int recoveryGP)
         {
+            string tag = "Cordial: Overcap Check";
             bool WillOvercap = (PlayerHelper.GetGp() + recoveryGP) > PlayerHelper.MaxGp();
             if (WillOvercap)
             {

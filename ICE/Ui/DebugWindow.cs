@@ -25,8 +25,6 @@ internal class DebugWindow : Window
 
     private readonly Dictionary<string, Action> DebugViews = new()
     {
-        ["Ui: Table V3"] = () => Table_MissionsV3.Draw(),
-
         // HUD Elements
         ["Hud: Moon Main"] = () => Hud_MainMoon.Draw(),
         ["Hud: Mission"] = () => Hud_Mission.Draw(),
@@ -38,6 +36,7 @@ internal class DebugWindow : Window
 
         // Table Elements
         ["Table: Mission Info"] = () => Table_MissionInfo.Draw(),
+        ["Table: Item List"] = () => Table_CustomItems.Draw(),
         ["Table: Gathering Missions"] = () => Table_GatheringInfo.Draw(),
         ["Table: Special Missions"] = () => Table_TimeWeather.Draw(),
         ["Table: Mission Text"] = () => Table_MissionText.Draw(),

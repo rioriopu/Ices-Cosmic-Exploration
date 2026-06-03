@@ -23,7 +23,7 @@ public static partial class CosmicHelper
                 if (manager == null)
                     return 0; // or some default value
 
-                return manager->State.CurrentMission.MissionUnitRowId;
+                return manager->State.CurrentMissionUnitRowId;
             }
             catch (AccessViolationException)
             {
@@ -38,10 +38,10 @@ public static partial class CosmicHelper
         }
     }
     public static unsafe uint? CurrentBait => WKSManager.Instance()->State.FishingBait;
-    // public static unsafe uint CurrentLunarDevelopment => ExcelHelper.DevGrade.GetRow(WKSManager.Instance()->DevGrade).Unknown6;
+    // public static unsafe uint CurrentLunarDevelopment => ExcelHelper.DevGrade.GetRow(WKSManager.Instance()->State.DevGrade).Unknown6;
     public static unsafe uint CurrentLunarDevelopment = 0;
 
-    public static int MaxXpKind = 7;
+    public static int MaxXpKind = 7; // 2026.05.25パッチで7タイプに増加(旧6→新7, WKSResearchModule Size 0xB0→0xC8)
 
     public static Dictionary<int, string> ExpDictionary = new()
     {
@@ -51,7 +51,15 @@ public static partial class CosmicHelper
         { 4, "IV" },
         { 5, "V" },
         { 6, "VI" },
-        { 7, "VII" },
+        { 7, "VII" } // 2026.05.25パッチ追加
+    };
+
+    public static readonly Dictionary<uint, uint> PlanetCreditInfo = new()
+    {
+        [1237] = 45691, // sinus
+        [1291] = 48146, // phaenna
+        [1310] = 48147, // Oizys
+        [1319] = 48148, // Auxesia (riri版より。45691/48146/48147に続く連番。万一誤りでもGetItemCount=0でガンバ不発になるだけで無害)
     };
 
     public class Dronebit
@@ -59,6 +67,20 @@ public static partial class CosmicHelper
         public uint creditId { get; set; } = 0;
         public uint boxId { get; set; } = 0;
     }
+
+    public static readonly Dictionary<uint, Dronebit> DronebitInfo = new()
+    {
+        [1310] = new() // Oizys
+        {
+            creditId = 49170,
+            boxId = 50414,
+        },
+        [1319] = new() // Auxesia (実機確認: Auxesia Dronebit=49171 / Auxesia Drone Module=50415)
+        {
+            creditId = 49171,
+            boxId = 50415,
+        }
+    };
 
     // General use functions used across the codebase, specifically tied to cosmic related functions
     public static void OpenStellarMission()
@@ -145,10 +167,8 @@ public static partial class CosmicHelper
 
             var score = wks->State.Scores[arrayIndex];
             var currentStage = researchModule->CurrentStages[arrayIndex];
-            // Cap next stage by current hub (Auxesia allows higher than old flat 17).
-            var maxStage = CosmicMoonRegistry.GetMaxRelicStage((uint)Svc.ClientState.TerritoryType);
-            var nextStage = currentStage >= maxStage
-                ? maxStage
+            var nextStage = currentStage == CosmicHelper.MaxRelicLevel
+                ? CosmicHelper.MaxRelicLevel
                 : (byte)(currentStage + 1);
 
             ClassInfo entry = new()

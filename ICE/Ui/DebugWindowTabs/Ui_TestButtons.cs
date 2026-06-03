@@ -3,7 +3,6 @@ using FFXIVClientStructs.FFXIV.Client.Game.WKS;
 using System.Collections.Generic;
 using System.Text;
 using FFXIVClientStructs.FFXIV.Client.Game;
-using ICE.Utilities;
 using ICE.Utilities.Cosmic_Helper;
 
 namespace ICE.Ui.DebugWindowTabs
@@ -215,7 +214,7 @@ namespace ICE.Ui.DebugWindowTabs
             if (WorldPos != Vector3.Zero)
             {
                 var size = new Vector2(24 * Scale, 24 * Scale);
-                var icon = CosmicHelper.ClassInfoDict[8].JobIcon.GetWrapOrDefault();
+                var icon = CosmicHelper.JobIconDict[8].GetWrapOrDefault();
                 if (icon != null)
                 {
                     // PictoManager.DrawIcon(icon.Handle, new(WorldPos.X, WorldPos.Y + Height, WorldPos.Z), size);
@@ -242,7 +241,7 @@ namespace ICE.Ui.DebugWindowTabs
             //  1          - Unknown 10
             //  1          - Unknown 11
 
-            ImGui.Text($"{WKSManager.Instance()->State.CurrentMission.MissionUnitRowId}");
+            ImGui.Text($"{WKSManager.Instance()->State.CurrentMissionUnitRowId}");
 
             if (ImGui.Button("Test Drone Buy"))
             {
@@ -287,7 +286,7 @@ namespace ICE.Ui.DebugWindowTabs
             var gameObject = Utils.TryGetObjectNearestEventObject();
             float gameObjectDistance = 0;
             if (gameObject is not null)
-                gameObjectDistance = Player.DistanceTo(gameObject);
+                gameObjectDistance = PlayerHelper.GetDistanceToPlayer(gameObject);
             if (ImGui.Button("Click Nearest EventObject"))
             {
                 Utils.TargetgameObjectTask(gameObject);
@@ -299,7 +298,7 @@ namespace ICE.Ui.DebugWindowTabs
             var collectionPoint = Utils.TryGetObjectCollectionPoint();
             float collectionPointDistance = 0;
             if (collectionPoint is not null)
-                collectionPointDistance = Player.DistanceTo(collectionPoint);
+                collectionPointDistance = PlayerHelper.GetDistanceToPlayer(collectionPoint);
             if (ImGui.Button("Click Nearest Collection Point"))
             {
                 Utils.TargetgameObjectTask(collectionPoint);
@@ -310,7 +309,7 @@ namespace ICE.Ui.DebugWindowTabs
 
             if (ImGui.Button("Print GatheringPoint Info"))
             {
-                var gatheringPoint = Player.Object?.TargetObject;
+                var gatheringPoint = PlayerHelper.LocalPlayer.TargetObject;
                 if (gatheringPoint is not null)
                 {
                     var nodeId = gatheringPoint.BaseId;
@@ -320,11 +319,7 @@ namespace ICE.Ui.DebugWindowTabs
                     var currentMission = CosmicHelper.CurrentMissionInfo;
                     var nodeSet = currentMission?.MapPosition ?? new Vector2(0, 0);
 
-                    // In cosmic zone use where you are; otherwise Sinus so clipboard export still works.
-                    var zoneId = PlayerHelper.IsInCosmicZone()
-                        ? Player.Territory.RowId
-                        : CosmicMoonRegistry.Sinus.TerritoryId;
-                    string info = $"new GathNodeInfo\n{{\n    ZoneId = {zoneId},\n    NodeId = {nodeId},\n    Position = new Vector3({position.X}f, {position.Y}f, {position.Z}f),\n    LandZone = new Vector3({landZone.X}f, {landZone.Y}f, {landZone.Z}f),\n    GatheringType = {gatheringType},\n    NodeSet = {nodeSet}\n}}";
+                    string info = $"new GathNodeInfo\n{{\n    ZoneId = 1237,\n    NodeId = {nodeId},\n    Position = new Vector3({position.X}f, {position.Y}f, {position.Z}f),\n    LandZone = new Vector3({landZone.X}f, {landZone.Y}f, {landZone.Z}f),\n    GatheringType = {gatheringType},\n    NodeSet = {nodeSet}\n}}";
 
                     ImGui.SetClipboardText(info);
                     Svc.Chat.Print(info);

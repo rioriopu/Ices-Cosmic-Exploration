@@ -141,8 +141,7 @@ namespace ICE.Scheduler.Tasks
                 if (C.StopOnceHitLunarCredits)
                 {
                     var territory = Player.Territory.RowId;
-                    if (!CosmicMoonRegistry.TryGetPlanetCreditItemId(territory, out var itemId))
-                        return false;
+                    var itemId = CosmicHelper.PlanetCreditInfo[territory];
 
                     PlayerHelper.GetItemCount(itemId, out var credits);
                     if (credits >= C.LunarCreditsCap)
@@ -214,7 +213,7 @@ namespace ICE.Scheduler.Tasks
                         return true;
                     }
                 }
-                if (C.StopOnceHitCosmicScore)
+                if (C.StopOnceHitCosmicScore && cosmicClassInfo.ContainsKey(jobId))
                 {
                     var currentScore = cosmicClassInfo[jobId].Score;
                     if (currentScore >= C.CosmicScoreCap)
@@ -232,8 +231,7 @@ namespace ICE.Scheduler.Tasks
                 if (C.StopOnceHitLunarCredits)
                 {
                     var territory = Player.Territory.RowId;
-                    if (!CosmicMoonRegistry.TryGetPlanetCreditItemId(territory, out var itemId))
-                        return false;
+                    var itemId = CosmicHelper.PlanetCreditInfo[territory];
 
                     PlayerHelper.GetItemCount(itemId, out var credits);
                     if (credits >= C.LunarCreditsCap)
@@ -261,7 +259,7 @@ namespace ICE.Scheduler.Tasks
                         return true;
                     }
                 }
-                if (C.StopOnceRelicFinished)
+                if (C.StopOnceRelicFinished && cosmicClassInfo.ContainsKey((uint)jobId))
                 {
                     var relicInfo = cosmicClassInfo[(uint)jobId];
                     bool potentionalTurnin = relicInfo.Stage_Current != relicInfo.Stage_Next;
@@ -361,19 +359,21 @@ namespace ICE.Scheduler.Tasks
 
             var agenda = C.Cosmic_Agenda;
             var relicProgress = CosmicHelper.Cosmic_ClassInfo();
-            PlayerHelper.GetItemCount(CosmicHelper.CosmoCreditItemId, out var creditAmount);
+            PlayerHelper.GetItemCount(45690, out var creditAmount);
             int planetCreditAmount = 10000;
             var territory = Player.Territory.RowId;
             if (PlayerHelper.IsInCosmicZone())
             {
-                if (CosmicMoonRegistry.TryGetPlanetCreditItemId(territory, out var planetCreditId))
-                    PlayerHelper.GetItemCount(planetCreditId, out planetCreditAmount);
+                var planetCreditId = CosmicHelper.PlanetCreditInfo[territory];
+                PlayerHelper.GetItemCount(planetCreditId, out planetCreditAmount);
             }
 
-            // Dronebits exist on Oizys and Auxesia only — TryGetValue avoids throwing on Sinus/Phaenna
             int dronebitAmount = 5000;
-            if (CosmicMoonRegistry.TryGetDronebit(territory, out var dronebit))
-                PlayerHelper.GetItemCount(dronebit.creditId, out dronebitAmount);
+            if (PlayerHelper.IsInDroneZone()) // Oizys+Auxesia両対応(旧IsInOizysだとAuxesiaのドローン数が取れなかった)
+            {
+                var dronebitId = CosmicHelper.DronebitInfo[territory].creditId;
+                PlayerHelper.GetItemCount(dronebitId, out dronebitAmount);
+            }
 
             IceLogging.Verbose("Checking to see which one we're going to start (if any)", tag);
 
@@ -384,7 +384,8 @@ namespace ICE.Scheduler.Tasks
                     $"Agenda: {entry.SelectedMode}");
 
                 var job = entry.SelectedJob;
-                var relicInfo = relicProgress[job];
+                if (!relicProgress.TryGetValue(job, out var relicInfo))
+                    continue;
 
                 var relicLevel = relicInfo.Stage_Current;
                 var classScore = relicInfo.Score;
@@ -415,11 +416,11 @@ namespace ICE.Scheduler.Tasks
                 var goal = entry.SelectedOption;
                 bool achieved = false;
 
-                if (CosmicMoonRegistry.IsMaxRelicPlaylistGoal(goal))
-                    achieved = relicLevel >= CosmicMoonRegistry.GetMaxRelicGoal(goal);
-                else
                 achieved = goal switch
                 {
+                    PlaylistOptions.SinusMax => relicLevel >= 9,
+                    PlaylistOptions.PhaennaMax => relicLevel >= 14,
+                    PlaylistOptions.OizysMax => relicLevel >= 17,
                     PlaylistOptions.SelectedRelicLv => relicLevel >= entry.SelectedRelicLevel,
                     PlaylistOptions.CreditAmount => creditAmount >= entry.CreditAmount,
                     PlaylistOptions.PlanetAmount => planetCreditAmount >= entry.PlanetAmount,
@@ -514,28 +515,26 @@ namespace ICE.Scheduler.Tasks
                 return true;
             }
 
-            if (CosmicMoonRegistry.TryGetDronebit(territoryId, out var dronebitAmount))
+            if (CosmicHelper.DronebitInfo.TryGetValue(territoryId, out var dronebitAmount))
             {
                 BuyDrones = C.Cosmodrone_Buy && Task_ArtifactSearch.CanBuyDroneBoxes();
                 IceLogging.Verbose($"Buying drones? {BuyDrones}", tag);
             }
-            if (CosmicMoonRegistry.TryGetPlanetCreditItemId(territoryId, out var gambaCredits) && PlayerHelper.GetItemCount(gambaCredits, out var gambaAmount))
+            if (CosmicHelper.PlanetCreditInfo.TryGetValue(territoryId, out var gambaCredits) && PlayerHelper.GetItemCount(gambaCredits, out var gambaAmount))
             {
                 IceLogging.Verbose($"{C.GambaAtAmount} >= {gambaAmount} && Gamba between runs {C.GambaBetweenRuns}");
                 GambaWheel = C.GambaAtAmount <= gambaAmount && C.GambaBetweenRuns;
             }
             if (C.BuyItems)
             {
-                if (PlayerHelper.GetItemCount(CosmicHelper.CosmoCreditItemId, out var creditAmount))
+                uint cosmoCreditId = 45690;
+                if (PlayerHelper.GetItemCount(cosmoCreditId, out var creditAmount))
                 {
                     BuyItems = creditAmount >= C.CosmoBuyAtAmount && Task_BuyCosmoItems.CanPurchaseAnyItem();
                 }
             }
-            if (C.TurninRelic)
+            if (C.TurninRelic && relicProgress.TryGetValue(Mission_Settings.SelectedJob, out var relicInfo))
             {
-                var jobId = Mission_Settings.SelectedJob;
-                var relicInfo = relicProgress[jobId];
-
                 bool isUpgradable = relicInfo.Stage_Current != relicInfo.Stage_Next;
 
                 if (isUpgradable)

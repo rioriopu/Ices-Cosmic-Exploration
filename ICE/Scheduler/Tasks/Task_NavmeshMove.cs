@@ -24,6 +24,8 @@ namespace ICE.Scheduler.Tasks
         private const int positionLogThrottleMs = 500;
         private const int stuckCheckLogThrottleMs = 500;
         private const int movingMessageThrottleMs = 2000;
+        private const int stuckHardStopMs = 10000; // 5m圏内からこの時間出られなければ安全のためICE自動停止(走り続け/壁ジャンプ事故防止)
+        private const float hardStopRadius = 5.0f;  // この半径内に留まり続けたら「前進できていない」とみなす
 
         // State tracking
         private static Vector3 lastPosition = Vector3.Zero;
@@ -31,8 +33,22 @@ namespace ICE.Scheduler.Tasks
         private static DateTime lastTimeTracked = DateTime.Now;
         private static bool isJumpInProgress = false;
 
-        private static Random random = new();
-        private static int randomCounter = 0;
+        // 進捗ベースのハードストップ用: 「直近で十分前進した位置」と「その時刻」。5m以上前進する度に更新する。
+        private static Vector3 hardStopAnchor = Vector3.Zero;
+        private static DateTime hardStopAnchorTime = DateTime.Now;
+        // ハードストップのストライク管理: 短時間に連続して詰まった回数。1回の連鎖でいきなり全停止せず、
+        // ミッションのスキップ/放棄で復帰を試み、それでも連続(maxStrikes)で詰まる=真に脱出不能な時だけ全停止する。
+        private static int hardStopStrikes = 0;
+        private static DateTime lastHardStopTime = DateTime.Now;
+        private const int hardStopMaxStrikes = 3;
+        private const double hardStopStrikeWindowSec = 60.0;
+        // 拠点帰還(Stellar Return)による脱出の連発防止。脱出しても解決しない(再度嵌る)場合は上限で見切って全停止する。
+        private static int escapeCount = 0;
+        private static DateTime lastEscapeTime = DateTime.Now;
+        private const int maxEscapes = 3;
+        private const double escapeWindowSec = 180.0;
+
+        private static FishingDebug _fishingDebug = null;
 
         public enum TravelTypes
         {
@@ -42,6 +58,7 @@ namespace ICE.Scheduler.Tasks
             Hub_Return,
             Hub_Aethernet,
             Hub_RedAlert,
+            Board,
         }
 
         #region Navmesh Stuff
@@ -146,7 +163,14 @@ namespace ICE.Scheduler.Tasks
             float selectedDistance = NextFloat(routeinfo.Distance_Min, routeinfo.Distance_Max);
 
             Vector3 randomPosition = CalculateFanPosition(nodePos, selectedAngle, selectedDistance, routeinfo.FanHeight);
-            randomPosition = P.Navmesh.NearestPoint(randomPosition, 0.1f, 5f).Value;
+            // 立ち位置は「足で到達可能な地点」を優先する。NearestPointだと到達可否を無視して最寄りメッシュに吸着し、
+            // キノコの傘など歩いて行けない孤立メッシュ島へ吸着→登ろうとしてジャンプ連発(Auxesia多層地形)。
+            // NearestPointReachableで到達可能点に補正し、XZ探索も0.1f→3fに拡大。失敗時のみNearestPointへフォールバック。
+            // (旧 .Value はnull時NREの潜在バグもあった→HasValueガードで解消)
+            var snappedPos = P.Navmesh.NearestPointReachable(randomPosition, 3f, 5f)
+                             ?? P.Navmesh.NearestPoint(randomPosition, 3f, 5f);
+            if (snappedPos.HasValue)
+                randomPosition = snappedPos.Value;
             // if (EzThrottler.Throttle("Gather Route Throttle", 3000))
                // IceLogging.Debug($"[GatherMove] angleToPlayer={angleToPlayer:F1}, node_MinAngle={node_MinAngle:F1}, node_MaxAngle={node_MaxAngle:F1}, sectionMin={sectionMin:F1}, sectionMax={sectionMax:F1}, selectedAngle={selectedAngle:F1}, selectedDistance={selectedDistance:F2}, minDist={routeinfo.Distance_Min}, maxDist={routeinfo.Distance_Max}, randomPosition={randomPosition}", handle);
 
@@ -273,6 +297,7 @@ namespace ICE.Scheduler.Tasks
             {
                 IceLogging.Debug("Telling navmesh to start pathfinding", handle);
                 whenStarted = DateTime.Now;
+                hardStopAnchor = Vector3.Zero; // 新しい移動開始 → 進捗アンカーをリセット
                 ResetInfo();
                 IceLogging.DestinationLogs.Log(pos);
                 P.Navmesh.SetTolerance(navmeshTolerance);
@@ -313,6 +338,84 @@ namespace ICE.Scheduler.Tasks
         private static unsafe void CheckIfIsStuck()
         {
             var currentPos = Player.Position;
+
+            // === 進捗ベースのハードストップ(最優先・jitter耐性) ===
+            // navmesh稼働中、hardStopRadius(5m)圏内から stuckHardStopMs(10秒) 出られなければ
+            // 「決まった座標へ走り続けているが実質前進できていない＝到達不能」とみなし、ICEを停止する。
+            // 完全静止でなく微妙に動いていても(壁押し/ジャンプ/微振動)、5m前進できなければ検知できる。
+            if (hardStopAnchor == Vector3.Zero || Vector3.Distance(currentPos, hardStopAnchor) > hardStopRadius)
+            {
+                hardStopAnchor = currentPos;
+                hardStopAnchorTime = DateTime.Now;
+            }
+            else if ((DateTime.Now - hardStopAnchorTime).TotalMilliseconds >= stuckHardStopMs)
+            {
+                P.Navmesh.Stop();
+                ResetInfo();
+                hardStopAnchor = Vector3.Zero;
+
+                // 既に拠点帰還(脱出)処理中(HubReturn)なら、脱出を再発火させず帰還の完了を待つ(脱出の無限ループ防止)。
+                if (SchedulerMain.State == IceState.HubReturn)
+                    return;
+
+                // ストライク集計: 一定時間(60s)以上ぶりの単発スタックはカウントをリセット。連続して詰まる時だけ加算。
+                if ((DateTime.Now - lastHardStopTime).TotalSeconds > hardStopStrikeWindowSec)
+                    hardStopStrikes = 0;
+                hardStopStrikes++;
+                lastHardStopTime = DateTime.Now;
+
+                // まだ連続ストライクが上限未満なら、全停止せず「現在のミッションをスキップ/放棄して継続」を試みる。
+                if (hardStopStrikes < hardStopMaxStrikes)
+                {
+                    // ミッションへ接近中(まだ未取得) → そのミッションをunsupported登録してスキップ＋別ミッション再選択。
+                    if (SchedulerMain.State == IceState.GrabMission && Task_CheckMissions.CurrentGrabTarget != 0)
+                    {
+                        IceLogging.Warning($"{stuckHardStopMs / 1000}秒間ミッションへ到達できないため、このミッションをスキップして別ミッションを選び直します(到達不能ミッションの自動スキップ {hardStopStrikes}/{hardStopMaxStrikes})。");
+                        Task_CheckMissions.SkipUnsupportedAndReselect(Task_CheckMissions.CurrentGrabTarget);
+                        return;
+                    }
+                    // 既にミッション取得済(採取/制作中など)で詰まった → そのミッションをunsupported登録して放棄＋次ミッションへ。
+                    if (CosmicHelper.CurrentLunarMission != 0)
+                    {
+                        IceLogging.Warning($"{stuckHardStopMs / 1000}秒間ミッション遂行中に到達できないため、ミッションを放棄して次へ進みます(到達不能の自動回避 {hardStopStrikes}/{hardStopMaxStrikes})。");
+                        Task_CheckMissions.MarkCurrentMissionUnsupportedAndAbandon();
+                        return;
+                    }
+                    // ミッション文脈が無い(ハブ移動中等)場合は、脱出せずナビだけ止めて次サイクルで再評価(フォールスルー脱出を防ぐ)。
+                    return;
+                }
+
+                // === ここから strikes>=max (真に脱出不能=地形に嵌った等) ===
+                // Stellar Return(拠点帰還テレポート)で物理的な罠から脱出し継続を試みる。テレポートなので経路不能でも抜けられる。
+                // ただし脱出しても解決しない(再度同じ罠に嵌る)場合があるため、一定回数(maxEscapes/escapeWindowSec)で見切って全停止する。
+                if ((DateTime.Now - lastEscapeTime).TotalSeconds > escapeWindowSec)
+                    escapeCount = 0;
+
+                bool canStellarReturn = C.UseHubReturn
+                    && !(C.AvoidStellarReturn && !C.AvoidStellarReturnExceptHub)
+                    && CosmicHelper.HubCenter.ContainsKey(Player.Territory.RowId);
+
+                if (canStellarReturn && escapeCount < maxEscapes)
+                {
+                    escapeCount++;
+                    lastEscapeTime = DateTime.Now;
+                    IceLogging.Warning($"到達不能のため拠点へ帰還(Stellar Return)して罠から脱出し継続します(脱出 {escapeCount}/{maxEscapes})。");
+                    // 嵌りの原因となった現行ミッション/接近対象をunsupported登録して再選択時に除外
+                    Task_CheckMissions.MarkUnsupported(Task_CheckMissions.CurrentGrabTarget != 0 ? Task_CheckMissions.CurrentGrabTarget : CosmicHelper.CurrentLunarMission);
+                    Task_CheckMissions.CurrentGrabTarget = 0;
+                    hardStopStrikes = 0;
+                    P.TaskManager.Tasks.Clear();
+                    SchedulerMain.State = IceState.HubReturn; // HubReturn→HubCheckでStellar Return→Start→ミッション再選択
+                    return;
+                }
+
+                // 脱出を上限まで試しても解決しない、またはStellar Return不可設定/ハブ未登録 → 最終防壁として全停止(自動OFF)。
+                IceLogging.Warning($"到達不能を解消できないため、安全のためICEを停止します(脱出{escapeCount}回試行後/脱出手段なし strikes={hardStopStrikes})。");
+                escapeCount = 0;
+                SchedulerMain.DisablePlugin();
+                return;
+            }
+
             var timeSinceLastChecked = (DateTime.Now - lastTimeTracked).TotalMilliseconds;
             var navmeshStartTime = (DateTime.Now - whenStarted).TotalMilliseconds;
             var distanceMoved = Vector3.Distance(currentPos, lastPosition);
@@ -345,7 +448,12 @@ namespace ICE.Scheduler.Tasks
                     return;
                 }
 
-                if (C.JumpIfStuck_V2 && EzThrottler.Throttle("Using jump action"))
+                // ミッション接近中(GrabMission)は到達不能地点へのジャンプを抑止する。
+                // 未開拓/高所の到達不能ミッションへ走り込んだ際、スキップ(10秒)が発火するまで登ろうとジャンプ連発するのは
+                // 見た目が露骨(BOT露見)なため。ジャンプせず静止して待ち、ハードストップのスキップに任せる。
+                // 採取中(Gather)等のノード周りでは従来どおりジャンプで引っ掛かりを解消する。
+                bool suppressJump = SchedulerMain.State == IceState.GrabMission;
+                if (C.JumpIfStuck_V2 && !suppressJump && EzThrottler.Throttle("Using jump action"))
                 {
                     isJumpInProgress = true;
                     ActionManager.Instance()->UseAction(ActionType.GeneralAction, 2);
@@ -365,6 +473,9 @@ namespace ICE.Scheduler.Tasks
             public List<Vector3> pathFrom { get; set; } = null;
             public uint Aethernet_TravelTo { get; set; } = 0;
             public uint Aethernet_TravelFrom { get; set; } = 0;
+            // ボード移動用: Entry=乗り口(歩いて行くと自動発進)、Exit=到着地点。
+            public Vector3 BoardEntry { get; set; } = Vector3.Zero;
+            public Vector3 BoardExit { get; set; } = Vector3.Zero;
         }
         private static Dictionary<TravelTypes, PathInfo> TravelMethods = new()
         {
@@ -374,6 +485,7 @@ namespace ICE.Scheduler.Tasks
             [TravelTypes.Hub_Return] = new(),
             [TravelTypes.Hub_Aethernet] = new(),
             [TravelTypes.Hub_RedAlert] = new(),
+            [TravelTypes.Board] = new(),
         };
         public class AethernetSystem
         {
@@ -383,10 +495,30 @@ namespace ICE.Scheduler.Tasks
             public int MapSelector { get; set; } = 0;
             public uint RequiredLogLv { get; set; } = 0;
         }
+        // ボード(オブジェクト操作不要・Entry座標へ歩くと自動発進してExitへ運ばれる)。実機座標で登録。
+        public class BoardInfo
+        {
+            public Vector3 Entry { get; set; } = Vector3.Zero; // 乗り口(ここへ歩くと発進)
+            public Vector3 Exit { get; set; } = Vector3.Zero;  // 到着地点(運ばれて降りる場所)
+        }
+        public static Dictionary<uint, List<BoardInfo>> PlanetBoards = new()
+        {
+            [1319] = new()  // Auxesia (実機取得 2026-06-03)。双方向ペアの連絡ボード網。
+            {
+                // ハブ ↔ 中央
+                new() { Entry = new(257.09f, 208.35f, 335.37f), Exit = new(-4.57f, 186.59f, 21.81f) },   // ハブ→中央
+                new() { Entry = new(-12.81f, 187.47f, 30.51f),  Exit = new(250.08f, 208.43f, 341.45f) }, // 中央→ハブ
+                // 中央 ↔ 北西
+                new() { Entry = new(-41.66f, 187.30f, -1.94f),  Exit = new(-368.59f, 170.09f, -173.83f) }, // 中央→北西
+                new() { Entry = new(-361.62f, 170.02f, -166.83f), Exit = new(-32.92f, 186.64f, 6.43f) },   // 北西→中央
+                // 中央 ↔ 東
+                new() { Entry = new(17.17f, 186.58f, 1.88f),    Exit = new(594.02f, 190.12f, 119.37f) },  // 中央→東
+                new() { Entry = new(597.97f, 190.11f, 110.60f), Exit = new(10.87f, 186.62f, -6.43f) },    // 東→中央
+            },
+        };
         public static Dictionary<uint, List<AethernetSystem>> PlanetAethernet = new()
         {
-            // Keys must match CosmicMoonRegistry.*.TerritoryId — validated in CosmicMoonContent.ValidateRegistry()
-            [CosmicMoonRegistry.Sinus.TerritoryId] = new()
+            [1237] = new()
             {
                 new()
                 {
@@ -424,7 +556,7 @@ namespace ICE.Scheduler.Tasks
                     Location = new(629.80f, -73.95f, -572.78f),
                 }
             },
-            [CosmicMoonRegistry.Phaenna.TerritoryId] = new()
+            [1291] = new()
             {
                 new()
                 {
@@ -462,7 +594,7 @@ namespace ICE.Scheduler.Tasks
                     LandZone = new(-591.95f, 28.50f, 722.10f),
                 }
             },
-            [CosmicMoonRegistry.Oizys.TerritoryId] = new()
+            [1310] = new()
             {
                 new()
                 {
@@ -501,29 +633,32 @@ namespace ICE.Scheduler.Tasks
                     RequiredLogLv = 14,
                 }
             },
-            [CosmicMoonRegistry.Auxesia.TerritoryId] = new()
+            [1319] = new()  // Auxesia (実機取得 2026-06-03)。MapSelectorはID順(=テレポメニュー並び順の推定)。ズレたら要実機修正。
             {
                 new()
                 {
+                    // ティンバーロッジ基地(ハブ近傍 Y≈205)。基幹拠点=メニュー先頭と推定。
                     MapSelector = 0,
                     AethernetId = 2015422,
-                    Location = new(259.8f, 205.64f, 356.3f),
-                    LandZone = new(260.9f, 205.6f, 355.6f)
+                    Location = new(259.80f, 205.64f, 356.30f),
+                    LandZone = new(262.39f, 205.69f, 353.20f),
                 },
                 new()
                 {
+                    // フルブルーム・ガーデン (採取エリア Y≈145)
                     MapSelector = 1,
                     AethernetId = 2015423,
-                    Location = new(-226.37f, 145.01f, -560.4f),
-                    LandZone = new(-226.0f, 145.0f, -559.3f)
+                    Location = new(-226.37f, 145.01f, -560.40f),
+                    LandZone = new(-225.69f, 145.01f, -556.88f),
                 },
                 new()
                 {
+                    // パイレウス・パーゴラ (Y≈168)
                     MapSelector = 2,
                     AethernetId = 2015424,
                     Location = new(-242.73f, 168.05f, 321.17f),
-                    LandZone = new(-243.1f, 168.0f, 320.6f)
-                }
+                    LandZone = new(-244.14f, 168.05f, 317.43f),
+                },
             }
         };
         private static Task? _PathCalculations = null;
@@ -539,6 +674,7 @@ namespace ICE.Scheduler.Tasks
                     new(() => CalculateHub(destination), "Calculating Hub Path"),
                     new(() => CalculateDirect(destination), "Calculating Direct Path"),
                     new(() => CalculateHubAethernet(destination), "Calculate Hub Aetheryte Travel"),
+                    new(() => CalculateBoard(destination), "Calculating Board (hover platform) Path"),
                     new(() => FindBestTravel(destination, waitForBusy, distance), "Finding best pathing method")
                 );
             }
@@ -576,18 +712,25 @@ namespace ICE.Scheduler.Tasks
                 path.Value.distance = 0;
                 path.Value.Aethernet_TravelTo = 0;
                 path.Value.Aethernet_TravelFrom = 0;
+                path.Value.BoardEntry = Vector3.Zero;
+                path.Value.BoardExit = Vector3.Zero;
             }
             return true;
         }
 
-        public static Dictionary<uint, uint> PlanetProgress { get; } =
-            CosmicMoonRegistry.All.ToDictionary(m => m.TerritoryId, m => m.DefaultAethernetLogLevel);
+        public static Dictionary<uint, uint> PlanetProgress = new()
+        {
+            [1237] = 15,
+            [1291] = 15,
+            [1310] = 0,
+            [1319] = 0, // Auxesia (2026.05.25追加。エーテネット未実装のため0)
+        };
 
         private static bool? CalculateAethernet(Vector3 destination)
         {
             string tag = "Navmesh: Aethernet Calculation";
             var territoryId = Player.Territory.RowId;
-            var planetProgress = PlanetProgress[territoryId];
+            var planetProgress = PlanetProgress.GetValueOrDefault(territoryId, 0u);
 
             if (planetProgress == 0)
             {
@@ -703,6 +846,79 @@ namespace ICE.Scheduler.Tasks
 
             return true;
         }
+        // ボード(乗り口へ歩くと自動発進し到着地点へ運ばれる)を移動手段の一つとして評価する。CalculateAethernetを踏襲。
+        // コスト = 徒歩(プレイヤー→Entry) + 徒歩(Exit→目的地)。ボードの運搬自体は実質ゼロコスト扱い。
+        // 目的地がボードのExit側にある時だけこの合計が直接歩行より短く(または直接歩行が不能で)、FindBestTravelに選ばれる。
+        private static bool? CalculateBoard(Vector3 destination)
+        {
+            string tag = "Navmesh: Board Calculation";
+            var territory = Player.Territory.RowId;
+
+            if (!C.UseBoards)
+                return true;
+            if (!PlanetBoards.TryGetValue(territory, out var boardList) || boardList.Count == 0)
+                return true;
+
+            // 目的地に最も近い到着地点(Exit)を持つボードを選ぶ
+            var board = boardList.OrderBy(b => Vector3.Distance(b.Exit, destination)).FirstOrDefault();
+            if (board == null)
+                return true;
+
+            // ★ボードはExitが目的地の近く(=ショートカットになる)時だけ使う。
+            // Exitが目的地から遠い(>BoardUsefulDist)ボードを乗ると大遠回りになる(実機: 全Exitが300m超なのに
+            // ボードを選び遠回りした)。また現在地より目的地に近づかないボードも無意味。どちらも不採用(distance0で除外)。
+            const float BoardUsefulDist = 80f;
+            float exitToDest = Vector3.Distance(board.Exit, destination);
+            float playerToDest = Vector3.Distance(Player.Position, destination);
+            if (exitToDest > BoardUsefulDist || exitToDest >= playerToDest)
+            {
+                if (EzThrottler.Throttle("Board not useful msg", 3000))
+                    IceLogging.Verbose($"Board not useful (exit→dest {exitToDest:F0}m). Skipping board option.", tag);
+                return true;
+            }
+
+            var boardPath = TravelMethods[TravelTypes.Board];
+            var playerPosition = Player.Position;
+
+            if (_PathCalculations == null)
+            {
+                _PathCalculations = Task.Run(async () =>
+                {
+                    boardPath.pathTo = await FindPath(playerPosition, board.Entry);   // プレイヤー→乗り口
+                    boardPath.pathFrom = await FindPath(board.Exit, destination);     // 到着地点→目的地
+                });
+                if (EzThrottler.Throttle("Started board task"))
+                    IceLogging.Verbose("Started to calculate board path", tag);
+                return false;
+            }
+
+            if (!_PathCalculations.IsCompleted)
+            {
+                if (EzThrottler.Throttle("Calculating board path message", 1000))
+                    IceLogging.Verbose("Still calculating board path (via navmesh)", tag);
+                return false;
+            }
+
+            _PathCalculations = null;
+            float distance = 0;
+            if (boardPath.pathTo != null)
+                for (int i = 0; i < boardPath.pathTo.Count - 1; i++)
+                    distance += Vector3.Distance(boardPath.pathTo[i], boardPath.pathTo[i + 1]);
+            if (boardPath.pathFrom != null)
+                for (int i = 0; i < boardPath.pathFrom.Count - 1; i++)
+                    distance += Vector3.Distance(boardPath.pathFrom[i], boardPath.pathFrom[i + 1]);
+
+            // 両区間とも歩行経路が成立した時のみ採用(片方でも経路不能ならボードに乗っても目的地へ行けず嵌るため除外)
+            if (boardPath.pathTo != null && boardPath.pathFrom != null && distance > 0)
+            {
+                boardPath.distance = distance;
+                boardPath.BoardEntry = board.Entry;
+                boardPath.BoardExit = board.Exit;
+                IceLogging.Verbose($"Board candidate: entry={board.Entry} exit={board.Exit} totalWalk={distance:F1}", tag);
+            }
+
+            return true;
+        }
         private static bool? CalculateDirect(Vector3 destination)
         {
             string tag = "[Navmesh: Calculate Direct]";
@@ -768,13 +984,8 @@ namespace ICE.Scheduler.Tasks
             {
                 if (planetInfo.TryGetValue(NpcData.NpcType.RedAlert, out var npcInfo))
                 {
-                    if (!CosmicHelper.CriticalLocations.TryGetValue(missionId, out var approxStart))
-                    {
-                        IceLogging.Warning($"No red-alert turn-in coords for mission {missionId} on {CosmicMoonRegistry.GetDisplayName(territoryId)} — add to RedAlert_Selection", tag);
-                        return true;
-                    }
-
                     var method = TravelMethods[TravelTypes.RedAlert];
+                    var approxStart = CosmicHelper.CriticalLocations[missionId];
 
                     if (_PathCalculations == null)
                     {
@@ -845,7 +1056,7 @@ namespace ICE.Scheduler.Tasks
         {
             string tag = "[Navmesh: Calculate Hub Path]";
 
-            if (CosmicMoonRegistry.TryGetHubCenter(Player.Territory.RowId, out var HubCenter))
+            if (CosmicHelper.HubCenter.TryGetValue(Player.Territory.RowId, out var HubCenter))
             {
                 var method = TravelMethods[TravelTypes.Hub_Return];
 
@@ -919,9 +1130,9 @@ namespace ICE.Scheduler.Tasks
         {
             string tag = "[Navmesh: Calculate Hub -> Aethernet]";
             var territoryId = Player.Territory.RowId;
-            var planetProgress = PlanetProgress[territoryId];
+            var planetProgress = PlanetProgress.GetValueOrDefault(territoryId, 0u);
 
-            if (CosmicMoonRegistry.TryGetHubCenter(Player.Territory.RowId, out var HubCenter))
+            if (CosmicHelper.HubCenter.TryGetValue(Player.Territory.RowId, out var HubCenter))
             {
                 var method = TravelMethods[TravelTypes.Hub_Aethernet];
 
@@ -1051,13 +1262,9 @@ namespace ICE.Scheduler.Tasks
             if (!CosmicHelper.SheetMissionDict[missionId].IsCritical)
                 return true;
 
-            if (!CosmicHelper.CriticalLocations.TryGetValue(missionId, out var approxStart))
-            {
-                IceLogging.Warning($"No red-alert turn-in coords for mission {missionId} — hub return via NPC skipped");
-                return true;
-            }
+            var approxStart = CosmicHelper.CriticalLocations[missionId];
 
-            if (CosmicMoonRegistry.TryGetHubCenter(Player.Territory.RowId, out var HubCenter))
+            if (CosmicHelper.HubCenter.TryGetValue(Player.Territory.RowId, out var HubCenter))
             {
                 if (NpcData.MoonNpcs.TryGetValue(territoryId, out var planetInfo))
                 {
@@ -1153,6 +1360,7 @@ namespace ICE.Scheduler.Tasks
 
             if (bestTravel.Key == TravelTypes.Aethernet)
             {
+                randomCounter = 0; // Delay_Aethernet: travel毎に遅延カウンタをリセット
                 var targetAether = bestTravel.Value.Aethernet_TravelTo;
                 var AethernetLoc = PlanetAethernet[Player.Territory.RowId].Where(x => x.AethernetId == targetAether).FirstOrDefault();
                 P.TaskManager.InsertMulti
@@ -1172,6 +1380,7 @@ namespace ICE.Scheduler.Tasks
             }
             else if (bestTravel.Key == TravelTypes.Hub_Aethernet)
             {
+                randomCounter = 0; // Delay_Aethernet: travel毎に遅延カウンタをリセット
                 var targetAether = bestTravel.Value.Aethernet_TravelTo;
                 var AethernetLoc = PlanetAethernet[Player.Territory.RowId].Where(x => x.AethernetId == targetAether).FirstOrDefault();
                 P.TaskManager.InsertMulti
@@ -1184,13 +1393,8 @@ namespace ICE.Scheduler.Tasks
             }
             else if (bestTravel.Key == TravelTypes.RedAlert)
             {
-                if (!NpcData.TryGetNpc(Player.Territory.RowId, NpcData.NpcType.RedAlert, out var redAlertNpc))
-                {
-                    IceLogging.Warning($"No red-alert NPC configured for {CosmicMoonRegistry.GetDisplayName(Player.Territory.RowId)}");
-                    P.TaskManager.Insert(() => DestinationPathing(destination, waitForBusy, distance), "Pathing to our destination: Basic");
-                    return true;
-                }
-
+                randomCounter = 0; // Delay_Aethernet: travel毎に遅延カウンタをリセット
+                var redAlertNpc = NpcData.MoonNpcs[Player.Territory.RowId][NpcData.NpcType.RedAlert];
                 P.TaskManager.InsertMulti
                     (
                         new(() => DestinationPathing(redAlertNpc.Location_Circle), "Traveling to the Red Alert NPC"),
@@ -1200,19 +1404,23 @@ namespace ICE.Scheduler.Tasks
             }
             else if (bestTravel.Key == TravelTypes.Hub_RedAlert)
             {
-                if (!NpcData.TryGetNpc(Player.Territory.RowId, NpcData.NpcType.RedAlert, out var redAlertNpc))
-                {
-                    IceLogging.Warning($"No red-alert NPC configured for {CosmicMoonRegistry.GetDisplayName(Player.Territory.RowId)}");
-                    P.TaskManager.Insert(() => DestinationPathing(destination, waitForBusy, distance), "Pathing to our destination: Basic");
-                    return true;
-                }
-
+                randomCounter = 0; // Delay_Aethernet: travel毎に遅延カウンタをリセット
+                var redAlertNpc = NpcData.MoonNpcs[Player.Territory.RowId][NpcData.NpcType.RedAlert];
                 P.TaskManager.InsertMulti
                     (
                         new(() => Task_Repair.HubCheck(), "Returning back to hub"),
                         new(() => DestinationPathing(redAlertNpc.Location_Circle), "Traveling to the Red Alert NPC"),
                         new(() => TravelToRedAlertNpc(redAlertNpc, missionId), "Interacting + Traveling Via RedAlert NPC"),
                         new(() => DestinationPathing(destination, waitForBusy, distance), "Pathing to our destination: Red Alert")
+                    );
+            }
+            else if (bestTravel.Key == TravelTypes.Board)
+            {
+                _boardRidden = false; // 乗車検知をリセット
+                P.TaskManager.InsertMulti
+                    (
+                        new(() => TravelToBoard(bestTravel.Value), "Riding board (hover platform) shortcut"),
+                        new(() => DestinationPathing(destination, waitForBusy, distance, mountBeforeMove: true), "Pathing from board exit to destination")
                     );
             }
             else
@@ -1222,6 +1430,56 @@ namespace ICE.Scheduler.Tasks
 
             return true;
         }
+        private static bool _boardRidden = false;
+        // ボード移動の実行: 乗り口(Entry)へ歩く→乗ると自動発進(Condition 101でnavmesh停止=既存処理)→到着地点(Exit)で完了。
+        // オブジェクト操作は不要。Entry座標へ到達すると発進するので、Entryへ歩いて乗車→運搬を待つ→Exit到着で次タスクへ。
+        private static unsafe bool? TravelToBoard(PathInfo board)
+        {
+            string tag = "[Navmesh: Board ride]";
+            var entry = board.BoardEntry;
+            var exit = board.BoardExit;
+
+            // 乗車中(Condition 101): ボードが運んでいる。navmeshは既存処理が止めるが念のため止め、待つ。
+            if (Svc.Condition[ConditionFlag.Unknown101])
+            {
+                _boardRidden = true;
+                if (P.Navmesh.IsRunning())
+                    P.Navmesh.Stop();
+                if (EzThrottler.Throttle("Board riding message", 1000))
+                    IceLogging.Verbose("Riding the board, waiting for arrival...", tag);
+                return false;
+            }
+
+            // 到着地点付近に居る → 完了(EntryとExitは遠く離れているため、Exit付近に居る=乗車して運ばれた証拠)。
+            // Condition 101の検知に依存せず位置で判定するので、乗車フラグが万一拾えなくても確実に完了できる。
+            if (Player.DistanceTo(exit) < 10f)
+            {
+                IceLogging.Info("Board ride complete, arrived near exit", tag);
+                return true;
+            }
+
+            // まだ乗っていない＆到着していない → 乗り口へ歩いて乗車させる
+            if (Player.DistanceTo(entry) > 1.5f)
+            {
+                if (!Task_NavTo(entry, waitForBusy: false, distance: 1.5f).Value)
+                {
+                    if (EzThrottler.Throttle("Board entry move message", 1000))
+                        IceLogging.Verbose($"Moving to board entry. Distance: {Player.DistanceTo(entry):F1}", tag);
+                }
+                return false;
+            }
+
+            // 乗り口に到達済みだがまだ発進していない → 発進を待つ(数tick)。発進しなければスタック検知/スキップに委ねる。
+            if (P.Navmesh.IsRunning())
+                P.Navmesh.Stop();
+            if (EzThrottler.Throttle("Board waiting to launch", 1000))
+                IceLogging.Verbose("At board entry, waiting for it to launch...", tag);
+            return false;
+        }
+
+        private static int counter = 0;
+        // 公式0.0.78.1より移植: Delay_Aethernet(エーテネット/NPC移動前のランダム遅延)用カウンタ。travel投入毎にリセット。
+        private static int randomCounter = 0;
 
         private static unsafe bool? TravelToAethershard(PathInfo shardInfo)
         {
@@ -1240,58 +1498,44 @@ namespace ICE.Scheduler.Tasks
 
             if (Player.DistanceTo(targetAether.Location) < 5)
             {
-                void InteractWithShard()
+                if (GenericHelpers.TryGetAddonByName<AtkUnitBase>("TelepotTown", out var TelepotTown) && TelepotTown->IsReady)
                 {
-                    if (GenericHelpers.TryGetAddonByName<AtkUnitBase>("TelepotTown", out var TelepotTown) && TelepotTown->IsReady)
+                    // 公式移植: テレポート確定の直前に人間らしいランダム遅延(検知回避)
+                    if (C.Delay_Aethernet)
                     {
-                        if (EzThrottler.Throttle("Use Aethernet", 100))
+                        int delay = _random.Next(1999, 6001);
+                        if (EzThrottler.Throttle("Delay for aethernet travel", delay))
+                            randomCounter += 1;
+
+                        if (randomCounter < 2)
                         {
-                            GenericHandlers.FireCallback("TelepotTown", true, 11, menuId);
+                            if (EzThrottler.Throttle("Wait for random encounter"))
+                                IceLogging.Verbose("Waiting for the random timer to fully randomize", tag);
+                            return false;
                         }
                     }
-                    else
-                    {
-                        var aethernet = Svc.Objects.Where(x => x.BaseId == targetId).FirstOrDefault();
-                        if (aethernet != null)
-                        {
-                            if (Player.Mounted || Player.IsJumping)
-                            {
-                                Utils.Dismount();
-                                return;
-                            }
-                            else if (!Player.IsBusy)
-                            {
-                                Utils.TargetgameObject(aethernet);
-                                Utils.InteractWithObject(aethernet);
-                            }
-                        }
-                    }
-                }
 
-                if (C.Delay_Aethernet)
-                {
-                    int delay = random.Next(1999, 6001);
-                    if (EzThrottler.Throttle("Delay for npc travel", delay))
+                    if (EzThrottler.Throttle("Use Aethernet", 100))
                     {
-                        randomCounter += 1;
-                    }
-
-                    if (randomCounter < 2)
-                    {
-                        if (EzThrottler.Throttle("Wait for random encounter"))
-                            IceLogging.Verbose("Waiting for the random timer to fully randomize");
-
-                        return false;
-                    }
-                    else
-                    {
-                        if (EzThrottler.Throttle("Interact with shard"))
-                            InteractWithShard();
+                        GenericHandlers.FireCallback("TelepotTown", true, 11, menuId);
                     }
                 }
                 else
                 {
-                    InteractWithShard();
+                    var aethernet = Svc.Objects.Where(x => x.BaseId == targetId).FirstOrDefault();
+                    if (aethernet != null)
+                    {
+                        if (Player.Mounted || Player.IsJumping)
+                        {
+                            Utils.Dismount();
+                            return false;
+                        }
+                        else if (!Player.IsBusy)
+                        {
+                            Utils.TargetgameObject(aethernet);
+                            Utils.InteractWithObject(aethernet);
+                        }
+                    }
                 }
             }
             else if (Player.DistanceTo(destinationAether.Location) < 10)
@@ -1319,22 +1563,19 @@ namespace ICE.Scheduler.Tasks
             {
                 if (Player.DistanceTo(redAlertNpc.Location_Circle) < 5)
                 {
-                    if (EzThrottler.Throttle("Close enough log"))
-                        IceLogging.Verbose("Close enough to npc to travel", tag);
+                    IceLogging.Verbose("Close enough to npc to travel", tag);
 
+                    // 公式移植: NPC経由テレポートの選択直前にランダム遅延(検知回避)
                     if (C.Delay_Aethernet)
                     {
-                        int delay = random.Next(1999, 6001);
+                        int delay = _random.Next(1999, 6001);
                         if (EzThrottler.Throttle("Delay for npc travel", delay))
-                        {
                             randomCounter += 1;
-                        }
 
                         if (randomCounter < 2)
                         {
                             if (EzThrottler.Throttle("Wait for random encounter"))
-                                IceLogging.Verbose("Waiting for the random timer to fully randomize");
-
+                                IceLogging.Verbose("Waiting for the random timer to fully randomize", tag);
                             return false;
                         }
                     }
@@ -1388,18 +1629,17 @@ namespace ICE.Scheduler.Tasks
                     if (!PlayerHelper.IsScreenReady())
                         return false;
                     else
-                    {
-                        randomCounter = 0;
-                        IceLogging.Info("We've reached the red alert destination, need to just do the final pathing", tag);
-                        return true;
-                    }
+
+                    IceLogging.Info("We've reached the red alert destination, need to just do the final pathing", tag);
+                    return true;
                 }
             }
             else
             {
-                randomCounter = 0;
                 return true;
             }
+
+
 
             return false;
         }

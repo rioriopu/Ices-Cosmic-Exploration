@@ -1,6 +1,4 @@
-﻿using ECommons.GameHelpers;
-using FFXIVClientStructs.FFXIV.Client.UI.Agent;
-using ICE.Utilities;
+﻿using FFXIVClientStructs.FFXIV.Client.UI.Agent;
 using ICE.Utilities.Cosmic_Helper;
 
 namespace ICE.Ui.DebugWindowTabs
@@ -27,11 +25,7 @@ namespace ICE.Ui.DebugWindowTabs
                 int _radius = MapInfo.GetRow((uint)TableRow).Radius.ToInt();
                 IceLogging.Debug($"X: {_x} Y: {_y} Radius: {_radius}");
 
-                // In cosmic zone use where you are; otherwise Sinus so debug tools still work out of hub.
-                var territoryId = PlayerHelper.IsInCosmicZone()
-                    ? Player.Territory.RowId
-                    : CosmicMoonRegistry.Sinus.TerritoryId;
-                Utils.SetGatheringRing(territoryId, _x, _y, _radius);
+                Utils.SetGatheringRing(1237, _x, _y, _radius);
             }
             ImGui.SetNextItemWidth(125);
             ImGui.InputInt("Map X (Sheet)", ref posX);

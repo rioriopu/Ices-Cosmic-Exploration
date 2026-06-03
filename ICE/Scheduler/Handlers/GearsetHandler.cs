@@ -19,14 +19,14 @@ namespace ICE.Scheduler.Handlers
                 {
                     if (gs.Flags.HasFlag(RaptureGearsetModule.GearsetFlag.MainHandMissing))
                     {
+                        // 「代用しますか?」ダイアログが出ている → 「代用する」を押して確定し、即return。
+                        // ここでreturnしないと下の無条件EquipGearsetが代用ダイアログを再度開き、ジョブ変更後に誰も閉じず画面に残る。
                         if (GenericHelpers.TryGetAddonMaster<SelectYesno>("SelectYesno", out var select) && select.IsAddonReady)
                         {
                             select.Yes();
+                            return;
                         }
-                        else
-                        {
-                            gearsets->EquipGearset(gs.Id);
-                        }
+                        // ダイアログ未表示 → 下の共通EquipGearsetでダイアログを出す(二重装備しない)
                     }
 
                     var result = gearsets->EquipGearset(gs.Id);
@@ -34,9 +34,6 @@ namespace ICE.Scheduler.Handlers
                     return;
                 }
             }
-
-            if (EzThrottler.Throttle("No gearsets"))
-                IceLogging.Verbose($"Hewwo. We have gotten thiws faw, which means thawt the geawset fow {job.ToString()} doesn't exist. Pwease make owne", "Task: Equip Gearset");
             return;
         }
     }

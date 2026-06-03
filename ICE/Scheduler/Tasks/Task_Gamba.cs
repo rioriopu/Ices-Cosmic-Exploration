@@ -96,6 +96,30 @@ namespace ICE.Scheduler.Tasks
             if (changed)
                 C.Save();
         }
+
+        /// <summary>
+        /// 現在のガンバホイールに出ているアイテムのうち、GambaItemWeightsに未登録のものを自動登録する。
+        /// Auxesia等の新景品をIDハードコードなしで設定UIに出すためのフォールバック(Type=Other, Weight=0)。
+        /// 既知アイテムは DefaultGambaItems 側で正しいカテゴリ付き登録される。
+        /// </summary>
+        private static void RegisterUnknownWheelItems(WKSLottery gamba)
+        {
+            bool changed = false;
+            void TryAdd(uint id)
+            {
+                if (id == 0) return;
+                if (C.GambaItemWeights.Any(x => x.ItemId == id)) return;
+                C.GambaItemWeights.Add(new Gamba { ItemId = id, Weight = 0, Type = GambaType.Other });
+                changed = true;
+                IceLogging.Info($"[Gamba] 未登録のホイールアイテムを自動登録: ItemId={id} (Type=Other, Weight=0)");
+            }
+
+            foreach (var item in gamba.LeftWheelItems) TryAdd((uint)item.itemId);
+            foreach (var item in gamba.RightWheelItems) TryAdd((uint)item.itemId);
+
+            if (changed)
+                C.Save();
+        }
         public static void Enqueue()
         {
             EnsureGambaWeightsInitialized();
@@ -126,7 +150,7 @@ namespace ICE.Scheduler.Tasks
             string handle = "Task_Gamba: PathTo";
             var zoneId = Player.Territory;
 
-            if (NpcData.TryGetNpc(Player.Territory.RowId, NpcData.NpcType.Gamba, out var npcEntry))
+            if (NpcData.MoonNpcs[Player.Territory.RowId].TryGetValue(NpcData.NpcType.Gamba, out var npcEntry))
             {
                 Vector3 randomPos = NpcData.GetRandomPointInCircle(npcEntry.Location_Circle, 0.5f);
                 if (!Task_NavmeshMove.Task_NavTo(randomPos, distance: 5, npcLoc: npcEntry.Location_Npc).Value)
@@ -163,7 +187,7 @@ namespace ICE.Scheduler.Tasks
             }
             else
             {
-                if (NpcData.TryGetNpc(Player.Territory.RowId, NpcData.NpcType.Gamba, out var gambaNpc))
+                if (NpcData.MoonNpcs[Player.Territory.RowId].TryGetValue(NpcData.NpcType.Gamba, out var gambaNpc))
                 {
                     Utils.TryGetObjectByDataId(gambaNpc.NpcId, out var researchNpc);
                     if (EzThrottler.Throttle("Interacting with gambaNpc!"))
@@ -207,10 +231,12 @@ namespace ICE.Scheduler.Tasks
 
             if (GenericHelpers.TryGetAddonMaster<WKSLottery>("WKSLottery", out var gamba) && gamba.IsAddonReady)
             {
-                var territory = Player.Territory.RowId;
-                if (!CosmicMoonRegistry.TryGetPlanetCreditItemId(territory, out var itemId))
-                    return false;
+                // ホイールに出た未登録アイテム(Auxesia等の新景品)を自動登録。IDハードコード不要で将来も追随。
+                RegisterUnknownWheelItems(gamba);
 
+                var territory = Player.Territory.RowId;
+                if (!CosmicHelper.PlanetCreditInfo.TryGetValue(territory, out var itemId))
+                    return true; // 未対応惑星では通貨が引けないので何もしない
                 PlayerHelper.GetItemCount(itemId, out var credits);
 
                 bool confirmEnabled, leftWheelEnabled, rightWheelEnabled;
@@ -288,8 +314,7 @@ namespace ICE.Scheduler.Tasks
         private static unsafe bool HasEnoughCredits()
         {
             var territory = Player.Territory.RowId;
-            if (!CosmicMoonRegistry.TryGetPlanetCreditItemId(territory, out var itemId))
-                return false;
+            var itemId = CosmicHelper.PlanetCreditInfo[territory];
 
             PlayerHelper.GetItemCount(itemId, out var credits);
             return credits >= 1000;

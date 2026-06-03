@@ -5,7 +5,6 @@ using ICE.Sounds;
 using ICE.Utilities.Cosmic_Helper;
 using ICE.Utilities.GatheringHelper;
 using System.Collections.Generic;
-using System.Linq;
 using static ECommons.UIHelpers.AddonMasterImplementations.AddonMaster;
 
 namespace ICE.Scheduler.Tasks
@@ -18,6 +17,8 @@ namespace ICE.Scheduler.Tasks
             Weather,
             Timed,
             Sequence,
+            Master,  // マスターシップミッション (Unknown2==true, 各職「MASTER：」3つ)
+            ExPlus,  // LevelGroup=6 (「EX+」高機能製作/採集ミッション)
             Ex,
             A,
             B,
@@ -32,6 +33,8 @@ namespace ICE.Scheduler.Tasks
             [MissionKind.Weather] = new(),
             [MissionKind.Timed] = new(),
             [MissionKind.Sequence] = new(),
+            [MissionKind.Master] = new(),
+            [MissionKind.ExPlus] = new(),
             [MissionKind.Ex] = new(),
             [MissionKind.A] = new(),
             [MissionKind.B] = new(),
@@ -51,6 +54,7 @@ namespace ICE.Scheduler.Tasks
                     new(() => CheckTabs(), "Checking tabs for valid missions")
                 );
         }
+        private static int GrabMission_Counter = 0;
         private static void ReOpenMissionUi(string tag)
         {
             if (GenericHelpers.TryGetAddonMaster<WKSHud>("WKSHud", out var moonHud) && moonHud.IsAddonReady)
@@ -76,10 +80,13 @@ namespace ICE.Scheduler.Tasks
                 entry = MissionKind.Sequence;
             else if (attribute.HasFlag(MissionAttributes.Critical))
                 entry = MissionKind.Critical;
+            else if (attribute.HasFlag(MissionAttributes.Mastership))
+                entry = MissionKind.Master; // マスターシップ(LG6+Unknown2)。EX+(LG6)とはここで分離
             else if (rank != 0)
             {
                 entry = rank switch
                 {
+                    6 => MissionKind.ExPlus, // EX+ (マスターシップ)。従来は_=>Unknownに落ちて選択候補から除外されていた
                     5 => MissionKind.Ex,
                     4 => MissionKind.A,
                     3 => MissionKind.B,
@@ -102,13 +109,25 @@ namespace ICE.Scheduler.Tasks
 
             var playerTerritory = Player.Territory.RowId;
 
-            var enabledPerMoon = string.Join("\n",
-                CosmicMoonRegistry.All.Select(m =>
-                    $"{m.DisplayName} [{m.TerritoryId}] = [{CosmicMoonRegistry.CountEnabledMissions(m.TerritoryId)}]"));
+            var SinusCount = CosmicHelper.SheetMissionDict
+                .Where(x => C.MissionConfig[x.Key].Enabled)
+                .Where(x => x.Value.TerritoryId == 1237);
+            var PhaennaCount = CosmicHelper.SheetMissionDict
+                .Where(x => C.MissionConfig[x.Key].Enabled)
+                .Where(x => x.Value.TerritoryId == 1291);
+            var OizysCount = CosmicHelper.SheetMissionDict
+                .Where(x => C.MissionConfig[x.Key].Enabled)
+                .Where(x => x.Value.TerritoryId == 1310);
+            var AuxesiaCount = CosmicHelper.SheetMissionDict
+                .Where(x => C.MissionConfig[x.Key].Enabled)
+                .Where(x => x.Value.TerritoryId == 1319);
 
             IceLogging.Info("This is just general message to let me know WHAT planet you're on, and where you have things enabled\n" +
                 "If you're not running things that requires these to be enabled, you can ignore this if you're reading this.\n" +
-                $"{enabledPerMoon}\n" +
+                $"Sinus [1237] = [{SinusCount.Count()}]\n" +
+                $"Phaenna [1291] = [{PhaennaCount.Count()}]\n" +
+                $"Oizys [1310] = [{OizysCount.Count()}]\n" +
+                $"Auxesia [1319] = [{AuxesiaCount.Count()}]\n" +
                 $"Current TerritoryID: {playerTerritory}");
 
             var modeSelected = Mission_Settings.Mode;
@@ -120,6 +139,11 @@ namespace ICE.Scheduler.Tasks
                 bool provisional = mission.Value.IsProvisional;
 
                 var missionId = mission.Key;
+
+                // 未開拓エリア等でノードが見つからずunsupported登録されたミッションは候補から除外し、再選択しない。
+                // これにより採取不能ミッションを自動スキップして別ミッションへ進める。
+                if (UnsupportedMissions.Ids.Contains(missionId))
+                    continue;
 
                 if (C.MissionConfig.TryGetValue(missionId, out var config))
                 {
@@ -335,81 +359,51 @@ namespace ICE.Scheduler.Tasks
                     switch (type)
                     {
                         case MissionTypes.Critical:
-                        {
-                            if (MissionLibrary[MissionKind.Critical].Count > 0)
                             {
-                                P.TaskManager.Enqueue(() => CheckMissions(MissionLibrary[MissionKind.Critical], type), "Checking Critical tab for missions");
+                                if (MissionLibrary[MissionKind.Critical].Count > 0)
+                                {
+                                    P.TaskManager.Enqueue(() => CheckMissions(MissionLibrary[MissionKind.Critical], type), "Checking Critical tab for missions");
+                                }
+                                break;
                             }
-                            break;
-                        }
                         case MissionTypes.Provisional:
-                        {
-                            List<uint> provisionals = new();
-                            foreach (var ProvisionalPrio in C.MissionPrio)
                             {
-                                MissionKind key = ProvisionalPrio switch
+                                List<uint> provisionals = new();
+                                foreach (var ProvisionalPrio in C.MissionPrio)
                                 {
-                                    ProvisionalTypes.ProvisionalWeather => MissionKind.Weather,
-                                    ProvisionalTypes.ProvisionalSequential => MissionKind.Sequence,
-                                    ProvisionalTypes.ProvisionalTimed => MissionKind.Timed,
-                                    _ => MissionKind.Unknown
-                                };
-
-                                if (MissionLibrary.TryGetValue(key, out var missionList))
-                                {
-                                    foreach (var jobId in C.JobPrio)
+                                    MissionKind key = ProvisionalPrio switch
                                     {
-                                        // Add missions that match this provisional type AND this job
-                                        foreach (var missionId in missionList)
+                                        ProvisionalTypes.ProvisionalWeather => MissionKind.Weather,
+                                        ProvisionalTypes.ProvisionalSequential => MissionKind.Sequence,
+                                        ProvisionalTypes.ProvisionalTimed => MissionKind.Timed,
+                                        _ => MissionKind.Unknown
+                                    };
+
+                                    if (MissionLibrary.TryGetValue(key, out var missionList))
+                                    {
+                                        foreach (var jobId in C.JobPrio)
                                         {
-                                            if (CosmicHelper.SheetMissionDict.TryGetValue(missionId, out var missionInfo) && missionInfo.Jobs.Contains(jobId) && !provisionals.Contains(missionId))
+                                            // Add missions that match this provisional type AND this job
+                                            foreach (var missionId in missionList)
                                             {
-                                                provisionals.Add(missionId);
+                                                if (CosmicHelper.SheetMissionDict.TryGetValue(missionId, out var missionInfo) && missionInfo.Jobs.Contains(jobId) && !provisionals.Contains(missionId))
+                                                {
+                                                    provisionals.Add(missionId);
+                                                }
                                             }
                                         }
                                     }
                                 }
-                            }
-                            if (provisionals.Count > 0)
-                            {
-                                P.TaskManager.Enqueue(() => CheckMissions(provisionals, type), "Checking Provisional tab for missions");
-                            }
-                            break;
-                        }
-                        case MissionTypes.Standard:
-                        {
-                            var mode = Mission_Settings.Mode;
-                            if (mode is ModeSelect.MissionGoldMode)
-                            {
-                                List<uint> basicMissions = new();
-                                List<MissionKind> MissionRanks = new() { MissionKind.D, MissionKind.C, MissionKind.B, MissionKind.A, MissionKind.Ex };
-                                foreach (var rank in MissionRanks)
+                                if (provisionals.Count > 0)
                                 {
-                                    if (MissionLibrary.TryGetValue(rank, out var missionList))
-                                    {
-                                        foreach (var mission in missionList)
-                                        {
-                                            if (!basicMissions.Contains(mission))
-                                                basicMissions.Add(mission);
-                                        }
-                                    }
+                                   P.TaskManager.Enqueue(() => CheckMissions(provisionals, type), "Checking Provisional tab for missions");
                                 }
-                                P.TaskManager.Enqueue(() => CheckMissions(basicMissions, type, Mission_Settings.SelectedJob));
-                                /*
-                                foreach (var job in C.JobPrio)
-                                {
-                                    if (job == Mission_Settings.SelectedJob)
-                                        continue;
-                                    else
-                                        P.TaskManager.Enqueue(() => CheckMissions(basicMissions, type, job));
-                                }
-                                */
                                 break;
                             }
-                            else
+                        case MissionTypes.Standard:
                             {
                                 List<uint> basicMissions = new();
-                                List<MissionKind> MissionRanks = new() { MissionKind.Ex, MissionKind.A, MissionKind.B, MissionKind.C, MissionKind.D };
+                                List<MissionKind> MissionRanks = new() { MissionKind.Master, MissionKind.ExPlus, MissionKind.Ex, MissionKind.A, MissionKind.B, MissionKind.C, MissionKind.D };
                                 foreach (var rank in MissionRanks)
                                 {
                                     if (MissionLibrary.TryGetValue(rank, out var missionList))
@@ -424,15 +418,15 @@ namespace ICE.Scheduler.Tasks
                                 P.TaskManager.Enqueue(() => CheckMissions(basicMissions, type), "Checking Basic Mission tab for missions");
                                 break;
                             }
-                        }
                         case MissionTypes.DroneSearch:
-                        {
-                            if (C.Cosmodrone_Run && CosmicMoonRegistry.TryGetMoon(Player.Territory.RowId, out var hub) && hub.HasCosmodrome)
                             {
-                                P.TaskManager.Enqueue(() => Task_ArtifactSearch.RefreshMapInfo(), "Inserting Drone Task");
+                                // ドローン自動探査の起動。旧IsInOizys()ではOizys限定でAuxesiaで起動しなかった→IsInDroneZone()で両対応。
+                                if (C.Cosmodrone_Run && PlayerHelper.IsInDroneZone())
+                                {
+                                    P.TaskManager.Enqueue(() => Task_ArtifactSearch.RefreshMapInfo(), "Inserting Drone Task");
+                                }
+                                break;
                             }
-                            break;
-                        }
                     }
                 }
 
@@ -444,7 +438,7 @@ namespace ICE.Scheduler.Tasks
             }
             return true;
         }
-        private static bool? CheckMissions(List<uint> missionList, MissionTypes type, uint Goldjob = 0)
+        private static bool? CheckMissions(List<uint> missionList, MissionTypes type)
         {
             string tag = "[Check Missions: Queue]";
             void LogInfo(uint missionId)
@@ -466,12 +460,47 @@ namespace ICE.Scheduler.Tasks
             {
                 var basicMissionList = CosmicHandler.Basic_AvailableMissions();
                 var specialMissionList = CosmicHandler.Provisional_AvailableMissions();
-                var criticalMissions = CosmicHandler.Critical_AvailableMissions();
+                var visibleMissions = CosmicHandler.VisibleMissions();
                 var mode = Mission_Settings.Mode;
 
-                var job = Goldjob != 0 ? Goldjob : Mission_Settings.SelectedJob;
+                // === マスターシップ最優先 (pre-handler) ===
+                // マスターシップミッション(「MASTER：」, Unknown2)は SelectedTab=3 のタブでのみ MissionList に出現する
+                // (GetBasicMissions/GetProvisionalMissions には含まれない。実機診断で確定)。
+                // ユーザーがUIで有効化したMASTERミッションがある場合のみ、タブ3へ移動し最優先で受注する。
+                // (config.Enabledで限定するので、RelicMode等で未有効化なら従来動作を維持する)
+                bool anyMasterEnabled = MissionLibrary[MissionKind.Master].Any(m => C.MissionConfig.TryGetValue(m, out var mc) && mc.Enabled);
+                if (type == MissionTypes.Standard && anyMasterEnabled)
+                {
+                    int curTab = -99;
+                    try { curTab = AgentWKSMissionEx.selectedTab(); } catch { }
 
-                if (CorrectJobTab(job))
+                    if (curTab != 3)
+                    {
+                        if (FrameThrottler.Throttle("Selecting mastership tab", 8))
+                        {
+                            missionInfo.MastershipMissions();    // ボタン20 (マスターシップタブ)
+                            AgentWKSMissionEx.SetSelectedTab(3); // バックアップ: SelectedTab=3 直書き
+                        }
+                        return false; // タブ切替待ち
+                    }
+
+                    // タブ3: マスターシップミッションが MissionList(VisibleMissions) に出る
+                    var visMaster = CosmicHandler.VisibleMissions();
+                    var masterMission = MissionLibrary[MissionKind.Master]
+                        .Where(m => C.MissionConfig.TryGetValue(m, out var c) && c.Enabled)
+                        .FirstOrDefault(m => visMaster.Contains(m));
+                    if (masterMission != 0)
+                    {
+                        IceLogging.Info($"マスターシップミッションを最優先で受注します: {masterMission}", tag);
+                        LogInfo(masterMission);
+                        Insert_GrabMissionTask(masterMission);
+                        return true;
+                    }
+                    // タブ3だがまだ MissionList に反映されていない → 次tickで再評価(MissionList更新待ち)
+                    return false;
+                }
+
+                if (OpenCorrectTab(missionList, missionInfo))
                 {
                     if (mode == ModeSelect.LevelMode)
                     {
@@ -526,6 +555,7 @@ namespace ICE.Scheduler.Tasks
                     }
                     else if (mode == ModeSelect.RelicMode)
                     {
+                        var job = Mission_Settings.SelectedJob;
                         var relicInfo = CosmicHelper.Cosmic_ClassInfo();
                         var classInfo = relicInfo[job];
 
@@ -766,11 +796,11 @@ namespace ICE.Scheduler.Tasks
                             IceLogging.Verbose($"Checking missions for the following mode:\n" +
                                 $"Mode: {type}\n" +
                                 $"Loaded mission count: {missionList.Count()}\n" +
-                                $"Amount of available missions: {criticalMissions.Count()}", tag);
+                                $"Amount of viable missions: {visibleMissions.Count()}", tag);
 
                             foreach (var missionId in missionList)
                             {
-                                if (criticalMissions.Contains(missionId))
+                                if (visibleMissions.Contains(missionId))
                                 {
                                     LogInfo(missionId);
                                     Insert_GrabMissionTask(missionId);
@@ -795,6 +825,44 @@ namespace ICE.Scheduler.Tasks
             }
 
             return false;
+        }
+        // 現在「接近中(grabしようとして移動中)」のミッションID。0=なし。
+        // ミッションへ向かう途中でスタック(到達不能)した際、ハードストップ(Task_NavmeshMove)から
+        // どのミッションをスキップすべきか参照するために公開する。
+        public static uint CurrentGrabTarget = 0;
+
+        // 未開拓エリア等で採取ノードが見つからない/到達できないミッションをunsupported登録し、現在のgrabシーケンスを
+        // 中止してミッション選択(GrabMission)からやり直す。RefreshMissionLibraryがunsupportedを除外するので別ミッションが選ばれる。
+        // ミッションはまだ掴んでいない(CheckForMovementRequiredはGrabMissionの前段)ので放棄(Abandon)は不要。
+        public static void SkipUnsupportedAndReselect(uint missionId)
+        {
+            if (missionId != 0)
+                UnsupportedMissions.Ids.Add(missionId);
+            CurrentGrabTarget = 0;
+            if (P.Navmesh.Installed && P.Navmesh.IsRunning())
+                P.Navmesh.Stop();
+            P.TaskManager.Tasks.Clear();
+            SchedulerMain.State = IceState.GrabMission;
+        }
+        // 指定ミッションをunsupported登録するだけ(状態変更なし)。ハードストップの拠点脱出時に汚染ミッションを除外するため。
+        public static void MarkUnsupported(uint id)
+        {
+            if (id != 0)
+                UnsupportedMissions.Ids.Add(id);
+        }
+        // 既に取得済みの現行ミッション遂行中に到達不能でスタックした場合、そのミッションをunsupported登録して放棄し、
+        // 別ミッションへ進む(ハードストップから呼ばれる)。RefreshMissionLibraryがunsupportedを除外するので再選択されない。
+        public static void MarkCurrentMissionUnsupportedAndAbandon()
+        {
+            var id = CosmicHelper.CurrentLunarMission;
+            if (id != 0)
+                UnsupportedMissions.Ids.Add(id);
+            CurrentGrabTarget = 0;
+            if (P.Navmesh.Installed && P.Navmesh.IsRunning())
+                P.Navmesh.Stop();
+            P.TaskManager.Tasks.Clear();
+            Task_AbandonMission.ForceAbandon = true;
+            SchedulerMain.State = IceState.AbandonMission;
         }
         private static void Insert_GrabMissionTask(uint missionId)
         {
@@ -841,6 +909,9 @@ namespace ICE.Scheduler.Tasks
         {
             string tag = "[Check Missions: Movement Check]";
 
+            // このミッションへ向かって移動中であることを記録。途中でスタックしたらハードストップがこれをスキップ対象にする。
+            CurrentGrabTarget = missionId;
+
             var sheetInfo = CosmicHelper.SheetMissionDict[missionId];
             var missionConfig = C.MissionConfig[missionId];
 
@@ -858,12 +929,32 @@ namespace ICE.Scheduler.Tasks
             {
                 var missionTerritory = sheetInfo.TerritoryId;
                 var mapId = sheetInfo.MapPosition;
-                var gatherInfo = GatheringRouteLoader.GetRoute(missionTerritory, mapId);
+                // 静的yamlルートが無ければ実機ノードから動的生成(Auxesia等の未yamlゾーン対応)
+                var gatherInfo = GatheringRouteLoader.GetRouteOrDynamic(missionTerritory, mapId);
 
-                if (gatherInfo == null || gatherInfo.Count == 0)
+                if (gatherInfo.Count == 0)
                 {
-                    IceLogging.Error("Hey, so this is actually missing the information for it. So going to just actually add it to the unsupported mission list", tag);
-                    UnsupportedMissions.Ids.Add(missionId);
+                    // ノードがまだ読み込まれていない可能性。ミッションフラグへ向かってノードをストリームインさせる
+                    var flagWorld = GatheringRouteLoader.FlagToWorld(missionTerritory, mapId);
+                    if (flagWorld.HasValue)
+                    {
+                        if (Player.DistanceTo(flagWorld.Value) < 15f)
+                        {
+                            IceLogging.Error("Arrived at the mission flag but found no gathering nodes nearby. Marking unsupported and re-selecting another mission.", tag);
+                            SkipUnsupportedAndReselect(missionId);
+                            return true;
+                        }
+
+                        IceLogging.Verbose("No authored route and no nodes loaded yet; heading to the mission flag so gathering nodes stream in.", tag);
+                        // 到達判定を12mに緩める(既定2m)。未開拓/マップ端のミッションはFlagToWorldが低い不達点を指し、
+                        // 2mまで近づけず移動タスクで永久に詰まる→上の「15m以内ならunsupported」判定に辿り着けずスタックする。
+                        // 12mで到達扱いにすれば、次サイクルで15m判定が発火しミッションをスキップして別ミッションへ進める。
+                        Task_NavmeshMove.Enqueue_NavmeshTask(flagWorld.Value, distance: 12f);
+                        return true;
+                    }
+
+                    IceLogging.Error("Could not resolve a route, live nodes, or the mission flag location. Marking unsupported and re-selecting another mission.", tag);
+                    SkipUnsupportedAndReselect(missionId);
                     return true;
                 }
                 else
@@ -888,13 +979,16 @@ namespace ICE.Scheduler.Tasks
             {
                 var location = sheetInfo.MapPosition;
                 var territory = sheetInfo.TerritoryId;
-                if (!GatheringUtil.MoonFishingLocations.TryGetValue(territory, out var zoneFishing)
-                    || !zoneFishing.TryGetValue(location, out var fishingHole)
-                    || fishingHole.Count == 0)
+                // territory/locationを直接インデックスするとAuxesia等で釣りデータ未登録の場合KeyNotFoundでクラッシュする。
+                // また見つからない場合、以降のforeach等でfishingHoleをnull参照(NPE)するため、TryGetValueでガードして即return。
+                if (!GatheringUtil.MoonFishingLocations.TryGetValue(territory, out var territoryHoles)
+                    || !territoryHoles.TryGetValue(location, out var fishingHole)
+                    || fishingHole == null || fishingHole.Count == 0)
                 {
-                    IceLogging.Error("We've seemed to have ran into a problem with the fishing hole... either it's missing spots, or it doesn't exist. Please report back to me on this with logs leading up to this\n" +
-                        $"Mission ID: {missionId} | Map Position: {location} | Moon Territory: {territory}\n" +
-                        $"Adding to the unsupported list so it's marked on your side for now", tag);
+                    if (EzThrottler.Throttle("Fishing hole missing", 5000))
+                        IceLogging.Error("We've seemed to have ran into a problem with the fishing hole... either it's missing spots, or it doesn't exist.\n" +
+                            $"Mission ID: {missionId} | Map Position: {location} | Moon Territory: {territory}\n" +
+                            $"Adding to the unsupported list so it's marked on your side for now", tag);
                     UnsupportedMissions.Ids.Add(missionId);
                     return true;
                 }
@@ -1013,12 +1107,10 @@ namespace ICE.Scheduler.Tasks
                     List<uint> viableMissions = new();
                     viableMissions.Add(missionId);
 
-                    var job = CosmicHelper.SheetMissionDict[missionId].Jobs.First();
-
-                    if (CorrectJobTab(job))
+                    if (OpenCorrectTab(viableMissions, missionInfo))
                     {
                         IceLogging.Verbose("On the correct tab, we're going to see the total mission count", tag);
-                        var allmissions = CosmicHandler.All_AvailableMissions();
+                        var allmissions = CosmicHandler.AllMissions();
                         IceLogging.Verbose($"All mission count: {allmissions.Count()} | Goal: {missionId}");
                         foreach (var mission in allmissions.OrderBy(x => CosmicHelper.SheetMissionDict[x].Rank))
                         {
@@ -1113,6 +1205,7 @@ namespace ICE.Scheduler.Tasks
 
                             switch (rank)
                             {
+                                case 6: // EX+ (マスターシップ) も最上位グループ(AEx)として扱う
                                 case 5: AExRank.Add(missionId); break;
                                 case 4: ARank.Add(missionId); break;
                                 case 3: BRank.Add(missionId); break;
@@ -1122,7 +1215,7 @@ namespace ICE.Scheduler.Tasks
                             }
                         }
 
-                        bool CheckARanks = (MissionLibrary[MissionKind.Ex].Count > 0 || MissionLibrary[MissionKind.A].Count > 0) && (AExRank.Count > 0 || ARank.Count > 0);
+                        bool CheckARanks = (MissionLibrary[MissionKind.Master].Count > 0 || MissionLibrary[MissionKind.ExPlus].Count > 0 || MissionLibrary[MissionKind.Ex].Count > 0 || MissionLibrary[MissionKind.A].Count > 0) && (AExRank.Count > 0 || ARank.Count > 0);
                         bool CheckBRanks = (MissionLibrary[MissionKind.B].Count > 0 && BRank.Count > 0);
                         bool CheckCRanks = (MissionLibrary[MissionKind.C].Count > 0 && CRank.Count > 0);
                         bool CheckDRanks = (MissionLibrary[MissionKind.D].Count > 0 && DRank.Count > 0);
@@ -1133,7 +1226,7 @@ namespace ICE.Scheduler.Tasks
                             $"[C] = {CRank.Count()}\n" +
                             $"[D] = {DRank.Count()}", tag);
 
-                        List<MissionKind> ranks = new() { MissionKind.Ex, MissionKind.A, MissionKind.B, MissionKind.C, MissionKind.D };
+                        List<MissionKind> ranks = new() { MissionKind.Master, MissionKind.ExPlus, MissionKind.Ex, MissionKind.A, MissionKind.B, MissionKind.C, MissionKind.D };
                         var enabledCount = 0;
                         foreach (var rank in ranks)
                         {
@@ -1369,18 +1462,115 @@ namespace ICE.Scheduler.Tasks
         }
 
         // functions that are used across things
-        private static unsafe bool CorrectJobTab(uint job)
+        private static int JobTab(uint job)
         {
-            var agent = AgentWKSMission.Instance();
-            if (agent == null)
+            int jobUnlocked = 0;
+            Dictionary<uint, int> jobTab = new();
+            for (int i = 0; i < CosmicHelper.SupportedJobs.Count(); i++)
             {
-                if (EzThrottler.Throttle("AgentWKSMission Error", 2000))
-                    IceLogging.Error("AgentWKSMission has returned null. CS code might need an update...", "Task: Check Mission | Open Job Tab");
-
-                return false;
+                var currentJob = CosmicHelper.SupportedJobs[i];
+                var level = Player.GetLevel((Job)currentJob);
+                if (level != 0)
+                {
+                    IceLogging.Verbose($"{currentJob} - tab: {jobUnlocked}");
+                    jobTab[currentJob] = jobUnlocked;
+                    jobUnlocked++;
+                }
+                else
+                {
+                    jobTab[currentJob] = 0;
+                }
             }
 
-            return AgentWKSMissionEx.SetSelectedJobTab(agent, (byte)job);
+            return jobTab[job];
+        }
+        private static unsafe bool OpenCorrectTab(List<uint> missionList, WKSMission missionAddon)
+        {
+            string tag = "Opening Correct Tab";
+
+            var hudInfo = CosmicHandler.HudInfo();
+
+            // goalTab: 0=Basic / 1=Provisional(マスターシップミッションタブ) / 2=Critical。
+            // Critical最優先、次にProvisional(天候/時間/シーケンシャル)。
+            // 従来はProvisionalタブ(中間tab1)を一切開かず、マスターシップ/Provisionalミッションを
+            // 受注できなかった(OpenCorrectTabがgoalTab=0/2しか取らず、非Criticalは常にBasicタブへ強制)。修正。
+            // 全ミッションがマスターシップ(GrabMissionが単一MASTERを渡す場合)ならタブ3。
+            // 混在リスト(Standard巡回)はマスターシップ判定しない(pre-handler側で処理済)。
+            bool allMastership = missionList.Count > 0 && missionList.All(m => CosmicHelper.SheetMissionDict.TryGetValue(m, out var mi) && mi.IsMastership);
+            var goalTab = 0;
+            if (allMastership)
+            {
+                goalTab = 3;
+            }
+            else
+            {
+                foreach (var mission in missionList)
+                {
+                    var info = CosmicHelper.SheetMissionDict[mission];
+                    if (info.IsCritical)
+                    {
+                        goalTab = 2;
+                        break;
+                    }
+                    if (info.IsProvisional)
+                        goalTab = 1;
+                }
+            }
+
+            // goalTab==3(マスターシップ)は hudInfo.SelectedTabIndex が追随しないことがあるため agent->SelectedTab で判定。
+            int currentTab = hudInfo.SelectedTabIndex;
+            if (goalTab == 3)
+            {
+                try { currentTab = AgentWKSMissionEx.selectedTab(); } catch { }
+            }
+            if (currentTab != goalTab)
+            {
+                if (FrameThrottler.Throttle("Selecting job", 8))
+                {
+                    IceLogging.Verbose($"Selecting mission category tab {goalTab} (0=Basic / 1=Provisional / 2=Critical / 3=Mastership)", tag);
+                    if (goalTab == 2)
+                        missionAddon.CriticalMissions();
+                    else if (goalTab == 3)
+                    {
+                        missionAddon.MastershipMissions();
+                        AgentWKSMissionEx.SetSelectedTab(3);
+                    }
+                    else if (goalTab == 1)
+                        missionAddon.ProvisionalMissions();
+                    else
+                        missionAddon.BasicMissions();
+                }
+                return false;
+            }
+            else
+            {
+                var selectedJobTab = Mission_Settings.SelectedJob - 8;
+                if (hudInfo.SelectedJobIndex != selectedJobTab)
+                {
+                    if (FrameThrottler.Throttle("Tab swapping", 8))
+                    {
+                        IceLogging.Verbose("We're not on the standard tab, so we're going to initate swapping to it", tag);
+                        // 公式0.0.78.1より移植: UIクリック(SelectClass[].Select())はindexズレで選択が永久不成立→棒立ちしうる。
+                        // ゲーム内部API(SetSelectedJobTab)でジョブサブタブを決定的に選択する。上段タブ(basic/critical)は
+                        // 本メソッドが別管理しているので selectBasicTab:false で温存。agent取得不可時は従来のUIクリックにフォールバック。
+                        var agent = AgentWKSMission.Instance();
+                        if (agent != null && AgentWKSMissionEx.SetSelectedJobTab(agent, (byte)Mission_Settings.SelectedJob, selectBasicTab: false))
+                        {
+                            // API成功
+                        }
+                        else
+                        {
+                            missionAddon.SelectClass[JobTab(Mission_Settings.SelectedJob)].Select();
+                        }
+                    }
+                    return false;
+                }
+                else
+                {
+                    IceLogging.Verbose($"Job tab is on the correct one. Goal was job: {Mission_Settings.SelectedJob}", tag);
+                    return true;
+                }
+            }
         }
         private static void Notes()
         {

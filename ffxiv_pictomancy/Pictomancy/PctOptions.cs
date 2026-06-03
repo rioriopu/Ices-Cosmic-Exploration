@@ -1,0 +1,49 @@
+namespace Pictomancy;
+
+/// <summary>
+/// Init options including buffer-size limits for Pictomancy. Pass to PctService.Initialize if your plugin
+/// draws many shapes per frame and you have seen "buffer full" warnings in the log. All values are
+/// per-frame caps; exceeding them silently drops further shapes (with a one-shot warning).
+/// </summary>
+public sealed class PctOptions
+{
+    /// <summary>Initialize the DX renderer.</summary>
+    public bool EnableDxRenderer { get; init; } = true;
+
+    /// <summary>
+    /// Init the KTK output used by AutoDraw.NativeOverlay.
+    /// If false, NativeOverlay will fall back to ImGuiOverlay.
+    /// </summary>
+    public bool EnableKtkOutput { get; init; } = false;
+
+    /// <summary>Initialize the VFX renderer.</summary>
+    public bool EnableVfxRenderer { get; init; } = true;
+
+    /// <summary>
+    /// Install the OMSetRenderTargets hook used by <see cref="UIMask.BackbufferSubtraction"/> to capture the
+    /// pre-UI frame. Disabled by default because the hook has caused crashes for some users when other
+    /// overlay tools (RTSS, ReShade, Special K, etc.) have already wrapped the D3D11 device.
+    /// </summary>
+    public bool EnableUIMaskCapture { get; init; } = false;
+
+    /// <summary>Max fan instances (donuts, cones, filled circles, arcs) drawn per frame.</summary>
+    public int MaxFans { get; init; } = 2048;
+
+    /// <summary>Max triangle vertices (3 per filled triangle) drawn per frame.</summary>
+    public int MaxTriangleVertices { get; init; } = 1024 * 3;
+
+    /// <summary>Max stroke vertices drawn per frame (one per line endpoint in each stroke). The default is sized for the fan-fallback path.</summary>
+    public int MaxStrokeSegments { get; init; } = 2048 * 240 / 2;
+
+    /// <summary>Max clip-zone rectangles drawn per frame.</summary>
+    public int MaxClipZones { get; init; } = 1024;
+
+    /// <summary>Max sphere instances drawn per frame.</summary>
+    public int MaxSpheres { get; init; } = 256;
+
+    /// <summary>Max image instances drawn per frame.</summary>
+    public int MaxImages { get; init; } = 256;
+
+    /// <summary>Max sprite instances drawn per frame.</summary>
+    public int MaxSprites { get; init; } = 256;
+}

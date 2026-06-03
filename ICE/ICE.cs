@@ -101,7 +101,7 @@ public sealed partial class ICE : IDalamudPlugin
         Svc.PluginInterface.UiBuilder.OpenConfigUi += () =>
         {
             mainWindow.IsOpen = true;
-            C.SelectedTab = WindowSelection.MiscSettings;
+            C.MainUi_SelectedWindow = "modeSelect_MissionSetup";
         };
 
         // timer stuff
@@ -121,6 +121,7 @@ public sealed partial class ICE : IDalamudPlugin
     {
         ExcelHelper.Init();
         ConsumableInfo.Init();
+        
     }
 
     private void Tick(object _)
@@ -162,12 +163,6 @@ public sealed partial class ICE : IDalamudPlugin
     {
         if (PlayerHelper.IsInCosmicZone())
         {
-            // Queue gather-route visuals while the debug window is open (even when
-            // collapsed), so the overlay survives folding the window. Must run before
-            // DrawPicto, which flushes the queued draw commands this frame.
-            if (debugWindow?.IsOpen == true)
-                Ui.DebugWindowTabs.Ui_GatherRoute_Editor.QueueWorldVisuals();
-
             PictoManager.DrawPicto();
         }
     }
@@ -209,7 +204,7 @@ public sealed partial class ICE : IDalamudPlugin
         else if (firstArg.ToLower() == "s" || firstArg.ToLower() == "settings")
         {
             mainWindow.IsOpen = true;
-            C.SelectedTab = WindowSelection.MiscSettings;
+            C.MainUi_SelectedWindow = "modeSelect_MissionSetup";
             return;
         }
         else if (firstArg.ToLower() == "clear")
@@ -303,6 +298,13 @@ public sealed partial class ICE : IDalamudPlugin
 
             Utils.SetGatheringRing(info.Value.TerritoryId, (int)info.Value.MapPosition.X, (int)info.Value.MapPosition.Y, info.Value.Radius, info.Value.Name);
         }
+        else if (firstArg.ToLower() == "capture" || firstArg.ToLower() == "cap")
+        {
+            // 現在地周辺の採取ノードを静的yamlルートとして保存(動的ルート不安定対策)。
+            // 採取ミッションを受注し採取エリアに立った状態で実行する。
+            var result = GatheringRouteLoader.CaptureCurrentRoute();
+            Svc.Chat.Print($"[ICE] 採取ルートキャプチャ: {result}");
+        }
         else if (firstArg.ToLower() == "help")
         {
             string helpMessage = $"- - ICE Commands Help - - \n" +
@@ -318,7 +320,8 @@ public sealed partial class ICE : IDalamudPlugin
                                  $"/ice remove (ids) - removes/disables select missions\n" +
                                  $"/ice toggle (ids) - toggles select mission ids" +
                                  $"/ice only (ids) - makes only select missions enabled" +
-                                 $"/ice flag (id) - opens the map and flags the mission (if it has one).\n";
+                                 $"/ice flag (id) - opens the map and flags the mission (if it has one).\n" +
+                                 $"/ice capture (cap) - 現在の採取ミッション中に、周辺の採取ノードを静的yamlルートとして保存(Auxesia等の動的ルート不安定対策)\n";
             Svc.Chat.Print(helpMessage);
         }
     }
@@ -335,7 +338,7 @@ public sealed partial class ICE : IDalamudPlugin
             IceLogging.Info($"Successfully loaded {routes.Count} zones with {routes.Sum(x => x.Value.Count)} total routes");
 
             // Test getting a specific route
-            var testRoute = GatheringRouteLoader.GetRoute(CosmicMoonRegistry.Sinus.TerritoryId, new Vector2(-690f, -752f));
+            var testRoute = GatheringRouteLoader.GetRoute(1237, new Vector2(-690f, -752f));
             if (testRoute != null)
             {
                 IceLogging.Info($"Test route loaded successfully with {testRoute.Count} nodes");

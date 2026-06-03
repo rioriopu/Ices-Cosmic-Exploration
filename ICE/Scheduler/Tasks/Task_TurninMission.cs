@@ -6,7 +6,7 @@ using ICE.Utilities.Cosmic_Helper;
 using ICE.Utilities.GatheringHelper;
 using System.Collections.Generic;
 using static ECommons.UIHelpers.AddonMasterImplementations.AddonMaster;
-using MissionRank = FFXIVClientStructs.FFXIV.Client.Game.WKS.WKSMissionModule.MissionRank;
+using static FFXIVClientStructs.FFXIV.Client.Game.WKS.WKSManager;
 
 namespace ICE.Scheduler.Tasks
 {
@@ -251,6 +251,7 @@ namespace ICE.Scheduler.Tasks
                             {
                                 MissionRank.Gold => TurninState.Gold,
                                 MissionRank.Silver => TurninState.Silver,
+                                MissionRank.Bronze => TurninState.Bronze,
                                 _ => TurninState.Bronze,
                             };
                         }
@@ -271,9 +272,6 @@ namespace ICE.Scheduler.Tasks
 
         private static unsafe void ReportMission()
         {
-            if (EzThrottler.Throttle("Previous Score Set"))
-                PreviousScore = ScoreCheck();
-
             var WKSInstance = WKSManager.Instance();
             WKSInstance->MissionModule->ReportMission();
         }
@@ -437,7 +435,6 @@ namespace ICE.Scheduler.Tasks
                     C.Save();
                 }
             }
-            PreviousScore = 0;
         }
 
         public static bool? ClearAllPostTask()

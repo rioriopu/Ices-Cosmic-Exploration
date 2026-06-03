@@ -17,6 +17,7 @@ public partial class Config
     public bool RetargetIfStuck { get; set; } = false;
     public int StuckDelayMs { get; set; } = 1000;
     public int DelayPostRelic { get; set; } = 0;
+    // 公式0.0.78.1より移植: 検知回避の人間らしいランダム遅延
     public bool Delay_Aethernet { get; set; } = false;
     public bool Delay_Gather { get; set; } = false;
 }

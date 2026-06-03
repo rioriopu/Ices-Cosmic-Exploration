@@ -41,21 +41,21 @@ namespace ICE.Ui.DebugWindowTabs
                     ImGui.SetCursorPosX(ImGui.GetCursorPosX() + (colWidth - imgSize) * 0.5f);
                     ImGui.SetCursorPosY(ImGui.GetCursorPosY() + (cellHeight - imgSize) * 0.5f);
 
-                    var image = CosmicHelper.ClassInfoDict[i];
-                    ImGui.Image(image.JobIcon.GetWrapOrEmpty().Handle, new Vector2(imgSize));
+                    var image = CosmicHelper.JobIconDict[i];
+                    ImGui.Image(image.GetWrapOrEmpty().Handle, new Vector2(imgSize));
                 }
+
+                List<uint> sinusLeveling = CosmicHelper.QuickLevelList.Where(x => CosmicHelper.SheetMissionDict[x].TerritoryId == 1237).ToList();
+                List<uint> phaennaLeveling = CosmicHelper.QuickLevelList.Where(x => CosmicHelper.SheetMissionDict[x].TerritoryId == 1291).ToList();
+                List<uint> oizysLeveling = CosmicHelper.QuickLevelList.Where(x => CosmicHelper.SheetMissionDict[x].TerritoryId == 1310).ToList();
+                List<uint> auxesiaLeveling = CosmicHelper.QuickLevelList.Where(x => CosmicHelper.SheetMissionDict[x].TerritoryId == 1319).ToList();
 
                 List<uint> levels = new() { 10, 50, 90 };
 
-                // One row block per hub — Auxesia included when QuickLevelList has entries for territory 1319
-                foreach (var moon in CosmicMoonRegistry.All)
-                {
-                    var levelingMissions = CosmicHelper.QuickLevelList
-                        .Where(x => CosmicHelper.SheetMissionDict[x].TerritoryId == moon.TerritoryId)
-                        .ToList();
-
-                    DrawPlanetLevelRows(moon.IconResource, levelingMissions, levels);
-                }
+                DrawPlanetLevelRows("ICE.Resources.Sinus_Ardorum.png", sinusLeveling, levels);
+                DrawPlanetLevelRows("ICE.Resources.Phaenna.png", phaennaLeveling, levels);
+                DrawPlanetLevelRows("ICE.Resources.Oizys.png", oizysLeveling, levels);
+                DrawPlanetLevelRows("ICE.Resources.Auxesia.png", auxesiaLeveling, levels);
 
                 ImGui.EndTable();
             }

@@ -1,5 +1,4 @@
-﻿using ECommons.GameHelpers;
-using FFXIVClientStructs.FFXIV.Client.System.Framework;
+﻿using FFXIVClientStructs.FFXIV.Client.System.Framework;
 using FFXIVClientStructs.FFXIV.Common.Component.BGCollision;
 using ICE.Utilities.Cosmic_Helper;
 using System.Collections.Generic;
@@ -47,7 +46,7 @@ namespace ICE.Ui.DebugWindowTabs
         /// <returns>True if fishable, false otherwise</returns>
         public bool IsFishable(float? rotation = null)
         {
-            if (Player.Object is not { } player)
+            if (PlayerHelper.LocalPlayer is not { } player)
                 return false;
 
             if (_raycastSimple == null)
@@ -69,7 +68,7 @@ namespace ICE.Ui.DebugWindowTabs
         {
             fishablePosition = null;
 
-            if (Player.Object is not { } player)
+            if (PlayerHelper.LocalPlayer is not { } player)
                 return false;
 
             if (_raycastSimple == null)
@@ -165,7 +164,7 @@ namespace ICE.Ui.DebugWindowTabs
         {
             var fishableLocations = new List<(Vector3, float)>();
 
-            if (Player.Object is not { } player)
+            if (PlayerHelper.LocalPlayer is not { } player)
                 return fishableLocations;
 
             if (_raycastSimple == null)
@@ -265,7 +264,7 @@ namespace ICE.Ui.DebugWindowTabs
 
         public void Draw()
         {
-            if (Player.Object is not { } player)
+            if (PlayerHelper.LocalPlayer is not { } player)
                 return;
 
             if (!ShowFishRay)

@@ -1,0 +1,93 @@
+zone_id: 1319
+zone_name: Auxesia
+job: MIN
+flag:
+  x: -38
+  y: 614
+author: Puni.sh Community
+date_modified: 2026-06-03T11:49:05.1430193Z
+nodes:
+- node_id: 35684
+  position:
+    x: -23.29291
+    y: 164.8154
+    z: 633.3812
+  land_zone:
+    x: -23.29291
+    y: 164.51782
+    z: 633.3812
+  radius_start: 0
+  radius_end: 360
+  min_distance: 1
+  max_distance: 3
+  fan_height: 0
+- node_id: 35686
+  position:
+    x: -15.07688
+    y: 164.767
+    z: 593.1163
+  land_zone:
+    x: -15.07688
+    y: 164.7351
+    z: 593.1163
+  radius_start: 0
+  radius_end: 360
+  min_distance: 1
+  max_distance: 3
+  fan_height: 0
+- node_id: 35688
+  position:
+    x: -70.12557
+    y: 164.7955
+    z: 608.3454
+  land_zone:
+    x: -70.12557
+    y: 164.70917
+    z: 608.3454
+  radius_start: 0
+  radius_end: 360
+  min_distance: 1
+  max_distance: 3
+  fan_height: 0
+- node_id: 35683
+  position:
+    x: -33.97078
+    y: 165.1151
+    z: 633.4215
+  land_zone:
+    x: -33.947357
+    y: 164.25
+    z: 633.0702
+  radius_start: 0
+  radius_end: 360
+  min_distance: 1
+  max_distance: 3
+  fan_height: 0
+- node_id: 35687
+  position:
+    x: -67.88577
+    y: 164.9949
+    z: 598.924
+  land_zone:
+    x: -67.455986
+    y: 164.72066
+    z: 598.27936
+  radius_start: 0
+  radius_end: 360
+  min_distance: 1
+  max_distance: 3
+  fan_height: 0
+- node_id: 35685
+  position:
+    x: -11.75408
+    y: 164.8144
+    z: 599.2201
+  land_zone:
+    x: -11.997902
+    y: 164.25
+    z: 598.8848
+  radius_start: 0
+  radius_end: 360
+  min_distance: 1
+  max_distance: 3
+  fan_height: 0

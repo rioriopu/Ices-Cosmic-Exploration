@@ -11,6 +11,7 @@ namespace ICE.Sounds
     public static class SoundPlayer
     {
         private static byte[]? _soundData;
+        private static WasapiOut? _waveOut;
         private static bool _initialized = false;
 
         // Call this once during plugin init, off the main thread

@@ -3,15 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using System.Numerics;
-using ICE.Utilities.Cosmic_Helper;
+using System.Xml.Linq;
+using System.Numerics; // Add this for Vector2 and Vector3
 
 namespace ICE.Utilities;
 
-/// <summary>
-/// Hub NPC positions keyed by territory ID (1237 / 1291 / 1310 / 1319).
-/// CosmicMoonContent.ValidateRegistry() warns if a moon in the registry is missing an entry here.
-/// </summary>
 internal static class NpcData // Renamed the class to avoid conflict
 {
     public enum NpcType
@@ -34,7 +30,7 @@ internal static class NpcData // Renamed the class to avoid conflict
 
     public static Dictionary<uint, Dictionary<NpcType, NPCInfo>> MoonNpcs = new()
     {
-        [1237] = new Dictionary<NpcType, NPCInfo> // sinus
+        [1237] = new Dictionary<NpcType, NPCInfo>
         {
             [NpcType.Repair] = new NPCInfo // Repair | Gil Gear Vendor
             {
@@ -73,7 +69,7 @@ internal static class NpcData // Renamed the class to avoid conflict
 
             }
         },
-        [1291] = new Dictionary<NpcType, NPCInfo> // phaenna
+        [1291] = new Dictionary<NpcType, NPCInfo>
         {
             [NpcType.Repair] = new NPCInfo
             {
@@ -111,7 +107,7 @@ internal static class NpcData // Renamed the class to avoid conflict
                 Location_Circle = new(343.46f, 52.64f, -441.80f),
             }
         },
-        [1310] = new Dictionary<NpcType, NPCInfo> // Oizys
+        [1310] = new Dictionary<NpcType, NPCInfo>
         {
             [NpcType.Repair] = new NPCInfo // Repair | Gil Gear Vendor
             {
@@ -152,66 +148,66 @@ internal static class NpcData // Renamed the class to avoid conflict
             {
                 NpcId = 1052645,
                 Name = "Lefleda",
-                Location_Npc = new(-155.02f, 0.50f, 144.58f),
                 Location_Circle = new(-156.91f, 0.50f, 143.07f),
+                Location_Npc = new(-155.02f, 0.50f, 144.58f),
             }
         },
-        [1319] = new Dictionary<NpcType, NPCInfo> // Auxesia
+        [1319] = new Dictionary<NpcType, NPCInfo>  // Auxesia (2026-06-02 NpcId確定・座標要実機取得)
         {
-            [NpcType.Repair] = new NPCInfo // Repair | Gil Gear Vendor
+            [NpcType.Repair] = new NPCInfo
             {
+                // Godgythはメズエードンクに隣接。立ち位置はMesouaidonqueと同じ(314.88,376.06)で会話可(ユーザー確認)。
+                // CircleとNpcを分離してNPC衝突→走り続けを回避(distance:5判定 約1.6m<5)。
                 NpcId = 1056825,
                 Name = "Godgyth",
-                Location_Npc = new Vector3(317.60f, 205.75f, 374.77f),
-                Location_Circle = new Vector3(315.01f, 205.64f, 375.59f),
+                Location_Npc = new Vector3(315.66f, 205.75f, 374.68f),
+                Location_Circle = new Vector3(314.88f, 205.64f, 376.06f),
             },
-            [NpcType.Credit] = new NPCInfo // Credit Exchange Vendor
+            [NpcType.Credit] = new NPCInfo
             {
+                // NPC実位置(317.74,205.75,376.70) / 話しかける立ち位置(314.88,205.64,376.06)=約2.9m手前(ユーザー実機確定)。
+                // CircleとNpcを分離してNPC衝突→走り続けを回避(distance:6判定 約2.9m<6)。
                 NpcId = 1056824,
                 Name = "Mesouaidonque",
-                Location_Npc = new Vector3(317.73f, 205.75f, 376.69f),
-                Location_Circle = new Vector3(315.01f, 205.64f, 375.59f),
+                Location_Npc = new Vector3(317.74f, 205.75f, 376.70f),
+                Location_Circle = new Vector3(314.88f, 205.64f, 376.06f),
             },
-            [NpcType.Relic] = new NPCInfo // Relic NPC
+            [NpcType.Relic] = new NPCInfo  // ★Relic Turnin対象
             {
+                // NPC位置: (291.25, 205.75, 400.66)。CircleをNPCと同座標にするとNPCに衝突して到達できず、
+                // スタック→ジャンプ/再走行を延々繰り返し公衆の面前で走り続ける危険があった(実機報告)。
+                // ハブ側(低Z)へ約4m手前に停止位置を設定(distance:5判定OK 4.16m<5 / 会話可能距離 / 衝突回避)。
                 NpcId = 1056821,
                 Name = "Researchingway",
-                Location_Npc = new Vector3(291.00f, 206.21f, 402.57f),
-                Location_Circle = new Vector3(291.08f, 205.64f, 399.60f),
+                Location_Npc = new Vector3(291.25f, 205.75f, 400.66f),
+                Location_Circle = new Vector3(291.25f, 205.64f, 396.50f),
             },
-            [NpcType.Gamba] = new NPCInfo // Cosmic Fortune aka Gamba Wheel
+            [NpcType.Gamba] = new NPCInfo
             {
+                // NPC実位置(290.94,206.21,349.36) / 話しかける立ち位置(291.08,205.64,352.19)=約2.8m手前(ユーザー実機確定)。
+                // CircleとNpcを分離してNPC衝突→走り続けを回避(distance:5判定 約2.9m<5)。
                 NpcId = 1056826,
                 Name = "Orbitingway",
-                Location_Npc = new Vector3(290.94f, 206.21f, 349.35f),
-                Location_Circle = new Vector3(290.90f, 205.64f, 352.39f),
+                Location_Npc = new Vector3(290.94f, 206.21f, 349.36f),
+                Location_Circle = new Vector3(291.08f, 205.64f, 352.19f),
             },
-            [NpcType.Drone] = new NPCInfo
+            [NpcType.Drone] = new NPCInfo // ドローン(Cosmodrone)交換NPC。実機確定 2026-06-03
             {
                 NpcId = 1056828,
                 Name = "Kaede",
-                Location_Npc = new Vector3(302.20f, 205.64f, 398.5f),
-                Location_Circle = new Vector3(301.25f, 205.64f, 396.5f),
+                Location_Npc = new Vector3(302.20f, 205.64f, 398.55f),    // NPC実位置(/ice d Player Infoより)
+                Location_Circle = new Vector3(302.47f, 205.64f, 396.07f), // アクセス立ち位置(ユーザー確定)
             },
-            [NpcType.RedAlert] = new NPCInfo()
+            [NpcType.RedAlert] = new NPCInfo
             {
+                // 目の前座標(実機確定 2026-06-02): (280.63, 205.64, 353.20)
                 NpcId = 1056819,
                 Name = "Lefleda",
-                Location_Npc = new(280.41f, 205.64f, 352.49f),
-                Location_Circle = new(280.47f, 205.64f, 354.54f),
-            }
+                Location_Npc = new Vector3(280.63f, 205.75f, 353.20f),
+                Location_Circle = new Vector3(280.63f, 205.64f, 353.20f),
+            },
         },
     };
-
-    public static bool TryGetMoon(uint territoryId, out Dictionary<NpcType, NPCInfo> npcs) =>
-        MoonNpcs.TryGetValue(territoryId, out npcs!);
-
-    public static bool TryGetNpc(uint territoryId, NpcType type, out NPCInfo npc)
-    {
-        npc = null!;
-        return MoonNpcs.TryGetValue(territoryId, out var moon)
-            && moon.TryGetValue(type, out npc!);
-    }
 
     public static Vector3 GetRandomPointInCircle(Vector3 center, float radius)
     {

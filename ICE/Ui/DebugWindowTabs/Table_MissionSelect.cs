@@ -86,10 +86,10 @@ namespace ICE.Ui.DebugWindowTabs
                         int jobCount = 0;
                         foreach (var job in value.Jobs)
                         {
-                            var jobIcon = CosmicHelper.ClassInfoDict[job];
+                            var jobIcon = CosmicHelper.JobIconDict[job];
                             if (jobCount > 0)
                                 ImGui.SameLine();
-                            ImGui.Image(jobIcon.JobIcon.GetWrapOrEmpty().Handle, new(24, 24));
+                            ImGui.Image(jobIcon.GetWrapOrEmpty().Handle, new(24, 24));
                             jobCount += 1;
                         }
 
