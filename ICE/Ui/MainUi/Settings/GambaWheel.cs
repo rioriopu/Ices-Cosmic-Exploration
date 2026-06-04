@@ -153,6 +153,7 @@ namespace ICE.Ui.MainUi.Settings
             {
                 Task_Gamba.EnsureGambaWeightsInitialized(true);
             }
+            // 景品は、ガンバの輪(WKSLottery)を開いた時に ICE.OnWheelOpened が自動登録する(カテゴリ推定付き)。
 
             if (ImGui.BeginTabBar("Gamba Item Tabs"))
             {

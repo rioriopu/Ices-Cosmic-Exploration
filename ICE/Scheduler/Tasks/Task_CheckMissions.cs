@@ -954,6 +954,16 @@ namespace ICE.Scheduler.Tasks
                 IceLogging.Error("HEY. YOU DIDN'T READ THE HELP ME PAGE. AND NOW YOU'RE MISSING NAVMESH. So... yeah... if things break this is why");
                 return true;
             }
+            else if (sheetInfo.IsCritical)
+            {
+                // 緊急(Critical/Red Alert)ミッションは赤警報の任務地で行い、専用NPC(レフレダ)でワープして入る。
+                // 受注前にここで通常フラグへ向かわせると、任務地にノードが無く0件→unsupported登録→別ミッションへ流れて
+                // 受注すらされず、Gather側のレフレダワープ処理に到達しなかった(実機報告)。緊急はここでは移動せず受注へ進め、
+                // 任務地への移動(レフレダワープ)は受注後の実行側(Task_Gather/Task_TurninMission)に任せる。
+                if (EzThrottler.Throttle("Critical no-premove", 2000))
+                    IceLogging.Info("緊急ミッション: 受注前の移動はスキップし、受注後にレフレダで任務地へワープします", tag);
+                return true;
+            }
             else if (sheetInfo.Attributes.HasFlag(MissionAttributes.Gather))
             {
                 var missionTerritory = sheetInfo.TerritoryId;

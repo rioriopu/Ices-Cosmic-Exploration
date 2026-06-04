@@ -52,6 +52,41 @@ namespace ICE.Scheduler.Tasks
 
         public static void Enqueue()
         {
+            // === 緊急(Critical/Red Alert)採取: 受注後、赤警報エリアへ専用NPC(レフレダ)でワープしてから採取する ===
+            // 緊急採取は赤警報の任務地で行う。まだ任務地(物資集積所が見える場所)に居ない場合、通常のフラグへ向かわず、
+            // 専用NPC(レフレダ)で職業を選んでワープする。これが無いと受注後にレフレダへ行かず棒立ち/誤った場所で動かない(実機報告)。
+            bool isCriticalGather = CosmicHelper.CurrentLunarMission != 0 && CosmicHelper.CurrentMissionInfo.IsCritical;
+            if (isCriticalGather && EzThrottler.Throttle("CriticalGatherDiag", 3000))
+            {
+                bool cp = Utils.TryGetObjectCollectionPoint() != null;
+                bool lef = NpcData.MoonNpcs.TryGetValue(Player.Territory.RowId, out var pl) && pl.ContainsKey(NpcData.NpcType.RedAlert);
+                IceLogging.Info($"[緊急採取] mission={CosmicHelper.CurrentLunarMission} gathering={Svc.Condition[ConditionFlag.Gathering]} 物資集積所見える={cp} レフレダ登録={lef} → ワープ要否={(!Svc.Condition[ConditionFlag.Gathering] && !cp)}", "[Gather: CriticalTravel]");
+            }
+            if (!Svc.Condition[ConditionFlag.Gathering]
+                && isCriticalGather
+                && Utils.TryGetObjectCollectionPoint() == null)
+            {
+                if (CosmicHelper.CriticalLocations.TryGetValue(CosmicHelper.CurrentLunarMission, out var loc) && loc.RawLocation != Vector3.Zero)
+                {
+                    // 座標登録済み惑星: 遠ければ赤警報NPC経由ナビで任務地へ
+                    if (Player.DistanceTo(loc.RawLocation) >= 75)
+                    {
+                        if (EzThrottler.Throttle("CriticalGatherTravel", 2000))
+                            IceLogging.Info("緊急採取: 任務地へ移動(赤警報NPC経由)してから採取します", "[Gather: CriticalTravel]");
+                        Task_NavmeshMove.Enqueue_RedAlertNavmesh(loc.RawLocation, distance: 75, missionId: CosmicHelper.CurrentLunarMission);
+                        return;
+                    }
+                }
+                else if (NpcData.MoonNpcs.TryGetValue(Player.Territory.RowId, out var planet) && planet.ContainsKey(NpcData.NpcType.RedAlert))
+                {
+                    // 座標未登録(Auxesia等): レフレダのメニューで職業に応じた任務地を選んでワープ
+                    if (EzThrottler.Throttle("CriticalGatherTravel", 2000))
+                        IceLogging.Info("緊急採取: 専用NPC(レフレダ)で職業に応じた任務地へワープしてから採取します", "[Gather: CriticalTravel]");
+                    P.TaskManager.Enqueue(() => Task_TurninMission.RedAlert_AuxesiaTravel(CosmicHelper.CurrentLunarMission), "緊急採取: レフレダ職業選択→ワープ");
+                    return;
+                }
+            }
+
             if (Svc.Condition[ConditionFlag.Gathering])
             {
                 IceLogging.Debug("Current in a gathering session");
@@ -633,18 +668,18 @@ namespace ICE.Scheduler.Tasks
 
             // マスター採取で、割り当てプロファイルに通常採取スキルが1つも有効化されていない場合(既定プロファイル0は
             // BonusIntegrityChance以外すべて無効)、スキル全有効の内蔵プロファイルを使う。
-            // マスター採取は「スキルを使ってほしい」要望のため、プロファイル未設定でも通常スキル(FieldMastery/Yield/Boon
-            // /Tidings等)が発動するようにする。ユーザーがスキルを有効化したプロファイルを割り当てていればそれを尊重する。
-            if (Mission_Settings.Mode != ModeSelect.LevelMode
-                && gatherProfile != null
-                && CosmicHelper.CurrentMissionInfo.IsMastership)
+            // 全採取ミッション共通: 割り当てプロファイルに通常採取スキルが1つも有効化されていない場合(既定プロファイル0は
+            // BonusIntegrityChance以外すべて無効)、スキル全有効の内蔵プロファイルを使う。
+            // ユーザー要望: マスター/緊急に限らず、採取は基本的にスキルを使ってよい。
+            // ユーザーがスキル(FieldMastery/Yield/Boon/Tidings)を1つでも有効化したプロファイルを割り当てていればそれを尊重する。
+            if (Mission_Settings.Mode != ModeSelect.LevelMode && gatherProfile != null)
             {
                 bool hasGatherSkill = gatherProfile.GatherBuffs.Buffs.Any(b => b.Value.Enabled
                     && (b.Key.StartsWith("FieldMastery") || b.Key.StartsWith("Yield") || b.Key.StartsWith("Boon") || b.Key == "Tidings"));
                 if (!hasGatherSkill)
                 {
-                    if (EzThrottler.Throttle("MasterSkillDefault", 5000))
-                        IceLogging.Info("マスター採取: プロファイルに採取スキルが未有効のため、スキル全有効の既定プロファイルを使用します", "[Gather]");
+                    if (EzThrottler.Throttle("SkillDefaultProfile", 5000))
+                        IceLogging.Info("採取: プロファイルに採取スキルが未有効のため、スキル全有効の既定プロファイルを使用します", "[Gather]");
                     gatherProfile = LevelProfile;
                 }
             }

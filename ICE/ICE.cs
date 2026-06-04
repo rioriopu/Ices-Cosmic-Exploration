@@ -92,6 +92,11 @@ public sealed partial class ICE : IDalamudPlugin
         Svc.Framework.Update += Tick;
         Svc.PluginInterface.UiBuilder.Draw += OnDraw;
 
+        // ガンバの輪(WKSLottery)が開いたら、その時点の景品を自動で設定へ取り込む(カテゴリ推定付き)。
+        // 景品プールはゲームデータシートに無くバイナリ内のため、輪を開いた時にしか取得できない。これでボタンを押さなくても
+        // 輪を開くだけで新景品(7.51のAuxesia景品等)が設定に反映される。
+        Svc.AddonLifecycle.RegisterListener(Dalamud.Game.Addon.Lifecycle.AddonEvent.PostSetup, "WKSLottery", OnWheelOpened);
+
         TaskManager = new(new(showDebug: false, timeLimitMS: 10 * 60 * 3000));
         Svc.PluginInterface.UiBuilder.Draw += windowSystem.Draw;
         Svc.PluginInterface.UiBuilder.OpenMainUi += () =>
@@ -167,8 +172,24 @@ public sealed partial class ICE : IDalamudPlugin
         }
     }
 
+    // ガンバの輪(WKSLottery)が開いたら景品を自動取込。PostSetupは早くてデータ未充填のことがあるため、少し遅延して走査する。
+    private void OnWheelOpened(Dalamud.Game.Addon.Lifecycle.AddonEvent ev, Dalamud.Game.Addon.Lifecycle.AddonArgTypes.AddonArgs args)
+    {
+        GenericHelpers.Safe(() => Svc.Framework.RunOnTick(() =>
+        {
+            try
+            {
+                var (open, added) = Scheduler.Tasks.Task_Gamba.ScanOpenWheel();
+                if (added > 0)
+                    IceLogging.Info($"[Gamba] 輪を開いたので新景品 {added}件 を自動登録しました");
+            }
+            catch { }
+        }, TimeSpan.FromMilliseconds(500)));
+    }
+
     public void Dispose()
     {
+        GenericHelpers.Safe(() => Svc.AddonLifecycle.UnregisterListener(OnWheelOpened));
         GenericHelpers.Safe(() => Svc.Framework.Update -= Tick);
         GenericHelpers.Safe(() => Svc.PluginInterface.UiBuilder.Draw -= OnDraw);
         GenericHelpers.Safe(() => Svc.PluginInterface.UiBuilder.Draw -= windowSystem.Draw);

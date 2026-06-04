@@ -80,6 +80,25 @@ namespace ICE.Scheduler.Tasks
             new() { ItemId = 6141,  Weight = 0, Type = GambaType.Other }, // Cordial HQ
             new() { ItemId = 48158, Weight = 0, Type = GambaType.Other }, // Magicked Prism (Cosmic Exploration)
             new() { ItemId = 50450, Weight = 0, Type = GambaType.Other }, // Cosmic Barding
+
+            // === 7.51 Auxesia の新規Cosmic系コスメ(ルーレット景品候補) ===
+            // 景品プールは静的データに無くライブの輪からしか確定できないため、命名/カテゴリから抽出した候補を事前登録。
+            // 実際の輪に出れば OnWheelOpened が確認・補完する。輪に出ない品はWeight関係なく未使用(無害)。
+            new() { ItemId = 52262, Weight = 200, Type = GambaType.Mount },   // Rocket Punch Identification Key
+            new() { ItemId = 52267, Weight = 200, Type = GambaType.Mount },   // Cosmic Armored Weapon Beta Identification Key
+            new() { ItemId = 52268, Weight = 200, Type = GambaType.Mount },   // Cosmic Predator Identification Key
+            new() { ItemId = 52271, Weight = 200, Type = GambaType.Mount },   // Excavating Vacuum Suit Identification Key
+            new() { ItemId = 52272, Weight = 200, Type = GambaType.Mount },   // Carbide Grey Warp Loader Identification Key
+            new() { ItemId = 52292, Weight = 25,  Type = GambaType.Emote },   // Ballroom Etiquette - Dignified Derision
+            new() { ItemId = 52293, Weight = 25,  Type = GambaType.Emote },   // Ballroom Etiquette - Orchestral Operations
+            new() { ItemId = 52294, Weight = 25,  Type = GambaType.Emote },   // Ballroom Etiquette - Trial by Taco
+            new() { ItemId = 52605, Weight = 50,  Type = GambaType.Outfit },  // Cosmic Operator's Attire Coffer
+            new() { ItemId = 51276, Weight = 0,   Type = GambaType.Housing }, // Auxesian Tower Replica
+            new() { ItemId = 51277, Weight = 0,   Type = GambaType.Housing }, // Cosmic Metal Shelf
+            new() { ItemId = 51278, Weight = 0,   Type = GambaType.Housing }, // Cosmic Steps
+            new() { ItemId = 51279, Weight = 0,   Type = GambaType.Housing }, // Cosmic Partition
+            new() { ItemId = 51280, Weight = 0,   Type = GambaType.Housing }, // Auxesian Waygate
+            new() { ItemId = 51281, Weight = 0,   Type = GambaType.Housing }, // Auxesian Waylight
         };
         public static void EnsureGambaWeightsInitialized(bool force = false)
         {
@@ -98,9 +117,48 @@ namespace ICE.Scheduler.Tasks
         }
 
         /// <summary>
+        /// アイテムのItemUICategoryからGambaTypeを推定する。Minion/Orchestrion/Dye/Materia/Housingは一意に判定可能。
+        /// Mount(63=Other,「Identification Key」)とEmote/Outfit/Accessory(61=Miscellany)は名前で補助推定し、不明はOther。
+        /// (ItemUICategory: 81=Minion / 94=Orchestrion Roll / 55=Dye / 58=Materia / 57,65-82=家具 / 63=Other / 61=Miscellany)
+        /// </summary>
+        public static GambaType GuessGambaType(uint itemId)
+        {
+            try
+            {
+                if (!Svc.Data.GetExcelSheet<Lumina.Excel.Sheets.Item>().TryGetRow(itemId, out var item))
+                    return GambaType.Other;
+                uint cat = item.ItemUICategory.RowId;
+                string name = ExcelItemHelper.GetName(itemId) ?? "";
+                switch (cat)
+                {
+                    case 81: return GambaType.Minion;
+                    case 94: return GambaType.Orchestrion;
+                    case 55: return GambaType.Dye;
+                    case 58: return GambaType.Materia;
+                    // 家具系(室内外・装飾・テーブル・敷物・壁掛け・園芸 等)
+                    case 57: case 65: case 66: case 67: case 69: case 70: case 71: case 72:
+                    case 73: case 74: case 75: case 76: case 77: case 78: case 79: case 80: case 82:
+                        return GambaType.Housing;
+                    case 63: // Other: Cosmicのマウントは「Identification Key」アイテム
+                        return name.Contains("Identification Key") ? GambaType.Mount : GambaType.Other;
+                    case 61: // Miscellany: Emote/Outfit/Accessory が混在。名前で補助推定
+                        if (name.Contains("Ballroom Etiquette")) return GambaType.Emote;
+                        if (name.Contains("Coffer") || name.Contains("Attire")) return GambaType.Outfit;
+                        if (name.Contains("The Faces We Wear") || name.Contains("Sunglasses") || name.Contains("Glasses")
+                            || name.Contains("Visor") || name.Contains("Parasol") || name.Contains("Eyepatch"))
+                            return GambaType.Accessory;
+                        return GambaType.Other;
+                    default: return GambaType.Other;
+                }
+            }
+            catch { return GambaType.Other; }
+        }
+
+        /// <summary>
         /// 現在のガンバホイールに出ているアイテムのうち、GambaItemWeightsに未登録のものを自動登録する。
-        /// Auxesia等の新景品をIDハードコードなしで設定UIに出すためのフォールバック(Type=Other, Weight=0)。
-        /// 既知アイテムは DefaultGambaItems 側で正しいカテゴリ付き登録される。
+        /// Auxesia等の新景品をIDハードコードなしで設定UIに出すためのフォールバック。
+        /// ItemUICategoryから種別を推定してカテゴリを付ける(7.51以降の新景品も正しく分類)。Weightは0で開始。
+        /// 既知アイテムは DefaultGambaItems 側で正しいカテゴリ・初期Weight付きで登録される。
         /// </summary>
         private static void RegisterUnknownWheelItems(WKSLottery gamba)
         {
@@ -109,9 +167,10 @@ namespace ICE.Scheduler.Tasks
             {
                 if (id == 0) return;
                 if (C.GambaItemWeights.Any(x => x.ItemId == id)) return;
-                C.GambaItemWeights.Add(new Gamba { ItemId = id, Weight = 0, Type = GambaType.Other });
+                var type = GuessGambaType(id);
+                C.GambaItemWeights.Add(new Gamba { ItemId = id, Weight = 0, Type = type });
                 changed = true;
-                IceLogging.Info($"[Gamba] 未登録のホイールアイテムを自動登録: ItemId={id} (Type=Other, Weight=0)");
+                IceLogging.Info($"[Gamba] 未登録のホイールアイテムを自動登録: ItemId={id} (Type={type}, Weight=0)");
             }
 
             foreach (var item in gamba.LeftWheelItems) TryAdd((uint)item.itemId);
@@ -119,6 +178,39 @@ namespace ICE.Scheduler.Tasks
 
             if (changed)
                 C.Save();
+        }
+
+        /// <summary>設定UIから: 現在開いているガンバホイール(WKSLottery)を読み、未登録の景品をカテゴリ推定付きで登録する。
+        /// 戻り値: (輪が開いていたか, 追加件数)。輪を開いた状態で押すと、その時点の景品が設定に反映される。</summary>
+        public static (bool wheelOpen, int added) ScanOpenWheel()
+        {
+            if (GenericHelpers.TryGetAddonMaster<WKSLottery>("WKSLottery", out var gamba) && gamba.IsAddonReady)
+            {
+                int before = C.GambaItemWeights.Count;
+                RegisterUnknownWheelItems(gamba);
+                return (true, C.GambaItemWeights.Count - before);
+            }
+            return (false, 0);
+        }
+
+        /// <summary>設定UIから: 登録済み全景品のカテゴリ(Type)を ItemUICategory から一括再判定する。
+        /// 以前 Type=Other で自動登録された景品や、誤カテゴリを正しい種別へ振り直す。戻り値: 変更件数。</summary>
+        public static int RecategorizeAll()
+        {
+            int changed = 0;
+            foreach (var g in C.GambaItemWeights)
+            {
+                var t = GuessGambaType(g.ItemId);
+                if (g.Type != t)
+                {
+                    IceLogging.Info($"[Gamba] カテゴリ再判定: ItemId={g.ItemId} {g.Type}→{t}");
+                    g.Type = t;
+                    changed++;
+                }
+            }
+            if (changed > 0)
+                C.Save();
+            return changed;
         }
         public static void Enqueue()
         {
