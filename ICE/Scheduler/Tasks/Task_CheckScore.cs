@@ -9,6 +9,10 @@ namespace ICE.Scheduler.Tasks
 {
     internal static class Task_CheckScore
     {
+        // マスターシップ製作1個あたりの所要秒数の目安。残り時間がこれ未満なら新規製作せず報告する。
+        // 製作マクロ/装備で所要時間が変わるため、オーバーランするようならこの値を増やす。
+        private const long MasterCraftDurationSeconds = 90;
+
         public static void Enqueue()
         {
             var Id = CosmicHelper.CurrentLunarMission;
@@ -225,6 +229,37 @@ namespace ICE.Scheduler.Tasks
                 var id = CosmicHelper.CurrentLunarMission;
                 if (CosmicHelper.SheetMissionDict.TryGetValue(id, out var sheet))
                 {
+                    // ── マスターシップ(高難易度)ミッション専用処理 ──
+                    // 通常のランク(金銀銅)制ではなく、制限時間が続く限り製作して評価値(マスターポイント)を最大化する。
+                    // 評価値1000超で制限時間ボーナス(+3分等)が入り時間が伸びていく。
+                    // ・トグルON(MasterReportAt1000)かつ評価値>=1000 → 即報告
+                    // ・残り時間が1製作分(MasterCraftDurationSeconds)未満 → 新規製作せず報告(時間の無駄を回避)
+                    // ・それ以外 → 製作を継続
+                    if (sheet.IsMastership)
+                    {
+                        var masterConfig = C.MissionConfig[id];
+
+                        if (masterConfig.MasterReportAt1000 && currentScore >= 1000)
+                        {
+                            IceLogging.Info($"マスター: 評価値{currentScore}が1000以上 → 即報告(トグルON)", tag);
+                            SchedulerMain.State = IceState.TurninMission;
+                            P.TaskManager.Tasks.Clear();
+                            return true;
+                        }
+
+                        var remaining = CosmicHandler.MissionTimeRemaining();
+                        if (remaining >= 0 && remaining < MasterCraftDurationSeconds)
+                        {
+                            IceLogging.Info($"マスター: 残り時間{remaining}秒が製作所要({MasterCraftDurationSeconds}秒)未満 → 製作せず報告", tag);
+                            SchedulerMain.State = IceState.TurninMission;
+                            P.TaskManager.Tasks.Clear();
+                            return true;
+                        }
+
+                        IceLogging.Verbose($"マスター: 残り{remaining}秒 / 評価値{currentScore} → 製作継続", tag);
+                        SchedulerMain.State = IceState.Craft;
+                        return true;
+                    }
 
                     if (sheet.Attributes.HasFlag(MissionAttributes.Critical))
                     {

@@ -11,7 +11,10 @@
 		<TargetFramework>net10.0-windows8.0</TargetFramework>
 		<InformationalVersion>$([System.DateTime]::UtcNow.ToString("yyyy\-MM\-dd HH\:mm\:ss"))</InformationalVersion>
 		<IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
-		<NoWarn>CS8618; CS8625; CS8629; </NoWarn>
+		<!-- 既存の nullable 抑制(CS8618/8625/8629)に加え、バグではない既知ノイズを抑制してビルド出力を見やすくする。
+		     CS0618=上流CSのMissionRank非推奨化(動作上は問題なし) / CS0414,CS0219,CS0169,CS0168=未使用フィールド・変数(デッドコード)
+		     CS8601,CS8603,CS8602,CS8604=nullable注釈ノイズ / CS4014=未await / CS9123=async内の&演算子 -->
+		<NoWarn>CS8618; CS8625; CS8629; CS0618; CS0414; CS0219; CS0169; CS0168; CS8601; CS8602; CS8603; CS8604; CS4014; CS9123; </NoWarn>
 	</PropertyGroup>
 
 	<ItemGroup>

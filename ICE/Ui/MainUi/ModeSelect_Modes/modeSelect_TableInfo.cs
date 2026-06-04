@@ -1383,6 +1383,28 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                             ImGui.EndTooltip();
                         }
                     }
+                    // マスターシップ(高難易度)ミッション専用: 評価値1000超で即報告するか否かのON/OFFトグル
+                    if (missionInfo.Attributes.HasFlag(MissionAttributes.Mastership))
+                    {
+                        if (notesCount > 0)
+                            ImGui.SameLine(0, 5);
+
+                        bool reportAt1000 = missionConfig.MasterReportAt1000;
+                        if (ImGui.Checkbox("##MasterReport1000", ref reportAt1000))
+                        {
+                            missionConfig.MasterReportAt1000 = reportAt1000;
+                            C.Save();
+                        }
+                        if (ImGui.IsItemHovered())
+                        {
+                            ImGui.BeginTooltip();
+                            ImGui.Text("マスターシップ: 評価値1000超で即報告");
+                            ImGui.Text("ON  : 評価値が1000以上になったら即座に報告");
+                            ImGui.Text("OFF : 制限時間が続く限り製作し、残り時間が1製作分未満になったら報告");
+                            ImGui.EndTooltip();
+                        }
+                        notesCount++;
+                    }
 
                     #endregion
 

@@ -33,6 +33,23 @@ namespace ICE.Scheduler.Tasks
         private static DateTime _zeroNodeSince = DateTime.MinValue;
         private const double ZeroNodeResolveSeconds = 30.0;
 
+        // ノードへ「到着済み(navmesh停止)」だが採取窓が開かない状態のタイムアウト用。
+        // navmesh停止中はCheckIfIsStuck(10秒ハードストップ)が呼ばれず無保護になるため、
+        // 到着後に一定時間採取できなければ次ノードへスキップして棒立ちを防ぐ。
+        private static int _arrivedNodeIndex = -1;
+        private static DateTime _arrivedSince = DateTime.MinValue;
+        private const double ArrivedInteractTimeoutSeconds = 12.0;
+
+        // 次ノードへ進める共通処理(各タイムアウト計測もリセット)
+        private static void AdvanceToNextNode(int nodeCount)
+        {
+            Mission_Settings.nodeCounter++;
+            if (Mission_Settings.nodeCounter >= nodeCount || nodeCount <= 0)
+                Mission_Settings.nodeCounter = 0;
+            _stuckNodeIndex = -1;
+            _arrivedNodeIndex = -1;
+        }
+
         public static void Enqueue()
         {
             if (Svc.Condition[ConditionFlag.Gathering])
@@ -445,6 +462,25 @@ namespace ICE.Scheduler.Tasks
 
             var location = gatherInfo[Mission_Settings.nodeCounter];
 
+            // [GatherDiag] 採取ループのスタック箇所追跡用(rio-pcのmaster_diag.logへ2秒スロットルで出力)。
+            // ゲームが別マシンで動くため、どのノード/状態で止まっているかを遠隔で特定する。
+            if (EzThrottler.Throttle("GatherDiagFile", 2000))
+            {
+                try
+                {
+                    Utils.TryGetObjectByDataId(location.NodeId, out var dn);
+                    float dist = Player.Available ? Player.DistanceTo(location.Position) : -1f;
+                    double arrivedSec = _arrivedNodeIndex == Mission_Settings.nodeCounter
+                        ? (DateTime.Now - _arrivedSince).TotalSeconds : -1;
+                    System.IO.File.AppendAllText(@"\\rio-pc\DevPlugins\master_diag.log",
+                        $"[GatherDiag] terr={Player.Territory.RowId} nodes={gatherInfo.Count} idx={Mission_Settings.nodeCounter} " +
+                        $"nodeId={location.NodeId} dist={dist:F1} inObjTable={(dn != null)} targetable={(dn != null && dn.IsTargetable)} " +
+                        $"jumping={(Player.Available && Player.IsJumping)} navRun={(P.Navmesh.Installed && P.Navmesh.IsRunning())} " +
+                        $"arrivedSec={arrivedSec:F1} gathering={Svc.Condition[ConditionFlag.Gathering]} state={SchedulerMain.State}\n");
+                }
+                catch { }
+            }
+
             // 現在対象のノードが変わったらタイムアウト計測をリセット
             if (_stuckNodeIndex != Mission_Settings.nodeCounter)
             {
@@ -462,10 +498,7 @@ namespace ICE.Scheduler.Tasks
                         P.Navmesh.Stop();
 
                     IceLogging.Info($"ノード {Mission_Settings.nodeCounter} に {NodeSkipSeconds}秒以内に到達できないためスキップします(到達不能ノードの可能性)", "[Gather: NodeSkip]");
-                    Mission_Settings.nodeCounter++;
-                    if (Mission_Settings.nodeCounter >= gatherInfo.Count)
-                        Mission_Settings.nodeCounter = 0;
-                    _stuckNodeIndex = -1; // 次回呼び出しでタイマー再セット
+                    AdvanceToNextNode(gatherInfo.Count); // 次ノードへ(到着タイマーもリセット)
                     return false;
                 }
 
@@ -492,12 +525,33 @@ namespace ICE.Scheduler.Tasks
                     IceLogging.Info($"Gathering window is now visible, continuing onto GatheringInteraction Task", "[Gathering: OpenGatheringMenu]");
                     P.TaskManager.Insert(() => GatherInteractV2(), "Gathering at the node", Utils.TaskConfig);
                     Mission_Settings.nodeTotal += 1;
+                    _arrivedNodeIndex = -1; // 採取開始 → 到着タイムアウト計測をリセット
                     return true;
                 }
                 else
                 {
+                    // 到着済み(navmesh停止)状態のタイムアウト計測を開始/継続。対象ノードが変わったら計測リセット。
+                    if (_arrivedNodeIndex != Mission_Settings.nodeCounter)
+                    {
+                        _arrivedNodeIndex = Mission_Settings.nodeCounter;
+                        _arrivedSince = DateTime.Now;
+                    }
+
                     Utils.TryGetObjectByDataId(location.NodeId, out var node);
-                    if (node != null && !Player.IsJumping)
+
+                    // ノードがオブジェクトテーブルに存在しない(authored座標が未スポーン/枯渇でdespawn)。
+                    // 旧実装はここで何もせず末尾の return false に落ち、PathandCheckNodeがtrueを返さない=タスクが
+                    // 完了せずEnqueue/CheckCurrentLocationの再選択も走らない「復帰不能デッドロック(棒立ち)」だった。
+                    // 次ノードへ進めてtrueを返し、サイクルを回してCheckCurrentLocationに実出現ノードを再選択させる。
+                    if (node == null)
+                    {
+                        IceLogging.Info($"到着地点にノード {location.NodeId} が存在しません(未スポーン/枯渇)。次ノードへ進みます", "[Gathering: OpenGatheringMenu]");
+                        Mission_Settings.nodeTotal += 1;
+                        AdvanceToNextNode(gatherInfo.Count);
+                        return true;
+                    }
+
+                    if (!Player.IsJumping)
                     {
                         if (node.IsTargetable)
                         {
@@ -509,11 +563,22 @@ namespace ICE.Scheduler.Tasks
                         }
                         else
                         {
-                            // Node doesn't exist/isn't targetable. 
+                            // Node doesn't exist/isn't targetable.
                             IceLogging.Info($"The current node doesn't exist, continuing onto the next", "[Gathering: OpenGatheringMenu]");
                             Mission_Settings.nodeTotal += 1;
+                            AdvanceToNextNode(gatherInfo.Count);
                             return true;
                         }
+                    }
+
+                    // 到着済みなのに一定時間 採取窓が開かない(相互作用範囲外/障害物/高所でInteract不成立、
+                    // またはPlayer.IsJumpingが続く等)。navmesh停止中でハードストップが効かないため、
+                    // ここで保険として次ノードへスキップし棒立ちを防ぐ。
+                    if ((DateTime.Now - _arrivedSince).TotalSeconds >= ArrivedInteractTimeoutSeconds)
+                    {
+                        IceLogging.Info($"ノード {Mission_Settings.nodeCounter} に到着後 {ArrivedInteractTimeoutSeconds}秒採取できないためスキップします(相互作用不成立ノードの可能性)", "[Gathering: ArrivedTimeout]");
+                        AdvanceToNextNode(gatherInfo.Count);
+                        return true;
                     }
                 }
             }

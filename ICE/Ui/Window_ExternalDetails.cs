@@ -25,7 +25,7 @@ namespace ICE.Ui
             P.windowSystem.RemoveWindow(this);
         }
 
-        public void RequestFocus()
+        public new void RequestFocus()
         {
             focusDelayFrames = 10;
         }

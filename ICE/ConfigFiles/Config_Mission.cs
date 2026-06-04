@@ -62,6 +62,8 @@ public partial class Config
         public bool TurninGold { get; set; } = false;
         public bool TurninSilver { get; set; } = false;
         public bool TurninBronze { get; set; } = false;
+        // マスターシップ(高難易度)ミッション専用: ON=評価値1000超えで即報告 / OFF=制限時間が続く限り製作(残り時間が1製作分未満になったら報告)
+        public bool MasterReportAt1000 { get; set; } = false;
         public bool Use_BuildinPreset { get; set; } = false;
         public string AutoHookPresetName { get; set; } = string.Empty;
         public double BestTime { get; set; } = double.MaxValue;

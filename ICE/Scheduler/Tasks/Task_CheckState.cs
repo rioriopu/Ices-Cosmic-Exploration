@@ -421,6 +421,7 @@ namespace ICE.Scheduler.Tasks
                     PlaylistOptions.SinusMax => relicLevel >= 9,
                     PlaylistOptions.PhaennaMax => relicLevel >= 14,
                     PlaylistOptions.OizysMax => relicLevel >= 17,
+                    PlaylistOptions.AuxesiaMax => relicLevel >= 20,
                     PlaylistOptions.SelectedRelicLv => relicLevel >= entry.SelectedRelicLevel,
                     PlaylistOptions.CreditAmount => creditAmount >= entry.CreditAmount,
                     PlaylistOptions.PlanetAmount => planetCreditAmount >= entry.PlanetAmount,

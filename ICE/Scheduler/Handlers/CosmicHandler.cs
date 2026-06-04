@@ -42,6 +42,24 @@ namespace ICE.Utilities
             }
         }
 
+        /// <summary>
+        /// 現在のタイム制ミッションの残り秒数を返す。タイマーが無い/取得不可なら -1。
+        /// マスターシップ製作で「残り時間が1製作分未満なら新規製作せず報告」の判断に使う。
+        /// </summary>
+        internal unsafe static long MissionTimeRemaining()
+        {
+            var c = UIState.Instance()->MassivePcContentTodo.Director;
+            if (c != null)
+            {
+                var todo = c->MassivePcContentTodos[1];
+                if (todo[1].Enabled)
+                {
+                    return todo[1].EndTimestamp - Framework.GetServerTime();
+                }
+            }
+            return -1;
+        }
+
         public enum WKSEvents
         {
             Mechops_Commenced = 0,

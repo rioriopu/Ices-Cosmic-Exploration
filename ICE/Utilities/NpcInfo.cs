@@ -160,7 +160,7 @@ internal static class NpcData // Renamed the class to avoid conflict
                 // CircleとNpcを分離してNPC衝突→走り続けを回避(distance:5判定 約1.6m<5)。
                 NpcId = 1056825,
                 Name = "Godgyth",
-                Location_Npc = new Vector3(315.66f, 205.75f, 374.68f),
+                Location_Npc = new Vector3(317.68f, 205.75f, 374.78f), // 2026-06-04 再取得(開拓で移動)
                 Location_Circle = new Vector3(314.88f, 205.64f, 376.06f),
             },
             [NpcType.Credit] = new NPCInfo
@@ -179,8 +179,8 @@ internal static class NpcData // Renamed the class to avoid conflict
                 // ハブ側(低Z)へ約4m手前に停止位置を設定(distance:5判定OK 4.16m<5 / 会話可能距離 / 衝突回避)。
                 NpcId = 1056821,
                 Name = "Researchingway",
-                Location_Npc = new Vector3(291.25f, 205.75f, 400.66f),
-                Location_Circle = new Vector3(291.25f, 205.64f, 396.50f),
+                Location_Npc = new Vector3(291.00f, 206.21f, 402.58f),    // 2026-06-04 再取得(開拓で移動)
+                Location_Circle = new Vector3(291.45f, 205.64f, 399.14f), // 実機で立って会話できた位置(NPCまで約3.5m)
             },
             [NpcType.Gamba] = new NPCInfo
             {
@@ -203,8 +203,8 @@ internal static class NpcData // Renamed the class to avoid conflict
                 // 目の前座標(実機確定 2026-06-02): (280.63, 205.64, 353.20)
                 NpcId = 1056819,
                 Name = "Lefleda",
-                Location_Npc = new Vector3(280.63f, 205.75f, 353.20f),
-                Location_Circle = new Vector3(280.63f, 205.64f, 353.20f),
+                Location_Npc = new Vector3(280.41f, 205.64f, 352.50f),    // 2026-06-04 再取得(開拓で移動)
+                Location_Circle = new Vector3(282.25f, 205.64f, 355.81f), // 実機で立って会話できた位置(NPCまで約3.8m。旧Circleは0.85mで衝突懸念)
             },
         },
     };

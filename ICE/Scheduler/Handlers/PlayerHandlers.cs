@@ -25,6 +25,8 @@ internal static unsafe class PlayerHandlers
 
     internal static unsafe void Tick()
     {
+        Tasks.Task_TurninMission.RedAlertDiagTick(); // 一時診断: 緊急ミッションの座標/ワープ/納品ノード追跡
+
         if (!P.overlayWindow.IsOpen && PlayerHelper.IsInCosmicZone() && C.ShowOverlay)
             P.overlayWindow.IsOpen = true;
 

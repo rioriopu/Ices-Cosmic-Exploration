@@ -96,12 +96,14 @@ namespace ICE.Scheduler.Tasks
                     PlaylistOptions.SinusMax => relicLevel >= 9,
                     PlaylistOptions.PhaennaMax => relicLevel >= 14,
                     PlaylistOptions.OizysMax => relicLevel >= 17,
+                    PlaylistOptions.AuxesiaMax => relicLevel >= 20,
                     PlaylistOptions.SelectedRelicLv => relicLevel >= entry.SelectedRelicLevel,
                     PlaylistOptions.CreditAmount => creditAmount >= entry.CreditAmount,
                     PlaylistOptions.PlanetAmount => planetCreditAmount >= entry.PlanetAmount,
                     PlaylistOptions.DronebitAmount => dronebitAmount >= entry.DronebitAmount,
                     PlaylistOptions.ClassLevel => level >= entry.ClassLevel,
                     PlaylistOptions.ClassScore => classScore >= entry.ClassScore,
+                    _ => false, // None/ToolMaxExp/GoldClassMissions等の未対応値: 未達成扱い(網羅漏れで実行時例外になるのを防ぐ)
                 };
 
                 if (!achieved)

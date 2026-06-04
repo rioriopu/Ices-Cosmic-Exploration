@@ -20,6 +20,7 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
             PlaylistOptions.SinusMax,
             PlaylistOptions.PhaennaMax,
             PlaylistOptions.OizysMax,
+            PlaylistOptions.AuxesiaMax,
             PlaylistOptions.ToolMaxExp,
             PlaylistOptions.SelectedRelicLv,
 

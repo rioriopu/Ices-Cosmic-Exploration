@@ -463,6 +463,24 @@ namespace ICE.Scheduler.Tasks
                 var visibleMissions = CosmicHandler.VisibleMissions();
                 var mode = Mission_Settings.Mode;
 
+                // === ドローン探索優先 (pre-handler) ===
+                // ドローン自動探索が稼働中(Cosmodrone_Run)で、まだ使えるドローン(箱所持 or 自動購入で買える)がある間は、
+                // ミッション grab を見送ってドローンの掘削+鑑定サイクルを優先する。
+                // ドローンと製作ミッション(マスター含む)を両方Enabledにしていると、掘削直後に製作 grab が鑑定を奪い、
+                // 採掘地で製作を始めてしまう(カエデへ行かない)問題への対策。ドローンが尽きたら通常のミッションへ復帰する。
+                if (C.Cosmodrone_Run && PlayerHelper.IsInDroneZone())
+                {
+                    var dBoxId = CosmicHelper.DronebitInfo.TryGetValue(Player.Territory.RowId, out var dbi) ? dbi.boxId : 0u;
+                    bool hasBox = dBoxId != 0 && PlayerHelper.GetItemCount(dBoxId, out var dBoxCnt) && dBoxCnt > 0;
+                    bool canBuy = C.Cosmodrone_Buy && Task_ArtifactSearch.CanBuyDroneBoxes();
+                    if (hasBox || canBuy)
+                    {
+                        if (EzThrottler.Throttle("DronePriorityYield", 2000))
+                            IceLogging.Verbose("ドローン稼働中(箱所持/購入可)のためミッション grab を見送り(ドローン優先)", tag);
+                        return true; // grabせず次(ドローンタスク)へ譲る
+                    }
+                }
+
                 // === マスターシップ最優先 (pre-handler) ===
                 // マスターシップミッション(「MASTER：」, Unknown2)は SelectedTab=3 のタブでのみ MissionList に出現する
                 // (GetBasicMissions/GetProvisionalMissions には含まれない。実機診断で確定)。

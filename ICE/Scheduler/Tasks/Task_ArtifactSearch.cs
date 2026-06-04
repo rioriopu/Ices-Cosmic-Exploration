@@ -1,4 +1,6 @@
 ﻿using Dalamud.Game.ClientState.Conditions;
+using Dalamud.Game.Chat;
+using ECommons.DalamudServices.Legacy;
 using ECommons.GameHelpers;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.UI.Agent;
@@ -205,6 +207,10 @@ namespace ICE.Scheduler.Tasks
         private static Vector3 droneLoc = Vector3.Zero;
         private static bool _hadDroneMarkers = false; // 宝マーカーを収集中だったか(収集完了後にドローンNPCで鑑定するためのトリガ)
         private static long _appraiseGraceStart = 0;   // 鑑定ウィンドウ完了判定の猶予計測
+        private static bool _appraiseKickedOff = false; // ItemInspectionList で最初の1件を選択済みか
+        private static long _iilAloneSince = 0;         // ItemInspectionListのみが残った時刻(全件完了→一覧を閉じる判定)
+        private static long _lastResultActivity = 0;     // 鑑定処理(Occupied/Yesno/Inspection/Result)が最後に動いた時刻。一覧の早すぎる再クリック防止。
+        private static int _resultNextCount = 0;          // 1つの結果窓でNextを連打した回数(無限ループ保険)
         public static void Enqueue_DroneCheck()
         {
             P.TaskManager.EnqueueMulti
@@ -303,36 +309,70 @@ namespace ICE.Scheduler.Tasks
             }
             else
             {
-                // 宝マーカーを収集していたが尽きた(=1サイクル収集完了) → ドローンNPC(Kaede)へ戻って鑑定する。
-                // 鑑定後はタスクが空になり、次tickのドローンチェックで通常処理(箱使用/次サイクル)へ自然に復帰する。
+                // ★採掘優先(ユーザー要望): 宝マーカーが尽きても、所持品にエネルギーパックが残っていれば
+                //   鑑定より先にパックを使って採掘を続ける。パックが完全に尽きて初めて、溜まった戦利品をまとめて鑑定する。
+                var boxId = CosmicHelper.DronebitInfo.TryGetValue(Player.Territory.RowId, out var dInfo) ? dInfo.boxId : 50414u;
+                if (PlayerHelper.GetItemCount(boxId, out var count) && count > 0)
+                {
+                    IceLogging.Debug("エネルギーパックがまだあるので、鑑定より先に使って採掘を続けます", tag);
+                    P.TaskManager.Insert(UseDroneBox, "Use Drone Box");
+                    return true; // _hadDroneMarkers は維持(未鑑定の戦利品は、パックが尽きたときにまとめて鑑定)
+                }
+
+                // パックが尽きた → 収集済み(未鑑定)があればドローンNPC(Kaede)で鑑定する。
                 if (_hadDroneMarkers)
                 {
                     _hadDroneMarkers = false;
-                    IceLogging.Info("宝の収集が一段落したので、ドローンNPCに話しかけて鑑定します", tag);
+                    IceLogging.Info("エネルギーパックが尽きたので、ドローンNPCに話しかけて鑑定します", tag);
+                    // 先行してキューに積まれた製作ミッションgrab等をクリアし、鑑定(カエデ歩行→鑑定)を確実に走らせる。
+                    P.TaskManager.Tasks.Clear();
                     EnqueueAppraisal();
                     return true;
                 }
 
-                // 惑星別のドローンボックスIDで所持数を確認(Oizys=50414 / Auxesia=50415)
-                var boxId = CosmicHelper.DronebitInfo.TryGetValue(Player.Territory.RowId, out var dInfo) ? dInfo.boxId : 50414u;
-                if (PlayerHelper.GetItemCount(boxId, out var count) && count > 0)
+                // パックも無く鑑定も済 → 通常処理へ
+                IceLogging.Debug($"We are out of boxes, and we have no markers. So we're continuing on with the normal task");
+                if (SchedulerMain.State == IceState.ArtifactSearch)
                 {
-                    IceLogging.Debug("We have a crate to use! Initiating the task to start using it", tag);
-                    P.TaskManager.Insert(UseDroneBox, "Use Drone Box");
-                    return true;
+                    SchedulerMain.State = IceState.Idle;
+                    P.TaskManager.Tasks.Clear();
                 }
-                else
-                {
-                    IceLogging.Debug($"We are out of boxes, and we have no markers. So we're continuing on with the normal task");
-                    if (SchedulerMain.State == IceState.ArtifactSearch)
-                    {
-                        SchedulerMain.State = IceState.Idle;
-                        P.TaskManager.Tasks.Clear();
-                    }
-                    return true;
-                }
+                return true;
             }
         }
+        // ItemInspectionListの1行レンダラから表示テキスト(項目名)を読む。子のテキストノードを連結。
+        private static unsafe string ReadRendererText(FFXIVClientStructs.FFXIV.Component.GUI.AtkComponentListItemRenderer* rend)
+        {
+            try
+            {
+                var sb = new System.Text.StringBuilder();
+                var uld = &rend->AtkComponentButton.AtkComponentBase.UldManager;
+                for (var n = 0; n < uld->NodeListCount; n++)
+                {
+                    var node = uld->NodeList[n];
+                    if (node == null) continue;
+                    if (node->Type == FFXIVClientStructs.FFXIV.Component.GUI.NodeType.Text)
+                    {
+                        var tn = (FFXIVClientStructs.FFXIV.Component.GUI.AtkTextNode*)node;
+                        var s = tn->NodeText.ToString();
+                        if (!string.IsNullOrWhiteSpace(s)) sb.Append(s).Append(' ');
+                    }
+                }
+                return sb.ToString().Trim();
+            }
+            catch { return ""; }
+        }
+
+        // 鑑定の優先順位: 緑金(0) > 青銀(1) > 白銀/白銅(2) > その他(100)。小さいほど先に鑑定する。
+        private static int AppraisePriorityRank(string t)
+        {
+            if (string.IsNullOrEmpty(t)) return 99;
+            if (t.Contains("緑金")) return 0;
+            if (t.Contains("青銀")) return 1;
+            if (t.Contains("白銀") || t.Contains("白銅")) return 2;
+            return 100;
+        }
+
         // ドローン自動鑑定システム(rimuru版より移植)。
         // ドローン宝探索で得た「古代の記録」等を自動で鑑定(精選/アイテム鑑定)する。
         // 鑑定中(Occupied39)/確認ダイアログ/PurifyItemSelector(鑑定開始)/PurifyResult(結果を一括処理して閉じる)を順に捌く。
@@ -341,13 +381,134 @@ namespace ICE.Scheduler.Tasks
         {
             // 鑑定実行中(アイテム精選アニメ等)は待機
             if (Svc.Condition[ConditionFlag.Occupied39])
+            {
+                _iilAloneSince = 0; _lastResultActivity = Environment.TickCount64; // 進行中
                 return true;
+            }
 
             // 「鑑定しますか?」等の確認ダイアログ → はい
             if (GenericHelpers.TryGetAddonMaster<SelectYesno>("SelectYesno", out var yesno) && yesno.IsAddonReady)
             {
+                _iilAloneSince = 0; _lastResultActivity = Environment.TickCount64; // 進行中
                 if (EzThrottler.Throttle("Drone appraisal yesno", 250))
                     yesno.Yes();
+                return true;
+            }
+
+            // ── Auxesia: アイテム鑑定(ItemInspection)系 ──
+            // 鑑定中アニメ窓
+            if (GenericHelpers.TryGetAddonByName<AtkUnitBase>("ItemInspection", out var iiProgress) && iiProgress->IsVisible)
+            {
+                _iilAloneSince = 0; _lastResultActivity = Environment.TickCount64; // 進行中
+                return true;
+            }
+            // 結果窓: Nextが押せれば次の記録へ、押せなくなったら(=報酬表示まで到達)閉じる(param=-1)。
+            // 実機の手動操作は「Next(0)を数回 → 閉じる(-1)」。Nextが押せる限り進め、押せなくなったら必ずCloseで締める。
+            // 保険: 同一結果窓でNextを連打しすぎたら(想定外でNextが無効化されない)強制的にCloseする。
+            if (GenericHelpers.TryGetAddonMaster<ItemInspectionResult>("ItemInspectionResult", out var iiResult) && iiResult.IsAddonReady)
+            {
+                _iilAloneSince = 0; _lastResultActivity = Environment.TickCount64; // 進行中
+                // 「次を鑑定する」(NextButton id74)は早すぎると不安定になるため 600ms 間隔に。
+                if (EzThrottler.Throttle("Drone iiresult", 600))
+                {
+                    bool nextEnabled = iiResult.NextButton != null && iiResult.NextButton->IsEnabled;
+                    string itemName = "";
+                    try { itemName = iiResult.ItemNameText; } catch { }
+                    try { System.IO.File.AppendAllText(@"\\rio-pc\DevPlugins\master_diag.log", $"[Appraise] ItemInspectionResult nextEnabled={nextEnabled} nextCount={_resultNextCount} item='{itemName}'\n"); } catch { }
+                    // Nextが押せる限り「次を鑑定する」で同カテゴリを鑑定し続ける。押せなくなったら(=該当記録が尽きた)閉じる(param=-1)。
+                    // 上限は暴走保険(同カテゴリ最大想定を超える 500 回)。通常はNext無効化で自然終了する。
+                    if (nextEnabled && _resultNextCount < 500)
+                    {
+                        iiResult.Next();
+                        _resultNextCount++;
+                    }
+                    else
+                    {
+                        iiResult.Close();  // CloseButton id73 → param=-1
+                        _resultNextCount = 0;
+                    }
+                }
+                return true;
+            }
+            // 一覧窓(ItemInspectionList): 先頭の記録に ListItemClick(35) を発火して鑑定を進める。
+            // 実機捕捉と同一のイベント。ただし AtkEventData が空だと ReceiveEvent内でnull参照→クラッシュするため、
+            // 必ず実際の項目レンダラ(GetItemRenderer(0))を Data[0] に入れて発火する(ForPopupMenuと同じ方式)。
+            // 選択しても確認窓が一定時間出ない/対象レンダラがない = 全件完了 → 一覧を閉じる。
+            if (GenericHelpers.TryGetAddonByName<AtkUnitBase>("ItemInspectionList", out var iiList) && iiList->IsVisible)
+            {
+                long now = Environment.TickCount64;
+                if (_iilAloneSince == 0) _iilAloneSince = now;
+                long alone = now - _iilAloneSince;
+                // 直近に鑑定処理(結果窓/精選アニメ/Yesno)が動いていたら、結果窓の遷移中の一瞬の隙間。
+                // ここで一覧を再クリックすると鑑定フローを中断してしまう(前回バグの原因)。1.5秒は待つ。
+                long sinceActivity = _lastResultActivity == 0 ? long.MaxValue : now - _lastResultActivity;
+                if (sinceActivity < 1500)
+                    return true;
+
+                if (alone < 3500)
+                {
+                    if (EzThrottler.Throttle("iil select", 1200))
+                    {
+                        _resultNextCount = 0; // 新しい記録の鑑定開始
+                        var addonIIL = (FFXIVClientStructs.FFXIV.Client.UI.AddonItemInspectionList*)iiList;
+                        FFXIVClientStructs.FFXIV.Component.GUI.AtkComponentList* list = null;
+                        for (uint id = 2; id <= 100 && list == null; id++)
+                            list = addonIIL->GetComponentListById(id);
+
+                        // 優先順位(緑金>青銀>白銀/白銅)が最も高い行を選ぶ。各行のテキストを読んで判定。
+                        int pickIndex = 0;
+                        int bestRank = int.MaxValue;
+                        string pickText = "";
+                        if (list != null)
+                        {
+                            int rows = list->ListLength;
+                            if (rows <= 0) rows = list->GetItemCount();
+                            for (int i = 0; i < rows; i++)
+                            {
+                                var r = list->GetItemRenderer(i);
+                                if (r == null) continue;
+                                string rtext = ReadRendererText(r);
+                                int rank = AppraisePriorityRank(rtext);
+                                try { System.IO.File.AppendAllText(@"\\rio-pc\DevPlugins\master_diag.log", $"[Appraise] row[{i}] rank={rank} text='{rtext}'\n"); } catch { }
+                                if (rank < bestRank) { bestRank = rank; pickIndex = i; pickText = rtext; }
+                            }
+                        }
+
+                        FFXIVClientStructs.FFXIV.Component.GUI.AtkComponentListItemRenderer* renderer = null;
+                        if (list != null)
+                            renderer = list->GetItemRenderer(pickIndex);
+
+                        if (renderer != null)
+                        {
+                            // 正しいデータ付きで ListItemClick(35) を発火(クラッシュ回避: Data[0]=有効なレンダラ)。
+                            // ClickHelper経由はMarshal.GetDelegateForFunctionPointerでキャスト失敗するため、
+                            // addonのReceiveEventを直接呼ぶ(_CharaSelectListMenuと同方式)。
+                            var eventData = ECommons.Automation.UIInput.EventData.ForNormalTarget(&FFXIVClientStructs.FFXIV.Component.GUI.AtkStage.Instance()->AtkEventTarget, iiList);
+                            var inputData = ECommons.Automation.UIInput.InputData.Empty();
+                            inputData.Data[0] = renderer;            // 必須: 項目レンダラ(空だとクラッシュ)
+                            inputData.Data[2] = (void*)(long)pickIndex; // 選択する行index
+                            try { System.IO.File.AppendAllText(@"\\rio-pc\DevPlugins\master_diag.log", $"[Appraise] ItemInspectionList → ListItemClick(35) index={pickIndex} text='{pickText}' renderer=0x{(long)renderer:X}\n"); } catch { }
+                            iiList->ReceiveEvent((FFXIVClientStructs.FFXIV.Component.GUI.AtkEventType)35, 0, eventData.Data, (FFXIVClientStructs.FFXIV.Component.GUI.AtkEventData*)inputData.Data);
+                            eventData.Dispose();
+                            inputData.Dispose();
+                            // 自分のクリックも「活動」として記録。結果窓が開くまでの隙間に二重クリックするのを防ぐ。
+                            _lastResultActivity = now;
+                        }
+                        else
+                        {
+                            try { System.IO.File.AppendAllText(@"\\rio-pc\DevPlugins\master_diag.log", $"[Appraise] ItemInspectionList renderer=null (listFound={list != null})\n"); } catch { }
+                        }
+                    }
+                    return true;
+                }
+
+                // 3.5秒間、結果窓も精選アニメも出ず対象もない = 全件完了 → 一覧を閉じる
+                if (EzThrottler.Throttle("iil close", 500))
+                {
+                    try { System.IO.File.AppendAllText(@"\\rio-pc\DevPlugins\master_diag.log", "[Appraise] ItemInspectionList 全件完了 → 閉じる\n"); } catch { }
+                    ECommons.Automation.Callback.Fire(iiList, true, -1);
+                    _iilAloneSince = 0;
+                }
                 return true;
             }
 
@@ -355,7 +516,10 @@ namespace ICE.Scheduler.Tasks
             if (GenericHelpers.TryGetAddonByName<AtkUnitBase>("PurifyItemSelector", out var purifySelector) && purifySelector->IsReady)
             {
                 if (EzThrottler.Throttle("Drone purify", 250) && !Player.IsBusy)
+                {
+                    try { System.IO.File.AppendAllText(@"\\rio-pc\DevPlugins\master_diag.log", "[Appraise] PurifyItemSelector open → Callback(12,0)\n"); } catch { }
                     ECommons.Automation.Callback.Fire(purifySelector, true, 12, 0);
+                }
                 return true;
             }
 
@@ -364,6 +528,7 @@ namespace ICE.Scheduler.Tasks
             {
                 if (EzThrottler.Throttle("Drone purify result", 250))
                 {
+                    try { System.IO.File.AppendAllText(@"\\rio-pc\DevPlugins\master_diag.log", "[Appraise] PurifyResult open → Automatic+Close\n"); } catch { }
                     purifyResult.Automatic();
                     purifyResult.Close();
                 }
@@ -377,6 +542,10 @@ namespace ICE.Scheduler.Tasks
         public static void EnqueueAppraisal()
         {
             _appraiseGraceStart = 0;
+            _appraiseKickedOff = false;
+            _iilAloneSince = 0;
+            _lastResultActivity = 0;
+            _resultNextCount = 0;
             P.TaskManager.EnqueueMulti
                 (
                     new(Drone_PathToVendor, "Drone Appraise: Path to NPC"),
@@ -407,10 +576,17 @@ namespace ICE.Scheduler.Tasks
                 foreach (var e in ss.Entries)
                 {
                     var t = e.Text ?? "";
-                    if (t.Contains("鑑定") || t.Contains("精選") || t.Contains("Appraise") || t.Contains("Purif"))
+                    // 「〜について聞く」は説明項目なので除外(「古代の記録」について聞く 等)
+                    if (t.Contains("について聞く") || t.Contains("聞く"))
+                        continue;
+                    // Auxesia(カエデ)の鑑定項目は「『古代の記録』と報酬の交換」。Oizys等の「鑑定/精選」も併せて対応。
+                    if (t.Contains("報酬の交換") || t.Contains("鑑定") || t.Contains("精選") || t.Contains("Appraise") || t.Contains("Purif"))
                     {
                         if (EzThrottler.Throttle("Select appraise entry", 300))
+                        {
+                            try { System.IO.File.AppendAllText(@"\\rio-pc\DevPlugins\master_diag.log", $"[Appraise] selected entry='{t}'\n"); } catch { }
                             e.Select();
+                        }
                         return true;
                     }
                 }
@@ -422,9 +598,72 @@ namespace ICE.Scheduler.Tasks
             return false;
         }
 
+        // 【一時診断】ICEの自動運転とは無関係に、コスモゾーンで現在開いている窓(アドオン)名を常時監視し、
+        // セットが変化したときだけログに記録する。手動で鑑定したときの窓も捕捉できる(自動鑑定タスク外でも動くため)。
+        // HUD等(名前が "_" 始まり)は除外。ICE.Tickから毎フレーム呼ぶ。
+        private static string _lastAddonSet = "";
+        public static unsafe void DiagWatchAddons()
+        {
+            if (!EzThrottler.Throttle("DiagWatchAddons", 400)) return;
+            try
+            {
+                var open = new System.Collections.Generic.List<string>();
+                var mgr = FFXIVClientStructs.FFXIV.Client.UI.RaptureAtkUnitManager.Instance();
+                if (mgr != null)
+                {
+                    ref var loaded = ref mgr->AtkUnitManager.AllLoadedUnitsList;
+                    for (var i = 0; i < loaded.Count; i++)
+                    {
+                        var u = loaded.Entries[i].Value;
+                        if (u == null || !u->IsVisible) continue;
+                        var nm = u->NameString;
+                        if (string.IsNullOrEmpty(nm) || nm[0] == '_') continue; // HUD除外
+                        open.Add(nm);
+                    }
+                }
+                open.Sort();
+                var set = string.Join(",", open);
+                if (set != _lastAddonSet)
+                {
+                    _lastAddonSet = set;
+                    System.IO.File.AppendAllText(@"\\rio-pc\DevPlugins\master_diag.log", $"[AddonWatch] [{set}]\n");
+                }
+            }
+            catch { }
+        }
+
+        // 【一時診断】鑑定一覧/結果の受信イベントを記録し、手動クリック時の正しい選択イベント(type/param)を特定する。
+        // ICE.Loadから一度だけ登録する。
+        private static bool _appraiseDiagRegistered = false;
+        public static void RegisterAppraiseDiag()
+        {
+            if (_appraiseDiagRegistered) return;
+            try
+            {
+                Svc.AddonLifecycle.RegisterListener(Dalamud.Game.Addon.Lifecycle.AddonEvent.PostReceiveEvent, "ItemInspectionList", OnInspectEvt);
+                Svc.AddonLifecycle.RegisterListener(Dalamud.Game.Addon.Lifecycle.AddonEvent.PostReceiveEvent, "ItemInspectionResult", OnInspectEvt);
+                _appraiseDiagRegistered = true;
+            }
+            catch { }
+        }
+        private static void OnInspectEvt(Dalamud.Game.Addon.Lifecycle.AddonEvent ev, Dalamud.Game.Addon.Lifecycle.AddonArgTypes.AddonArgs args)
+        {
+            try
+            {
+                if (args is Dalamud.Game.Addon.Lifecycle.AddonArgTypes.AddonReceiveEventArgs e)
+                {
+                    int t = (int)e.AtkEventType;
+                    // MouseOver(8)/MouseOut(9)等の移動系はノイズなので除外
+                    if (t == 8 || t == 9) return;
+                    System.IO.File.AppendAllText(@"\\rio-pc\DevPlugins\master_diag.log", $"[InspectEvt] {args.AddonName} type={t}({e.AtkEventType}) param={e.EventParam}\n");
+                }
+            }
+            catch { }
+        }
+
         // 鑑定ウィンドウ(PurifyItemSelector/PurifyResult/SelectYesno/Occupied39)を完了まで捌く。
         // ウィンドウが無い状態が一定時間続いたら鑑定完了(または対象なし)とみなす。
-        private static bool? ProcessAppraisal()
+        private static unsafe bool? ProcessAppraisal()
         {
             if (HandleDroneAppraisal())
             {
@@ -435,9 +674,11 @@ namespace ICE.Scheduler.Tasks
             if (_appraiseGraceStart == 0)
                 _appraiseGraceStart = Environment.TickCount64;
 
-            if (Environment.TickCount64 - _appraiseGraceStart >= 3000)
+            // 交換窓の出現を観測するため猶予を長め(8秒)に。窓が出れば上のダンプに名前が残る。
+            if (Environment.TickCount64 - _appraiseGraceStart >= 8000)
             {
                 _appraiseGraceStart = 0;
+                try { System.IO.File.AppendAllText(@"\\rio-pc\DevPlugins\master_diag.log", "[Appraise] grace expired (鑑定窓を捌けず終了)\n"); } catch { }
                 return true;
             }
             return false;
