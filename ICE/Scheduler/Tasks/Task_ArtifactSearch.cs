@@ -203,6 +203,8 @@ namespace ICE.Scheduler.Tasks
 
         // Going to drone locations
         private static Vector3 droneLoc = Vector3.Zero;
+        private static bool _hadDroneMarkers = false; // 宝マーカーを収集中だったか(収集完了後にドローンNPCで鑑定するためのトリガ)
+        private static long _appraiseGraceStart = 0;   // 鑑定ウィンドウ完了判定の猶予計測
         public static void Enqueue_DroneCheck()
         {
             P.TaskManager.EnqueueMulti
@@ -268,6 +270,20 @@ namespace ICE.Scheduler.Tasks
             var mapMarkers = GetAllEventMarkers();
             var marker = mapMarkers.Where(x => x.IconId == 63989).FirstOrDefault();
 
+            // === 一時診断: ドローンフローの状態をファイルへ記録 ===
+            if (EzThrottler.Throttle("DroneDiagFile", 2000))
+            {
+                try
+                {
+                    var bId = CosmicHelper.DronebitInfo.TryGetValue(Player.Territory.RowId, out var di) ? di.boxId : 0u;
+                    PlayerHelper.GetItemCount(bId, out var bcnt);
+                    bool hasDroneNpc = NpcData.MoonNpcs.TryGetValue(Player.Territory.RowId, out var ne) && ne.ContainsKey(NpcData.NpcType.Drone);
+                    System.IO.File.AppendAllText(@"\\rio-pc\DevPlugins\master_diag.log",
+                        $"[Drone] terr={Player.Territory.RowId} marker={(marker != null)} markerCnt={mapMarkers.Count(x => x.IconId == 63989)} hadMarkers={_hadDroneMarkers} boxId={bId} boxCnt={bcnt} hasKaede={hasDroneNpc} state={SchedulerMain.State}\n");
+                }
+                catch { }
+            }
+
 
 
             if (marker != null)
@@ -279,6 +295,7 @@ namespace ICE.Scheduler.Tasks
                 }
 
                 IceLogging.Debug("We've found the map flag! Setting it for us to travel to", tag);
+                _hadDroneMarkers = true; // 宝を収集中。マーカーが尽きたらドローンNPCで鑑定する
                 droneLoc = marker.Position;
                 P.TaskManager.Insert(InteractWithDrone, "Interact with drone");
                 Task_NavmeshMove.Enqueue_NavmeshTask(droneLoc, false, 3.5f);
@@ -286,6 +303,16 @@ namespace ICE.Scheduler.Tasks
             }
             else
             {
+                // 宝マーカーを収集していたが尽きた(=1サイクル収集完了) → ドローンNPC(Kaede)へ戻って鑑定する。
+                // 鑑定後はタスクが空になり、次tickのドローンチェックで通常処理(箱使用/次サイクル)へ自然に復帰する。
+                if (_hadDroneMarkers)
+                {
+                    _hadDroneMarkers = false;
+                    IceLogging.Info("宝の収集が一段落したので、ドローンNPCに話しかけて鑑定します", tag);
+                    EnqueueAppraisal();
+                    return true;
+                }
+
                 // 惑星別のドローンボックスIDで所持数を確認(Oizys=50414 / Auxesia=50415)
                 var boxId = CosmicHelper.DronebitInfo.TryGetValue(Player.Territory.RowId, out var dInfo) ? dInfo.boxId : 50414u;
                 if (PlayerHelper.GetItemCount(boxId, out var count) && count > 0)
@@ -345,6 +372,89 @@ namespace ICE.Scheduler.Tasks
 
             return false;
         }
+
+        /// <summary>ドローンNPC(Kaede)へ戻って鑑定(精選)を行う一連のタスクを積む。完了後はタスクが空になり通常のドローン処理へ復帰する。</summary>
+        public static void EnqueueAppraisal()
+        {
+            _appraiseGraceStart = 0;
+            P.TaskManager.EnqueueMulti
+                (
+                    new(Drone_PathToVendor, "Drone Appraise: Path to NPC"),
+                    new(TalkToDroneNpc, "Drone Appraise: Talk"),
+                    new(SelectAppraisalOption, "Drone Appraise: Select appraisal"),
+                    new(ProcessAppraisal, "Drone Appraise: Process windows"),
+                    new(CloseDroneMenu, "Drone Appraise: Close menu")
+                );
+        }
+
+        // Kaedeのメニュー(SelectString)から鑑定/精選の項目を選ぶ。買い物はEntries[0]なので、テキストで鑑定項目を特定する。
+        private static bool? SelectAppraisalOption()
+        {
+            if (GenericHelpers.TryGetAddonMaster<SelectString>("SelectString", out var ss) && ss.IsAddonReady)
+            {
+                // メニュー項目のテキストを診断ログに記録(鑑定項目名の確認用)
+                if (EzThrottler.Throttle("AppraiseMenuLog", 1000))
+                {
+                    try
+                    {
+                        var list = new System.Collections.Generic.List<string>();
+                        foreach (var e in ss.Entries) list.Add(e.Text);
+                        System.IO.File.AppendAllText(@"\\rio-pc\DevPlugins\master_diag.log", $"[Appraise] SelectString entries=[{string.Join(" | ", list)}]\n");
+                    }
+                    catch { }
+                }
+
+                foreach (var e in ss.Entries)
+                {
+                    var t = e.Text ?? "";
+                    if (t.Contains("鑑定") || t.Contains("精選") || t.Contains("Appraise") || t.Contains("Purif"))
+                    {
+                        if (EzThrottler.Throttle("Select appraise entry", 300))
+                            e.Select();
+                        return true;
+                    }
+                }
+
+                // 鑑定項目が無い(=鑑定対象なし) → そのまま終了(後続のProcessAppraisalは猶予後に即完了)
+                IceLogging.Info("ドローンNPCメニューに鑑定項目が見つかりませんでした(鑑定対象なし)。スキップします", "[Drone Appraise]");
+                return true;
+            }
+            return false;
+        }
+
+        // 鑑定ウィンドウ(PurifyItemSelector/PurifyResult/SelectYesno/Occupied39)を完了まで捌く。
+        // ウィンドウが無い状態が一定時間続いたら鑑定完了(または対象なし)とみなす。
+        private static bool? ProcessAppraisal()
+        {
+            if (HandleDroneAppraisal())
+            {
+                _appraiseGraceStart = Environment.TickCount64; // 処理中は猶予タイマーをリセット
+                return false;
+            }
+
+            if (_appraiseGraceStart == 0)
+                _appraiseGraceStart = Environment.TickCount64;
+
+            if (Environment.TickCount64 - _appraiseGraceStart >= 3000)
+            {
+                _appraiseGraceStart = 0;
+                return true;
+            }
+            return false;
+        }
+
+        // 鑑定後に残るドローンNPCメニュー(SelectString)を閉じて通常処理へ戻る。
+        private static bool? CloseDroneMenu()
+        {
+            if (GenericHelpers.TryGetAddonMaster<SelectString>("SelectString", out var ss) && ss.IsAddonReady)
+            {
+                if (EzThrottler.Throttle("Close drone menu", 250))
+                    GenericHandlers.FireCallback("SelectString", true, -1);
+                return false;
+            }
+            return true;
+        }
+
         private static bool? InteractWithDrone()
         {
             string tag = "[Task_Artifact: Drone Interact]";
