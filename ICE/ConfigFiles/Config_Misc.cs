@@ -45,10 +45,18 @@ public partial class Config
     public bool CrazyTaxiArrow { get; set; } = false;
     public bool PlaceboCheckbox { get; set; } = false;
 
-    // 採掘士マスター(1621)専用採取ループの有効化(Dev Favorites)。既定ON(常時オン)。
+    // 採掘士マスター(1621)専用採取ループの有効化(Dev Favorites)。既定OFF(無効)。
     // 旧「Notes即報告トグル表示」と「固定採取ルーチン有効化」の2チェックをこの1つに統合したもの。
     // ON時のループ: ①ミッションウィンドウを開く → ②クエスト1621を受注 → ③採取ポイントへアクセス →
     //   ④キングスイールドIIを1回使用 → ⑤トータスパインの琥珀(52057)をそのまま採取 → ⑥1ノードで報告 → ⑦最初に戻る。
     // 併せて Mission Setup の Notes 列にマスター即報告トグル(評価値500/1000)を表示する。
-    public bool FixedGatherRoutineEnabled { get; set; } = true;
+    // OFF(既定)時は全ミッションが従来どおりの通常挙動。
+    public bool FixedGatherRoutineEnabled { get; set; } = false;
+
+    // 固定採取ルーチンの「指定ノード」。記録するとループ中はルートに依らずこの座標の採取ポイントへ移動して採取する。
+    // Zero=未設定(従来どおりルート/最寄り発現ノードで採取)。BaseId=記録時に最寄りだった採取ポイントのBaseId(0=未取得)。
+    // Territory=記録した惑星(別惑星では無効化するためのガード)。
+    public Vector3 FixedRoutineNodePos { get; set; } = Vector3.Zero;
+    public uint FixedRoutineNodeBaseId { get; set; } = 0;
+    public uint FixedRoutineTerritory { get; set; } = 0;
 }

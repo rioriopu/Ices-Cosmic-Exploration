@@ -1,6 +1,7 @@
 using Dalamud.Interface;
 using Dalamud.Interface.Utility;
 using Dalamud.Interface.Utility.Raii;
+using ICE.Scheduler.Tasks;
 using ICE.Ui.MainUi.Settings.Settings_Table;
 using ICE.Utilities.Cosmic_Helper;
 using ICE.Utilities.ImGuiTools;
@@ -340,6 +341,36 @@ namespace ICE.Ui.MainUi.Settings
                 "⑥1ノードで報告(移動なし) → ⑦最初に戻る\n" +
                 "併せて Mission Setup の Notes 列にマスター即報告トグル(評価値500/1000)を表示します。\n" +
                 "OFF: 固定ループ無効・Notes即報告トグル非表示(通常の採取ロジックで動作)。");
+
+            // 指定ノード: 現在地を記録すると、ループ中はルートに依らずその採取ポイントへ移動して採取する。
+            if (C.FixedGatherRoutineEnabled)
+            {
+                ImGui.Indent();
+                bool nodeSet = C.FixedRoutineTerritory != 0;
+                if (nodeSet)
+                    ImGui.TextColored(new Vector4(0.4f, 0.9f, 0.4f, 1f),
+                        $"指定ノード: 記録済 ({C.FixedRoutineNodePos.X:F1}, {C.FixedRoutineNodePos.Y:F1}, {C.FixedRoutineNodePos.Z:F1}) BaseId={C.FixedRoutineNodeBaseId} 惑星={C.FixedRoutineTerritory}");
+                else
+                    ImGui.TextColored(new Vector4(0.8f, 0.8f, 0.8f, 1f), "指定ノード: 未設定(ルート/最寄り発現ノードで採取)");
+
+                if (ImGui.Button("現在地を指定ノードとして記録"))
+                {
+                    Task_Gather.RecordDesignatedNode();
+                }
+                ImGui.SameLine();
+                ImGuiEx.IconWithTooltip(FontAwesomeIcon.QuestionCircle,
+                    "採取したいノードの目の前に立った状態でこのボタンを押すと、現在地(と最寄り採取ポイント)を指定ノードとして記録します。\n" +
+                    "記録後、固定ループは毎回この地点へ移動して採取します(指定ノードまで移動する機能)。");
+                if (nodeSet)
+                {
+                    ImGui.SameLine();
+                    if (ImGui.Button("指定ノードをクリア"))
+                    {
+                        Task_Gather.ClearDesignatedNode();
+                    }
+                }
+                ImGui.Unindent();
+            }
         }
         private static void Separator()
         {

@@ -49,6 +49,54 @@ namespace ICE.Scheduler.Tasks
         // 固定ルーチンは Dev Favorites の FixedGatherRoutineEnabled がオンの時のみ有効。
         public static bool IsFixedKingsYieldMission(uint missionId) => C.FixedGatherRoutineEnabled && FixedKingsYieldMissions.Contains(missionId);
 
+        // 固定ルーチンで「指定ノード」が記録されていれば、ルートをその1点に差し替えて返す。
+        // これによりループ中は記録した採取ポイントへ移動して採取する(既存の移動/採取/スタック解決の機構をそのまま利用)。
+        // 未設定/別惑星なら false(従来どおりルート/最寄り発現ノードで採取)。
+        private static bool TryGetDesignatedRoute(out List<GathNodeInfo> route)
+        {
+            route = null;
+            if (!IsFixedKingsYieldMission(CosmicHelper.CurrentLunarMission))
+                return false;
+            if (C.FixedRoutineNodePos == Vector3.Zero || C.FixedRoutineTerritory != Player.Territory.RowId)
+                return false;
+
+            route = new List<GathNodeInfo>
+            {
+                new GathNodeInfo
+                {
+                    NodeId = C.FixedRoutineNodeBaseId,
+                    Position = C.FixedRoutineNodePos,
+                    LandZone = C.FixedRoutineNodePos,
+                }
+            };
+            return true;
+        }
+
+        // 現在地を固定ルーチンの「指定ノード」として記録する(UIボタンから呼ぶ)。
+        // 最寄り(15m以内)の採取ポイントのBaseIdとTerritoryも併せて記録し、ループ中はこの地点へ移動して採取する。
+        public static void RecordDesignatedNode()
+        {
+            C.FixedRoutineNodePos = Player.Position;
+            C.FixedRoutineTerritory = Player.Territory.RowId;
+            var nearest = Svc.Objects
+                .Where(o => o.ObjectKind == ObjectKind.GatheringPoint)
+                .OrderBy(o => Player.DistanceTo(o.Position))
+                .FirstOrDefault();
+            C.FixedRoutineNodeBaseId = (nearest != null && Player.DistanceTo(nearest.Position) <= 15f) ? nearest.BaseId : 0u;
+            C.Save();
+            IceLogging.Info($"[固定採取] 指定ノードを記録: pos=({C.FixedRoutineNodePos.X:F1},{C.FixedRoutineNodePos.Y:F1},{C.FixedRoutineNodePos.Z:F1}) baseId={C.FixedRoutineNodeBaseId} terr={C.FixedRoutineTerritory}", "[Gather: FixedRoutine]");
+        }
+
+        // 指定ノードの記録をクリアする(UIボタンから呼ぶ)。クリア後はルート/最寄り発現ノードでの通常採取に戻る。
+        public static void ClearDesignatedNode()
+        {
+            C.FixedRoutineNodePos = Vector3.Zero;
+            C.FixedRoutineNodeBaseId = 0;
+            C.FixedRoutineTerritory = 0;
+            C.Save();
+            IceLogging.Info("[固定採取] 指定ノードをクリアしました", "[Gather: FixedRoutine]");
+        }
+
         // このノードでキングスイールドII(YieldII)を既に使ったか(1ノードにつき1回だけ使う)。
         private static bool _kingsYieldUsedThisNode = false;
         // キングスイールドIIが使用可能になるのを待ち始めた時刻。使用不能(GP不足/未使用可)が続いた場合の
@@ -171,6 +219,67 @@ namespace ICE.Scheduler.Tasks
                 Mission_Settings.nodeCounter = 0;
             _stuckNodeIndex = -1;
             _arrivedNodeIndex = -1;
+        }
+
+        // 採取で詰まった時(到着したのに採取窓が開かない/ノードが枯渇・未スポーン/到達不能)の共通解決処理。
+        // 方針(ユーザー要望): ①実際に発現している(IsTargetable=光っている)採取ポイントが在れば、そこへ向け直す。
+        //                    ②発現ポイントが一定時間1つも無ければ、デジョン(Stellar Return)で拠点へ戻って状況をリセットする。
+        // すべてのギャザラーミッションに適用される。
+        private static DateTime _noLiveNodeSince = DateTime.MinValue;
+        private const double NoLiveNodeDejonSeconds = 20.0;
+
+        // 現在マップに発現している(IsTargetable)採取ポイントのうち、ルートに含まれるものが在るか。
+        private static bool AnyLiveRouteNode(List<GathNodeInfo> gatherInfo) =>
+            Svc.Objects.Any(o => o.ObjectKind == ObjectKind.GatheringPoint && o.IsTargetable
+                                 && gatherInfo.Any(g => g.NodeId == o.BaseId));
+
+        private static void ResolveStuckGatherNode(List<GathNodeInfo> gatherInfo, string reason)
+        {
+            // ① 実際に発現しているノードがあれば、最寄りの発現ノードへ向け直す(最優先・即時)。
+            if (AnyLiveRouteNode(gatherInfo))
+            {
+                _noLiveNodeSince = DateTime.MinValue;
+                if (EzThrottler.Throttle("StuckRedirectLog", 3000))
+                    IceLogging.Info($"採取で詰まりました({reason})。発現中(光っている)の採取ポイントへ向け直します", "[Gather: StuckResolve]");
+                if (P.Navmesh.Installed && P.Navmesh.IsRunning())
+                    P.Navmesh.Stop();
+                SetClosestTargetableNode(gatherInfo);
+                _arrivedNodeIndex = -1;
+                _stuckNodeIndex = -1;
+                return;
+            }
+
+            // ② 発現ノードが1つも無い。一定時間この状態が続いたらデジョン(Stellar Return)で拠点へ戻り解決する。
+            //    短時間は再スポーン/ストリームインを待ちつつルート次ノードへ進める(早すぎるデジョンを防ぐ)。
+            if (_noLiveNodeSince == DateTime.MinValue)
+                _noLiveNodeSince = DateTime.Now;
+
+            if ((DateTime.Now - _noLiveNodeSince).TotalSeconds < NoLiveNodeDejonSeconds)
+            {
+                if (EzThrottler.Throttle("StuckWaitLog", 3000))
+                    IceLogging.Info($"発現中の採取ポイントが見当たりません({reason})。{NoLiveNodeDejonSeconds:F0}秒待っても出なければデジョンで戻ります(経過 {(DateTime.Now - _noLiveNodeSince).TotalSeconds:F0}s)", "[Gather: StuckResolve]");
+                AdvanceToNextNode(gatherInfo.Count);
+                return;
+            }
+
+            // 一定時間 発現ノード無し → デジョン(Stellar Return)で拠点へ戻る。不可設定/ハブ未登録ならルート次ノードへ。
+            _noLiveNodeSince = DateTime.MinValue;
+            bool canStellarReturn = C.UseHubReturn
+                && !(C.AvoidStellarReturn && !C.AvoidStellarReturnExceptHub)
+                && CosmicHelper.HubCenter.ContainsKey(Player.Territory.RowId)
+                && SchedulerMain.State != IceState.HubReturn;
+            if (canStellarReturn)
+            {
+                IceLogging.Warning($"発現中の採取ポイントが{NoLiveNodeDejonSeconds:F0}秒以上見当たらないため、デジョン(Stellar Return)で拠点へ戻って解決します({reason})。", "[Gather: StuckResolve]");
+                _arrivedNodeIndex = -1;
+                _stuckNodeIndex = -1;
+                if (P.Navmesh.Installed && P.Navmesh.IsRunning())
+                    P.Navmesh.Stop();
+                P.TaskManager.Tasks.Clear();
+                SchedulerMain.State = IceState.HubReturn; // HubReturn→Stellar Return→Start→ミッション再選択で状況リセット
+                return;
+            }
+            AdvanceToNextNode(gatherInfo.Count);
         }
 
         public static void Enqueue()
@@ -554,6 +663,10 @@ namespace ICE.Scheduler.Tasks
             // 静的yamlが無ければ実機ノードから動的生成(Auxesia等の未yamlゾーンで採集を機能させる)
             var gatherInfo = GatheringRouteLoader.GetRouteOrDynamic(zoneId.RowId, missionFlag);
 
+            // 固定ルーチンで指定ノードが記録されていれば、ルートを指定ノード1点に差し替える(指定ノードへ移動して採取)。
+            if (TryGetDesignatedRoute(out var designatedRoute))
+                gatherInfo = designatedRoute;
+
             // ★ノード0件のときは true を返して必ず PathandCheckNode へ進める。
             // 旧実装は0件時に末尾の return false へ落ち、このタスクが完了せず永久に再実行され続け、
             // ZeroNodeResolve(30秒で納品/放棄に決着)を持つ PathandCheckNode に一切到達せず棒立ちした
@@ -665,6 +778,10 @@ namespace ICE.Scheduler.Tasks
             // 静的yamlが無ければ動的生成ルートを使用。空・範囲外を安全にガード(旧実装はGetRouteがnull/範囲外で例外の恐れ)
             var gatherInfo = GatheringRouteLoader.GetRouteOrDynamic(zoneId.RowId, missionFlag);
 
+            // 固定ルーチンで指定ノードが記録されていれば、ルートを指定ノード1点に差し替える(指定ノードへ移動して採取)。
+            if (TryGetDesignatedRoute(out var designatedRoute))
+                gatherInfo = designatedRoute;
+
             if (gatherInfo.Count == 0)
             {
                 // ★まず採集エリア(ミッションフラグ)へ移動してノードをストリームインさせる。
@@ -745,8 +862,9 @@ namespace ICE.Scheduler.Tasks
                     if (P.Navmesh.Installed && P.Navmesh.IsRunning())
                         P.Navmesh.Stop();
 
-                    IceLogging.Info($"ノード {Mission_Settings.nodeCounter} に {NodeSkipSeconds}秒以内に到達できないためスキップします(到達不能ノードの可能性)", "[Gather: NodeSkip]");
-                    AdvanceToNextNode(gatherInfo.Count); // 次ノードへ(到着タイマーもリセット)
+                    IceLogging.Info($"ノード {Mission_Settings.nodeCounter} に {NodeSkipSeconds}秒以内に到達できません(到達不能ノードの可能性)", "[Gather: NodeSkip]");
+                    // 発現中ノードへ向け直す/無ければデジョンで戻る(到達不能ノードの巡回スタックを防ぐ)
+                    ResolveStuckGatherNode(gatherInfo, "ノードへ到達できない");
                     return false;
                 }
 
@@ -774,6 +892,7 @@ namespace ICE.Scheduler.Tasks
                     P.TaskManager.Insert(() => GatherInteractV2(), "Gathering at the node", Utils.TaskConfig);
                     Mission_Settings.nodeTotal += 1;
                     _arrivedNodeIndex = -1; // 採取開始 → 到着タイムアウト計測をリセット
+                    _noLiveNodeSince = DateTime.MinValue; // 採取開始 → 発現ノード無しタイマーをリセット
                     return true;
                 }
                 else
@@ -793,9 +912,9 @@ namespace ICE.Scheduler.Tasks
                     // 次ノードへ進めてtrueを返し、サイクルを回してCheckCurrentLocationに実出現ノードを再選択させる。
                     if (node == null)
                     {
-                        IceLogging.Info($"到着地点にノード {location.NodeId} が存在しません(未スポーン/枯渇)。次ノードへ進みます", "[Gathering: OpenGatheringMenu]");
-                        Mission_Settings.nodeTotal += 1;
-                        AdvanceToNextNode(gatherInfo.Count);
+                        IceLogging.Info($"到着地点にノード {location.NodeId} が存在しません(未スポーン/枯渇)", "[Gathering: OpenGatheringMenu]");
+                        // 発現中ノードへ向け直す/無ければデジョンで戻る
+                        ResolveStuckGatherNode(gatherInfo, "到着地点にノードが存在しない");
                         return true;
                     }
 
@@ -811,21 +930,21 @@ namespace ICE.Scheduler.Tasks
                         }
                         else
                         {
-                            // Node doesn't exist/isn't targetable.
+                            // 目の前のノードが枯渇(非targetable)。
                             IceLogging.Info($"The current node doesn't exist, continuing onto the next", "[Gathering: OpenGatheringMenu]");
-                            Mission_Settings.nodeTotal += 1;
-                            AdvanceToNextNode(gatherInfo.Count);
+                            // 発現中ノードへ向け直す/無ければデジョンで戻る
+                            ResolveStuckGatherNode(gatherInfo, "目の前のノードが枯渇している");
                             return true;
                         }
                     }
 
                     // 到着済みなのに一定時間 採取窓が開かない(相互作用範囲外/障害物/高所でInteract不成立、
                     // またはPlayer.IsJumpingが続く等)。navmesh停止中でハードストップが効かないため、
-                    // ここで保険として次ノードへスキップし棒立ちを防ぐ。
+                    // ここで保険として発現ノードへ向け直す/無ければデジョンで戻り棒立ちを防ぐ。
                     if ((DateTime.Now - _arrivedSince).TotalSeconds >= ArrivedInteractTimeoutSeconds)
                     {
-                        IceLogging.Info($"ノード {Mission_Settings.nodeCounter} に到着後 {ArrivedInteractTimeoutSeconds}秒採取できないためスキップします(相互作用不成立ノードの可能性)", "[Gathering: ArrivedTimeout]");
-                        AdvanceToNextNode(gatherInfo.Count);
+                        IceLogging.Info($"ノード {Mission_Settings.nodeCounter} に到着後 {ArrivedInteractTimeoutSeconds}秒採取できません(相互作用不成立ノードの可能性)", "[Gathering: ArrivedTimeout]");
+                        ResolveStuckGatherNode(gatherInfo, "到着後に採取窓が開かない");
                         return true;
                     }
                 }
