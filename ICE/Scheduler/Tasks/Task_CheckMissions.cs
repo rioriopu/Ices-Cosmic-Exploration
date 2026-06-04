@@ -360,6 +360,10 @@ namespace ICE.Scheduler.Tasks
                     {
                         case MissionTypes.Critical:
                             {
+                                // [緊急診断] 緊急候補が分類されているか(0なら分類段階で弾かれている=Job不一致/Enabled無効/
+                                // GrindOffClassRedAlert未設定等)。dalamud.logのみ・5秒スロットルで性能影響なし。
+                                if (EzThrottler.Throttle("CriticalTabDiag", 5000))
+                                    IceLogging.Info($"[緊急診断] CheckTabs: MissionLibrary[Critical]={MissionLibrary[MissionKind.Critical].Count}件 SelectedJob={Mission_Settings.SelectedJob} GrindOffClassRedAlert={C.GrindOffClassRedAlert}", tag);
                                 if (MissionLibrary[MissionKind.Critical].Count > 0)
                                 {
                                     P.TaskManager.Enqueue(() => CheckMissions(MissionLibrary[MissionKind.Critical], type), "Checking Critical tab for missions");
@@ -468,17 +472,24 @@ namespace ICE.Scheduler.Tasks
                 // ミッション grab を見送ってドローンの掘削+鑑定サイクルを優先する。
                 // ドローンと製作ミッション(マスター含む)を両方Enabledにしていると、掘削直後に製作 grab が鑑定を奪い、
                 // 採掘地で製作を始めてしまう(カエデへ行かない)問題への対策。ドローンが尽きたら通常のミッションへ復帰する。
+                // 有効化したマスターシップミッションがあるか(ドローン優先の判定とマスター優先pre-handler両方で使う)
+                bool anyMasterEnabled = MissionLibrary[MissionKind.Master].Any(m => C.MissionConfig.TryGetValue(m, out var mc) && mc.Enabled);
+
                 if (C.Cosmodrone_Run && PlayerHelper.IsInDroneZone())
                 {
                     var dBoxId = CosmicHelper.DronebitInfo.TryGetValue(Player.Territory.RowId, out var dbi) ? dbi.boxId : 0u;
                     bool hasBox = dBoxId != 0 && PlayerHelper.GetItemCount(dBoxId, out var dBoxCnt) && dBoxCnt > 0;
                     bool canBuy = C.Cosmodrone_Buy && Task_ArtifactSearch.CanBuyDroneBoxes();
-                    if (hasBox || canBuy)
+                    // MasterPriorityOverDrone がONかつ有効マスターがある場合は、ドローンに譲らずマスター受注を優先する(ユーザー要望)。
+                    bool masterTakesPriority = C.MasterPriorityOverDrone && anyMasterEnabled;
+                    if ((hasBox || canBuy) && !masterTakesPriority)
                     {
                         if (EzThrottler.Throttle("DronePriorityYield", 2000))
                             IceLogging.Verbose("ドローン稼働中(箱所持/購入可)のためミッション grab を見送り(ドローン優先)", tag);
                         return true; // grabせず次(ドローンタスク)へ譲る
                     }
+                    if ((hasBox || canBuy) && masterTakesPriority && EzThrottler.Throttle("MasterOverDroneMsg", 5000))
+                        IceLogging.Info("MasterPriorityOverDrone: 有効なマスターミッションがあるため、ドローンより優先してマスター受注へ進みます", tag);
                 }
 
                 // === マスターシップ最優先 (pre-handler) ===
@@ -486,7 +497,6 @@ namespace ICE.Scheduler.Tasks
                 // (GetBasicMissions/GetProvisionalMissions には含まれない。実機診断で確定)。
                 // ユーザーがUIで有効化したMASTERミッションがある場合のみ、タブ3へ移動し最優先で受注する。
                 // (config.Enabledで限定するので、RelicMode等で未有効化なら従来動作を維持する)
-                bool anyMasterEnabled = MissionLibrary[MissionKind.Master].Any(m => C.MissionConfig.TryGetValue(m, out var mc) && mc.Enabled);
                 if (type == MissionTypes.Standard && anyMasterEnabled)
                 {
                     int curTab = -99;
@@ -811,22 +821,23 @@ namespace ICE.Scheduler.Tasks
                         }
                         else if (type is MissionTypes.Critical)
                         {
-                            IceLogging.Verbose($"Checking missions for the following mode:\n" +
-                                $"Mode: {type}\n" +
-                                $"Loaded mission count: {missionList.Count()}\n" +
-                                $"Amount of viable missions: {visibleMissions.Count()}", tag);
+                            // [緊急診断] ギャザラー緊急受注の不具合切り分け(dalamud.logのみ・性能影響なし)。
+                            // 緊急(候補)が在るのにvisibleMissions(UI上のCriticalタブ表示分)に出ない=タブ/ジョブサブタブ
+                            // 未選択 or 表示反映前。SelectedJob・候補・UI表示の突き合わせを記録する。
+                            IceLogging.Info($"[緊急診断] Criticalタブ評価: SelectedJob={Mission_Settings.SelectedJob} 候補missionList=[{string.Join(",", missionList)}] UI表示visible=[{string.Join(",", visibleMissions)}]", tag);
 
                             foreach (var missionId in missionList)
                             {
                                 if (visibleMissions.Contains(missionId))
                                 {
+                                    IceLogging.Info($"[緊急診断] 緊急ミッション {missionId} を受注します", tag);
                                     LogInfo(missionId);
                                     Insert_GrabMissionTask(missionId);
                                     return true;
                                 }
                             }
 
-                            IceLogging.Info("No missions were found for the critical missions, so continuing on", tag);
+                            IceLogging.Info($"[緊急診断] 緊急候補({missionList.Count})は在るがUI(Criticalタブ)に未表示のため受注できず。タブ/ジョブサブタブ選択待ちか、Job不一致(候補のJobsにSelectedJob={Mission_Settings.SelectedJob}が含まれるか要確認)", tag);
                             return true;
                         }
                     }

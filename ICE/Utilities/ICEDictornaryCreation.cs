@@ -184,6 +184,11 @@ public sealed partial class ICE
                     109 or 111 => MissionAttributes.Gather | MissionAttributes.Collectables,
                     110 => MissionAttributes.Gather | MissionAttributes.ReducedItems | MissionAttributes.ScoreTimeRemaining,
                     112 => MissionAttributes.Gather | MissionAttributes.ReducedItems,
+                    // MASTER採取(MIN/BTN, ToDo[0].WKSMissionText)。switch未定義で属性=Noneに落ち、Gatherも消えて
+                    // 「採集エリアへ移動しない」「スキルが発動しない」バグになっていた(ゲームデータ実測で確定)。
+                    312 => MissionAttributes.Gather,                                                              // 個数で評価(エクステンドリサーチ=GreaterReach)
+                    313 => MissionAttributes.Gather | MissionAttributes.ScoreChains | MissionAttributes.ScoreGatherersBoon, // 連続成功/獲得数ボーナス(エクステンドリサーチ)
+                    314 => MissionAttributes.Gather | MissionAttributes.Collectables,                            // 個数・収集価値(絶対強活眼)
                     113 => MissionAttributes.Fish | MissionAttributes.ScoreVariety | MissionAttributes.ScoreTimeRemaining,
                     114 or 115 => MissionAttributes.Fish | MissionAttributes.ScoreTimeRemaining,
                     116 => MissionAttributes.Fish | MissionAttributes.Limited | MissionAttributes.ScoreVariety,
@@ -192,6 +197,10 @@ public sealed partial class ICE
                     119 or 121 => MissionAttributes.Fish,
                     120 => MissionAttributes.Fish | MissionAttributes.ScoreLargestSize,
                     122 => MissionAttributes.Fish | MissionAttributes.Collectables,
+                    // MASTER釣り(FSH, ToDo[0].WKSMissionText)。switch未定義で属性Noneに落ちていたのを修正。
+                    315 => MissionAttributes.Fish | MissionAttributes.ScoreLargestSize, // 魚ごと/ラージサイズ(アディショナルフック)
+                    316 => MissionAttributes.Fish | MissionAttributes.Collectables,     // 収集価値(ビューティフルフッキング)
+                    317 => MissionAttributes.Fish | MissionAttributes.ScoreLargestSize, // サイズで評価
                     139 => jobs.Contains(18) ? MissionAttributes.Fish : MissionAttributes.Gather, // Critical
                     141 => MissionAttributes.Fish,
                     _ => MissionAttributes.None

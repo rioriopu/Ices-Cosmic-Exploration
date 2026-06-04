@@ -88,6 +88,25 @@ namespace ICE.Scheduler.Tasks
             bool collectableItem = missionInfo.Attributes.HasFlag(MissionAttributes.Collectables);
             bool reduceItems = missionInfo.Attributes.HasFlag(MissionAttributes.ReducedItems);
 
+            // 採取スキル未使用の原因切り分け診断(dalamud.logのみ・非同期/ネットワークI/Oなしなので性能影響なし)。
+            // マスター採取で「スキルを使わない」報告の原因が、コレクタブル経路(CollectableGather)か通常経路(UseGatherAction/
+            // プロファイル)かを特定する。通常経路ならプロファイルにスキルが有効化されているかも併せて出す。
+            if (EzThrottler.Throttle("GatherSkillDiag", 5000))
+            {
+                bool isMaster = missionInfo.IsMastership;
+                if (collectableItem || reduceItems)
+                {
+                    IceLogging.Info($"[採取診断] mission={CosmicHelper.CurrentLunarMission} master={isMaster} → コレクタブル経路(CollectableGather: Scrutiny/Meticulous/Brazen自動)。プロファイル選択は'Auto'", tag);
+                }
+                else
+                {
+                    int pid = C.MissionConfig.TryGetValue(CosmicHelper.CurrentLunarMission, out var mc) ? mc.GProfileId : -1;
+                    bool hasProfile = C.GatherProfiles.TryGetValue(pid, out var prof);
+                    int enabledBuffs = hasProfile ? prof.GatherBuffs.Buffs.Count(b => b.Value.Enabled) : -1;
+                    IceLogging.Info($"[採取診断] mission={CosmicHelper.CurrentLunarMission} master={isMaster} → 通常経路(UseGatherAction)。profileId={pid} profile存在={hasProfile} 有効スキル数={enabledBuffs} mode={Mission_Settings.Mode}", tag);
+                }
+            }
+
             // 公式0.0.78.1より移植: Delay_Gather有効時、採取アクション直前に500-1000msのランダム待ちを2回通す
             bool CheckDelay()
             {
@@ -318,6 +337,13 @@ namespace ICE.Scheduler.Tasks
             // 静的yamlが無ければ実機ノードから動的生成(Auxesia等の未yamlゾーンで採集を機能させる)
             var gatherInfo = GatheringRouteLoader.GetRouteOrDynamic(zoneId.RowId, missionFlag);
 
+            // ★ノード0件のときは true を返して必ず PathandCheckNode へ進める。
+            // 旧実装は0件時に末尾の return false へ落ち、このタスクが完了せず永久に再実行され続け、
+            // ZeroNodeResolve(30秒で納品/放棄に決着)を持つ PathandCheckNode に一切到達せず棒立ちした
+            // (実機Auxesia: ノードの無いフラグで[DynamicRoute]0件ログが延々出てスタック)。
+            if (gatherInfo.Count == 0)
+                return true;
+
             if (gatherInfo.Count > 0)
             {
                 if (Mission_Settings.previousMap != missionFlag)
@@ -424,7 +450,21 @@ namespace ICE.Scheduler.Tasks
 
             if (gatherInfo.Count == 0)
             {
-                // ノードが0件のまま一定時間続いたら、無限スキャンを避けて決着をつける。
+                // ★まず採集エリア(ミッションフラグ)へ移動してノードをストリームインさせる。
+                // 実機Auxesia: マスター採取でプレイヤーがハブに居る(フラグから約1000m)のにGather状態へ入り、
+                // ノードが一切読み込まれず0件のまま放棄ループになる問題への対策。
+                // 採集エリアへ未到着(>25m)なら、待つ・放棄するより先にボード/デジョン対応ナビで移動する。
+                var flagWorld = GatheringRouteLoader.FlagToWorld(zoneId.RowId, missionFlag);
+                if (flagWorld.HasValue && Player.Available && Player.DistanceTo(flagWorld.Value) > 25f)
+                {
+                    if (EzThrottler.Throttle("ZeroNodeTravel", 2000))
+                        IceLogging.Info($"採取ノード0件・採集エリア(フラグ)まで{Player.DistanceTo(flagWorld.Value):F0}m。採集エリアへ移動してノードを読み込ませます", "[Gather: ZeroNodeTravel]");
+                    Task_NavmeshMove.Enqueue_NavmeshTask(flagWorld.Value, false, 12f);
+                    _zeroNodeSince = DateTime.MinValue; // 移動中は放棄タイマーを進めない
+                    return true; // 移動タスクへ譲り、到着後に再スキャンする
+                }
+
+                // 採集エリア付近に居る(or フラグ変換不可)のに0件のまま一定時間続いたら、無限スキャンを避けて決着をつける。
                 // 採取ノードの枯渇後、設定ランク未達等でGather_V2が納品に移行できず固まるケースの保険。
                 if (_zeroNodeSince == DateTime.MinValue)
                 {
@@ -461,25 +501,6 @@ namespace ICE.Scheduler.Tasks
                 Mission_Settings.nodeCounter = 0;
 
             var location = gatherInfo[Mission_Settings.nodeCounter];
-
-            // [GatherDiag] 採取ループのスタック箇所追跡用(rio-pcのmaster_diag.logへ2秒スロットルで出力)。
-            // ゲームが別マシンで動くため、どのノード/状態で止まっているかを遠隔で特定する。
-            if (EzThrottler.Throttle("GatherDiagFile", 2000))
-            {
-                try
-                {
-                    Utils.TryGetObjectByDataId(location.NodeId, out var dn);
-                    float dist = Player.Available ? Player.DistanceTo(location.Position) : -1f;
-                    double arrivedSec = _arrivedNodeIndex == Mission_Settings.nodeCounter
-                        ? (DateTime.Now - _arrivedSince).TotalSeconds : -1;
-                    System.IO.File.AppendAllText(@"\\rio-pc\DevPlugins\master_diag.log",
-                        $"[GatherDiag] terr={Player.Territory.RowId} nodes={gatherInfo.Count} idx={Mission_Settings.nodeCounter} " +
-                        $"nodeId={location.NodeId} dist={dist:F1} inObjTable={(dn != null)} targetable={(dn != null && dn.IsTargetable)} " +
-                        $"jumping={(Player.Available && Player.IsJumping)} navRun={(P.Navmesh.Installed && P.Navmesh.IsRunning())} " +
-                        $"arrivedSec={arrivedSec:F1} gathering={Svc.Condition[ConditionFlag.Gathering]} state={SchedulerMain.State}\n");
-                }
-                catch { }
-            }
 
             // 現在対象のノードが変わったらタイムアウト計測をリセット
             if (_stuckNodeIndex != Mission_Settings.nodeCounter)
@@ -610,6 +631,46 @@ namespace ICE.Scheduler.Tasks
                 }
             }
 
+            // マスター採取で、割り当てプロファイルに通常採取スキルが1つも有効化されていない場合(既定プロファイル0は
+            // BonusIntegrityChance以外すべて無効)、スキル全有効の内蔵プロファイルを使う。
+            // マスター採取は「スキルを使ってほしい」要望のため、プロファイル未設定でも通常スキル(FieldMastery/Yield/Boon
+            // /Tidings等)が発動するようにする。ユーザーがスキルを有効化したプロファイルを割り当てていればそれを尊重する。
+            if (Mission_Settings.Mode != ModeSelect.LevelMode
+                && gatherProfile != null
+                && CosmicHelper.CurrentMissionInfo.IsMastership)
+            {
+                bool hasGatherSkill = gatherProfile.GatherBuffs.Buffs.Any(b => b.Value.Enabled
+                    && (b.Key.StartsWith("FieldMastery") || b.Key.StartsWith("Yield") || b.Key.StartsWith("Boon") || b.Key == "Tidings"));
+                if (!hasGatherSkill)
+                {
+                    if (EzThrottler.Throttle("MasterSkillDefault", 5000))
+                        IceLogging.Info("マスター採取: プロファイルに採取スキルが未有効のため、スキル全有効の既定プロファイルを使用します", "[Gather]");
+                    gatherProfile = LevelProfile;
+                }
+            }
+
+            // === エクステンドリサーチ(GreaterReach 42060) ===
+            // MASTER研究採取(GreaterReach*属性)の一時アクション。採取回数を延長して個数/連続成功/獲得数ボーナスを稼ぐ。
+            // ゲームが使用可能(GetActionStatus==0)と判定したら使う。3秒スロットルで、使用の合間に通常の採取も行えるようにする
+            // (使用後 return true→次tickで再評価。使用不可になれば下の通常スキル/採取へ進む)。
+            var missionAttrs = CosmicHelper.CurrentMissionInfo.Attributes;
+            bool greaterReach = missionAttrs.HasFlag(MissionAttributes.GreaterReachGather)
+                             || missionAttrs.HasFlag(MissionAttributes.GreaterReachChain)
+                             || missionAttrs.HasFlag(MissionAttributes.GreaterReachBoon);
+            if (greaterReach && GatheringUtil.GathActionDict.TryGetValue("GreaterReach", out var grAction)
+                && grAction.ClassAction.TryGetValue((uint)Player.Job, out var reachId) && reachId != 0)
+            {
+                if (ActionManager.Instance()->GetActionStatus(ActionType.Action, reachId) == 0)
+                {
+                    if (EzThrottler.Throttle("Using GreaterReach (ExtendResearch)", 3000))
+                    {
+                        IceLogging.Info($"エクステンドリサーチ(研究延長 ActionId={reachId})を使用します", "[Gather: GreaterReach]");
+                        ActionManager.Instance()->UseAction(ActionType.Action, reachId);
+                        return true;
+                    }
+                }
+            }
+
             if (gatherChance != 100)
             {
                 if (EzThrottler.Throttle("Helper Log"))
@@ -721,7 +782,9 @@ namespace ICE.Scheduler.Tasks
             foreach (var buff in Mission_Settings.SkillUseAmount)
             {
                 string action = buff.Key;
-                if (CanUseGatheringAction(action, profileId, missingDur, maxDur, currentDur, boonChance))
+                // 解決済みの gatherProfile を渡す。これが無いと CanUseGatheringAction が C.GatherProfiles[profileId](元の
+                // プロファイル0=全無効)を見てしまい、マスター採取でLevelProfileへ差し替えても通常スキルが発動しなかった(バグ)。
+                if (CanUseGatheringAction(action, profileId, missingDur, maxDur, currentDur, boonChance, overrideProfile: gatherProfile))
                 {
                     var actionInfo = GatheringUtil.GathActionDict[action];
                     if (EzThrottler.Throttle($"Using Gathering Action: {action}"))
@@ -740,7 +803,7 @@ namespace ICE.Scheduler.Tasks
 
             return false;
         }
-        public static bool CanUseGatheringAction(string actionName, int profileId, bool missingDur, int maxDur, int currentDur, int? boonChance = null)
+        public static bool CanUseGatheringAction(string actionName, int profileId, bool missingDur, int maxDur, int currentDur, int? boonChance = null, GatherProfile overrideProfile = null)
         {
             var actionInfo = GatheringUtil.GathActionDict[actionName];
             bool hasStatus = PlayerHelper.HasStatusId(actionInfo.StatusId);
@@ -753,7 +816,9 @@ namespace ICE.Scheduler.Tasks
                 return hasStatus && currentDur == 1;
             }
 
-            var gatherBuff = C.GatherProfiles[profileId].GatherBuffs.Buffs[actionName];
+            // overrideProfile 指定時はそれを使う(マスター採取でLevelProfileへ差し替えた場合に、ここでも反映させるため)。
+            // 指定が無ければ従来どおり profileId から取得(Task_DualClass等の既存呼び出しはこちら)。
+            var gatherBuff = (overrideProfile ?? C.GatherProfiles[profileId]).GatherBuffs.Buffs[actionName];
 
             return actionName switch
             {

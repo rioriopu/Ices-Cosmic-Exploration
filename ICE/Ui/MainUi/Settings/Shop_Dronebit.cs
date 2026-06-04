@@ -67,6 +67,17 @@ namespace ICE.Ui.MainUi.Settings
             ImGui_Ice.IconWithTooltip(FontAwesomeIcon.QuestionCircle,
                 "Do you want to run the automated drone finding? If yes, enable this\n" +
                 "PLEASE NOTE. DO. NOT. LEAVE. THIS. ALONE. This is still being worked on heavily");
+
+            bool masterPriority = C.MasterPriorityOverDrone;
+            if (ImGui.Checkbox("マスターミッションをドローンより優先", ref masterPriority))
+            {
+                C.MasterPriorityOverDrone = masterPriority;
+                C.Save();
+            }
+            ImGui_Ice.IconWithTooltip(FontAwesomeIcon.QuestionCircle,
+                "有効化したマスターシップミッションがある間は、ドローン探索に譲らずマスターを優先して受注します。\n" +
+                "既定OFF=従来どおりドローン優先(掘削+鑑定を中断しない)。\n" +
+                "ONにするとマスターgrabがドローン鑑定を中断しうる点に注意。");
         }
     }
 }

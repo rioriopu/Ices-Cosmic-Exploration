@@ -34,17 +34,22 @@ namespace ICE.Scheduler.Tasks
 
             if (NpcData.MoonNpcs[zoneId].TryGetValue(NpcData.NpcType.Drone, out var npcEntry))
             {
-                Vector3 randomPos = NpcData.GetRandomPointInCircle(npcEntry.Location_Circle, 0.5f);
-                if (!Task_NavmeshMove.Task_NavTo(randomPos, distance: 6, npcLoc: npcEntry.Location_Npc).Value)
+                // 既に近ければ完了
+                if (Player.DistanceTo(npcEntry.Location_Npc) <= 6f)
                 {
-                    if (EzThrottler.Throttle("Drone Move Message", 1000))
-                        IceLogging.Verbose($"Pathing to drone NPC. Current distance: {Player.DistanceTo(npcEntry.Location_Npc)}", handle);
-                }
-                else
-                {
-                    IceLogging.Debug("We're close enough to the repair npc! Continuing on", handle);
+                    IceLogging.Debug("We're close enough to the drone npc! Continuing on", handle);
                     return true;
                 }
+
+                // 遠距離はボード(コスモライナー)/エーテネット/Stellar Return も評価する賢いナビで向かう。
+                // 旧実装は Task_NavTo(直線徒歩)固定で、Auxesiaのように拠点と採掘エリアがボードで繋がるゾーンでは
+                // ボードを使わず全行程を徒歩で帰っていた(実機報告)。Enqueue_NavmeshTask でボード経由を選択可能にする。
+                // FindBestTravel→DestinationPathingが目的地到着までブロックするので、到着後に次タスク(会話)へ進む。
+                Vector3 randomPos = NpcData.GetRandomPointInCircle(npcEntry.Location_Circle, 0.5f);
+                if (EzThrottler.Throttle("Drone Move Message", 1000))
+                    IceLogging.Verbose($"ドローンNPCへボード等も使う賢いナビで移動中。距離: {Player.DistanceTo(npcEntry.Location_Npc):F0}", handle);
+                Task_NavmeshMove.Enqueue_NavmeshTask(randomPos, waitForBusy: false, distance: 5f);
+                return true;
             }
             else
             {
@@ -276,22 +281,6 @@ namespace ICE.Scheduler.Tasks
             var mapMarkers = GetAllEventMarkers();
             var marker = mapMarkers.Where(x => x.IconId == 63989).FirstOrDefault();
 
-            // === 一時診断: ドローンフローの状態をファイルへ記録 ===
-            if (EzThrottler.Throttle("DroneDiagFile", 2000))
-            {
-                try
-                {
-                    var bId = CosmicHelper.DronebitInfo.TryGetValue(Player.Territory.RowId, out var di) ? di.boxId : 0u;
-                    PlayerHelper.GetItemCount(bId, out var bcnt);
-                    bool hasDroneNpc = NpcData.MoonNpcs.TryGetValue(Player.Territory.RowId, out var ne) && ne.ContainsKey(NpcData.NpcType.Drone);
-                    System.IO.File.AppendAllText(@"\\rio-pc\DevPlugins\master_diag.log",
-                        $"[Drone] terr={Player.Territory.RowId} marker={(marker != null)} markerCnt={mapMarkers.Count(x => x.IconId == 63989)} hadMarkers={_hadDroneMarkers} boxId={bId} boxCnt={bcnt} hasKaede={hasDroneNpc} state={SchedulerMain.State}\n");
-                }
-                catch { }
-            }
-
-
-
             if (marker != null)
             {
                 if (GenericHelpers.TryGetAddonMaster<WKSMission>("WKSMission", out var hud) && hud.IsAddonReady)
@@ -330,11 +319,14 @@ namespace ICE.Scheduler.Tasks
                     return true;
                 }
 
-                // パックも無く鑑定も済 → 通常処理へ
-                IceLogging.Debug($"We are out of boxes, and we have no markers. So we're continuing on with the normal task");
+                // パックも無く鑑定も済 → 通常処理へ復帰。
+                // 旧実装は IceState.Idle にしてプラグインごと停止していた(ドローン探索後に拠点へ帰らず棒立ち)。
+                // コメント通り「通常処理へ続行」するため Start に遷移し、CheckState→拠点帰還(必要ならStellar Return/
+                // ボード/コスモライナー)→次ミッションへとループを再開する。
+                IceLogging.Info("ドローン探索を完了しました。通常処理(拠点帰還→ミッション)へ復帰します", tag);
                 if (SchedulerMain.State == IceState.ArtifactSearch)
                 {
-                    SchedulerMain.State = IceState.Idle;
+                    SchedulerMain.State = IceState.Start;
                     P.TaskManager.Tasks.Clear();
                 }
                 return true;
@@ -412,9 +404,6 @@ namespace ICE.Scheduler.Tasks
                 if (EzThrottler.Throttle("Drone iiresult", 600))
                 {
                     bool nextEnabled = iiResult.NextButton != null && iiResult.NextButton->IsEnabled;
-                    string itemName = "";
-                    try { itemName = iiResult.ItemNameText; } catch { }
-                    try { System.IO.File.AppendAllText(@"\\rio-pc\DevPlugins\master_diag.log", $"[Appraise] ItemInspectionResult nextEnabled={nextEnabled} nextCount={_resultNextCount} item='{itemName}'\n"); } catch { }
                     // Nextが押せる限り「次を鑑定する」で同カテゴリを鑑定し続ける。押せなくなったら(=該当記録が尽きた)閉じる(param=-1)。
                     // 上限は暴走保険(同カテゴリ最大想定を超える 500 回)。通常はNext無効化で自然終了する。
                     if (nextEnabled && _resultNextCount < 500)
@@ -469,7 +458,6 @@ namespace ICE.Scheduler.Tasks
                                 if (r == null) continue;
                                 string rtext = ReadRendererText(r);
                                 int rank = AppraisePriorityRank(rtext);
-                                try { System.IO.File.AppendAllText(@"\\rio-pc\DevPlugins\master_diag.log", $"[Appraise] row[{i}] rank={rank} text='{rtext}'\n"); } catch { }
                                 if (rank < bestRank) { bestRank = rank; pickIndex = i; pickText = rtext; }
                             }
                         }
@@ -487,16 +475,11 @@ namespace ICE.Scheduler.Tasks
                             var inputData = ECommons.Automation.UIInput.InputData.Empty();
                             inputData.Data[0] = renderer;            // 必須: 項目レンダラ(空だとクラッシュ)
                             inputData.Data[2] = (void*)(long)pickIndex; // 選択する行index
-                            try { System.IO.File.AppendAllText(@"\\rio-pc\DevPlugins\master_diag.log", $"[Appraise] ItemInspectionList → ListItemClick(35) index={pickIndex} text='{pickText}' renderer=0x{(long)renderer:X}\n"); } catch { }
                             iiList->ReceiveEvent((FFXIVClientStructs.FFXIV.Component.GUI.AtkEventType)35, 0, eventData.Data, (FFXIVClientStructs.FFXIV.Component.GUI.AtkEventData*)inputData.Data);
                             eventData.Dispose();
                             inputData.Dispose();
                             // 自分のクリックも「活動」として記録。結果窓が開くまでの隙間に二重クリックするのを防ぐ。
                             _lastResultActivity = now;
-                        }
-                        else
-                        {
-                            try { System.IO.File.AppendAllText(@"\\rio-pc\DevPlugins\master_diag.log", $"[Appraise] ItemInspectionList renderer=null (listFound={list != null})\n"); } catch { }
                         }
                     }
                     return true;
@@ -505,7 +488,6 @@ namespace ICE.Scheduler.Tasks
                 // 3.5秒間、結果窓も精選アニメも出ず対象もない = 全件完了 → 一覧を閉じる
                 if (EzThrottler.Throttle("iil close", 500))
                 {
-                    try { System.IO.File.AppendAllText(@"\\rio-pc\DevPlugins\master_diag.log", "[Appraise] ItemInspectionList 全件完了 → 閉じる\n"); } catch { }
                     ECommons.Automation.Callback.Fire(iiList, true, -1);
                     _iilAloneSince = 0;
                 }
@@ -517,7 +499,6 @@ namespace ICE.Scheduler.Tasks
             {
                 if (EzThrottler.Throttle("Drone purify", 250) && !Player.IsBusy)
                 {
-                    try { System.IO.File.AppendAllText(@"\\rio-pc\DevPlugins\master_diag.log", "[Appraise] PurifyItemSelector open → Callback(12,0)\n"); } catch { }
                     ECommons.Automation.Callback.Fire(purifySelector, true, 12, 0);
                 }
                 return true;
@@ -528,7 +509,6 @@ namespace ICE.Scheduler.Tasks
             {
                 if (EzThrottler.Throttle("Drone purify result", 250))
                 {
-                    try { System.IO.File.AppendAllText(@"\\rio-pc\DevPlugins\master_diag.log", "[Appraise] PurifyResult open → Automatic+Close\n"); } catch { }
                     purifyResult.Automatic();
                     purifyResult.Close();
                 }
@@ -561,18 +541,6 @@ namespace ICE.Scheduler.Tasks
         {
             if (GenericHelpers.TryGetAddonMaster<SelectString>("SelectString", out var ss) && ss.IsAddonReady)
             {
-                // メニュー項目のテキストを診断ログに記録(鑑定項目名の確認用)
-                if (EzThrottler.Throttle("AppraiseMenuLog", 1000))
-                {
-                    try
-                    {
-                        var list = new System.Collections.Generic.List<string>();
-                        foreach (var e in ss.Entries) list.Add(e.Text);
-                        System.IO.File.AppendAllText(@"\\rio-pc\DevPlugins\master_diag.log", $"[Appraise] SelectString entries=[{string.Join(" | ", list)}]\n");
-                    }
-                    catch { }
-                }
-
                 foreach (var e in ss.Entries)
                 {
                     var t = e.Text ?? "";
@@ -584,7 +552,6 @@ namespace ICE.Scheduler.Tasks
                     {
                         if (EzThrottler.Throttle("Select appraise entry", 300))
                         {
-                            try { System.IO.File.AppendAllText(@"\\rio-pc\DevPlugins\master_diag.log", $"[Appraise] selected entry='{t}'\n"); } catch { }
                             e.Select();
                         }
                         return true;
@@ -596,69 +563,6 @@ namespace ICE.Scheduler.Tasks
                 return true;
             }
             return false;
-        }
-
-        // 【一時診断】ICEの自動運転とは無関係に、コスモゾーンで現在開いている窓(アドオン)名を常時監視し、
-        // セットが変化したときだけログに記録する。手動で鑑定したときの窓も捕捉できる(自動鑑定タスク外でも動くため)。
-        // HUD等(名前が "_" 始まり)は除外。ICE.Tickから毎フレーム呼ぶ。
-        private static string _lastAddonSet = "";
-        public static unsafe void DiagWatchAddons()
-        {
-            if (!EzThrottler.Throttle("DiagWatchAddons", 400)) return;
-            try
-            {
-                var open = new System.Collections.Generic.List<string>();
-                var mgr = FFXIVClientStructs.FFXIV.Client.UI.RaptureAtkUnitManager.Instance();
-                if (mgr != null)
-                {
-                    ref var loaded = ref mgr->AtkUnitManager.AllLoadedUnitsList;
-                    for (var i = 0; i < loaded.Count; i++)
-                    {
-                        var u = loaded.Entries[i].Value;
-                        if (u == null || !u->IsVisible) continue;
-                        var nm = u->NameString;
-                        if (string.IsNullOrEmpty(nm) || nm[0] == '_') continue; // HUD除外
-                        open.Add(nm);
-                    }
-                }
-                open.Sort();
-                var set = string.Join(",", open);
-                if (set != _lastAddonSet)
-                {
-                    _lastAddonSet = set;
-                    System.IO.File.AppendAllText(@"\\rio-pc\DevPlugins\master_diag.log", $"[AddonWatch] [{set}]\n");
-                }
-            }
-            catch { }
-        }
-
-        // 【一時診断】鑑定一覧/結果の受信イベントを記録し、手動クリック時の正しい選択イベント(type/param)を特定する。
-        // ICE.Loadから一度だけ登録する。
-        private static bool _appraiseDiagRegistered = false;
-        public static void RegisterAppraiseDiag()
-        {
-            if (_appraiseDiagRegistered) return;
-            try
-            {
-                Svc.AddonLifecycle.RegisterListener(Dalamud.Game.Addon.Lifecycle.AddonEvent.PostReceiveEvent, "ItemInspectionList", OnInspectEvt);
-                Svc.AddonLifecycle.RegisterListener(Dalamud.Game.Addon.Lifecycle.AddonEvent.PostReceiveEvent, "ItemInspectionResult", OnInspectEvt);
-                _appraiseDiagRegistered = true;
-            }
-            catch { }
-        }
-        private static void OnInspectEvt(Dalamud.Game.Addon.Lifecycle.AddonEvent ev, Dalamud.Game.Addon.Lifecycle.AddonArgTypes.AddonArgs args)
-        {
-            try
-            {
-                if (args is Dalamud.Game.Addon.Lifecycle.AddonArgTypes.AddonReceiveEventArgs e)
-                {
-                    int t = (int)e.AtkEventType;
-                    // MouseOver(8)/MouseOut(9)等の移動系はノイズなので除外
-                    if (t == 8 || t == 9) return;
-                    System.IO.File.AppendAllText(@"\\rio-pc\DevPlugins\master_diag.log", $"[InspectEvt] {args.AddonName} type={t}({e.AtkEventType}) param={e.EventParam}\n");
-                }
-            }
-            catch { }
         }
 
         // 鑑定ウィンドウ(PurifyItemSelector/PurifyResult/SelectYesno/Occupied39)を完了まで捌く。
@@ -678,7 +582,6 @@ namespace ICE.Scheduler.Tasks
             if (Environment.TickCount64 - _appraiseGraceStart >= 8000)
             {
                 _appraiseGraceStart = 0;
-                try { System.IO.File.AppendAllText(@"\\rio-pc\DevPlugins\master_diag.log", "[Appraise] grace expired (鑑定窓を捌けず終了)\n"); } catch { }
                 return true;
             }
             return false;

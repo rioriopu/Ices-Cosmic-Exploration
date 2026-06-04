@@ -193,10 +193,15 @@ public static unsafe partial class GatheringUtil
             { "GreaterReach", new GatheringActions
             {
                 ActionName = "GreaterReach",
+                // エクステンドリサーチ(42060)。MASTER採取(研究支援)の一時アクション。MIN/BTN共通ID。
+                // 採取回数を延長して個数/連続成功/獲得数ボーナスを稼ぐ。ActionCategory=6(採取アクション)。
                 ClassAction = new()
                 {
-
-                }
+                    [16] = 42060,
+                    [17] = 42060,
+                },
+                StatusId = 4437, // 研究状態(エクステンドリサーチ関連)
+                StatusName = "Research",
             }},
         };
 

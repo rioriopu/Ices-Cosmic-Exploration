@@ -25,8 +25,6 @@ internal static unsafe class PlayerHandlers
 
     internal static unsafe void Tick()
     {
-        Tasks.Task_TurninMission.RedAlertDiagTick(); // 一時診断: 緊急ミッションの座標/ワープ/納品ノード追跡
-
         if (!P.overlayWindow.IsOpen && PlayerHelper.IsInCosmicZone() && C.ShowOverlay)
             P.overlayWindow.IsOpen = true;
 
@@ -66,28 +64,6 @@ internal static unsafe class PlayerHandlers
         else
         {
             _wksRewardSeenTick = 0;
-        }
-
-        // === 一時診断: WKSMission窓が開いている間、各ミッションリストの中身とタブをファイルへ出力 ===
-        // マスターシップミッションがどのリスト(basic/special/visible)・どのSelectedTabに現れるか実機特定するため。
-        if (GenericHelpers.TryGetAddonByName<AtkUnitBase>("WKSMission", out var wmAddon) && GenericHelpers.IsAddonReady(wmAddon))
-        {
-            if (EzThrottler.Throttle("MasterDiagFile", 2000))
-            {
-                try
-                {
-                    int tab = -99; try { tab = AgentWKSMissionEx.selectedTab(); } catch { }
-                    var basic = CosmicHandler.Basic_AvailableMissions();
-                    var special = CosmicHandler.Provisional_AvailableMissions();
-                    var visible = CosmicHandler.VisibleMissions();
-                    var line = $"[{System.DateTime.Now:HH:mm:ss}] SelectedTab={tab}\n" +
-                               $"  basic({basic.Count})=[{string.Join(",", basic)}]\n" +
-                               $"  special({special.Count})=[{string.Join(",", special)}]\n" +
-                               $"  visible({visible.Count})=[{string.Join(",", visible)}]\n";
-                    System.IO.File.AppendAllText(@"\\rio-pc\DevPlugins\master_diag.log", line);
-                }
-                catch { }
-            }
         }
 
         if (C.StartUponEnterMoon)

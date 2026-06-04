@@ -91,32 +91,7 @@ namespace ICE.Scheduler.Tasks
         {
             string tag = "Red Alert: Traveling to turnin";
 
-            // === 一時診断: 緊急ミッションの納品地点を動的に特定するため、マップマーカー/オブジェクトを記録する ===
-            // (Auxesia緊急ミッションは CriticalLocations 未登録のためここで詰まる。マーカーから動的移動できるか調べる)
-            if (EzThrottler.Throttle("RedAlertDiag", 2000))
-            {
-                try
-                {
-                    var id = CosmicHelper.CurrentLunarMission;
-                    string mname = CosmicHelper.SheetMissionDict.TryGetValue(id, out var si) ? si.Name : "?";
-                    var pos = Player.Object?.Position ?? Vector3.Zero;
-                    var sb = new System.Text.StringBuilder();
-                    sb.Append($"[RedAlert] terr={Player.Territory.RowId} mission={id}('{mname}') playerPos=({pos.X:F1},{pos.Y:F1},{pos.Z:F1})\n");
-                    var markers = Scheduler.Tasks.Task_ArtifactSearch.GetAllEventMarkers();
-                    sb.Append($"  markers({markers.Count}): ");
-                    foreach (var m in markers)
-                        sb.Append($"[icon={m.IconId} pos=({m.Position.X:F1},{m.Position.Y:F1},{m.Position.Z:F1})] ");
-                    sb.Append("\n");
-                    var cp = Utils.TryGetObjectCollectionPoint();
-                    if (cp != null)
-                        sb.Append($"  collectionPoint: name='{cp.Name}' dataId={cp.DataId} pos=({cp.Position.X:F1},{cp.Position.Y:F1},{cp.Position.Z:F1})\n");
-                    else
-                        sb.Append("  collectionPoint: (null=未ロード/遠い)\n");
-                    System.IO.File.AppendAllText(@"\\rio-pc\DevPlugins\master_diag.log", sb.ToString());
-                }
-                catch { }
-            }
-
+            // 緊急ミッションの納品地点(物資集積所オブジェクト)が見えていれば、そこへ移動して納品する。
             if (Utils.TryGetObjectCollectionPoint() is { } collectionPoint)
             {
                 if (!Task_NavmeshMove.Task_NavTo(collectionPoint.Position, false, 4).Value)
@@ -189,14 +164,13 @@ namespace ICE.Scheduler.Tasks
                 {
                     if (EzThrottler.Throttle("Auxesia RA select", 500))
                     {
-                        try { System.IO.File.AppendAllText(DiagLog, $"[RedAlert Auxesia] mission={missionId} job='{jobName}' → 選択肢[{pick}]='{entries[pick]}' を選択\n"); } catch { }
                         ss.Entries[pick].Select();
                     }
                 }
                 else
                 {
                     if (EzThrottler.Throttle("Auxesia RA nomatch", 2000))
-                        try { System.IO.File.AppendAllText(DiagLog, $"[RedAlert Auxesia] mission={missionId} job='{jobName}' に一致する選択肢なし: [{string.Join(" | ", entries)}]\n"); } catch { }
+                        IceLogging.Info($"緊急ミッション(Auxesia) mission={missionId} job='{jobName}' に一致する選択肢が見つかりません: [{string.Join(" | ", entries)}]", tag);
                 }
                 return false;
             }
@@ -406,137 +380,6 @@ namespace ICE.Scheduler.Tasks
         }
 
         // ============================================================================
-        // === 一時診断: 緊急ミッション(レッドアラート)の納品フロー全体を捕捉する ===
-        // 目的: どのNPCにアクセスし/どんな選択肢が出て/選択時にどんなシグナルが飛び/その後どこへワープし/
-        //       納品ノードがどこか、を全部ログに残し、ICE単独で同じ操作を再現できるデータを集める。
-        // 性能低下は許容(ユーザー了承)。ICE.Loadから RegisterRedAlertDiag() を呼ぶ。
-        // ============================================================================
-        private const string DiagLog = @"\\rio-pc\DevPlugins\master_diag.log";
-        private static bool _redAlertDiagRegistered = false;
-        private static System.Numerics.Vector3 _lastDiagPos = System.Numerics.Vector3.Zero;
-        private static long _lastDiagPosTick = 0;
-        private static long _diagActiveUntil = 0; // メニュー操作後この時刻まで座標を細かく記録(ワープ追跡)
-
-        // 現在の月ミッションを "mission=ID('名前')[Critical]" 形式で返す(ログ対応付け用)
-        private static string DiagMissionTag()
-        {
-            try
-            {
-                var id = CosmicHelper.CurrentLunarMission;
-                if (id == 0) return "mission=0(なし)";
-                if (CosmicHelper.SheetMissionDict.TryGetValue(id, out var si))
-                    return $"mission={id}('{si.Name}'){(si.IsCritical ? "[緊急]" : "")}";
-                return $"mission={id}(?)";
-            }
-            catch { return "mission=?"; }
-        }
-
-        public static void RegisterRedAlertDiag()
-        {
-            if (_redAlertDiagRegistered) return;
-            try
-            {
-                Svc.AddonLifecycle.RegisterListener(Dalamud.Game.Addon.Lifecycle.AddonEvent.PostSetup, "SelectString", OnDiagSelectStringSetup);
-                Svc.AddonLifecycle.RegisterListener(Dalamud.Game.Addon.Lifecycle.AddonEvent.PostReceiveEvent, "SelectString", OnDiagSelectStringEvt);
-                Svc.AddonLifecycle.RegisterListener(Dalamud.Game.Addon.Lifecycle.AddonEvent.PostSetup, "Talk", OnDiagTalkSetup);
-                Svc.AddonLifecycle.RegisterListener(Dalamud.Game.Addon.Lifecycle.AddonEvent.PostSetup, "SelectYesno", OnDiagYesnoSetup);
-                _redAlertDiagRegistered = true;
-            }
-            catch { }
-        }
-
-        private static void OnDiagSelectStringSetup(Dalamud.Game.Addon.Lifecycle.AddonEvent ev, Dalamud.Game.Addon.Lifecycle.AddonArgTypes.AddonArgs args)
-        {
-            try
-            {
-                _diagActiveUntil = Environment.TickCount64 + 20000; // 以後20秒は座標を細かく追う
-                string target = Svc.Targets.Target?.Name?.TextValue ?? "(ターゲット無し)";
-                var pos = Player.Object?.Position ?? System.Numerics.Vector3.Zero;
-                var sb = new System.Text.StringBuilder();
-                sb.Append($"[RAdiag] === SelectString(NPCメニュー)開く === {DiagMissionTag()} NPC='{target}' playerPos=({pos.X:F2},{pos.Y:F2},{pos.Z:F2})\n");
-                if (GenericHelpers.TryGetAddonMaster<SelectString>("SelectString", out var ss) && ss.IsAddonReady)
-                {
-                    int i = 0;
-                    foreach (var e in ss.Entries) { sb.Append($"[RAdiag]     選択肢[{i}] = '{e.Text}'\n"); i++; }
-                }
-                System.IO.File.AppendAllText(DiagLog, sb.ToString());
-            }
-            catch { }
-        }
-
-        private static void OnDiagSelectStringEvt(Dalamud.Game.Addon.Lifecycle.AddonEvent ev, Dalamud.Game.Addon.Lifecycle.AddonArgTypes.AddonArgs args)
-        {
-            try
-            {
-                if (args is Dalamud.Game.Addon.Lifecycle.AddonArgTypes.AddonReceiveEventArgs e)
-                {
-                    int t = (int)e.AtkEventType;
-                    if (t == 8 || t == 9) return; // MouseOver/Out(ホバー)は除外
-                    _diagActiveUntil = Environment.TickCount64 + 20000;
-                    System.IO.File.AppendAllText(DiagLog, $"[RAdiag] SelectString選択シグナル {DiagMissionTag()} type={t}({e.AtkEventType}) param={e.EventParam}  ← ICEはこのindexで Entries[param].Select() すれば同じ\n");
-                }
-            }
-            catch { }
-        }
-
-        private static void OnDiagTalkSetup(Dalamud.Game.Addon.Lifecycle.AddonEvent ev, Dalamud.Game.Addon.Lifecycle.AddonArgTypes.AddonArgs args)
-        {
-            try
-            {
-                _diagActiveUntil = Environment.TickCount64 + 20000;
-                string target = Svc.Targets.Target?.Name?.TextValue ?? "(ターゲット無し)";
-                System.IO.File.AppendAllText(DiagLog, $"[RAdiag] Talk(会話)開く NPC='{target}'\n");
-            }
-            catch { }
-        }
-
-        private static void OnDiagYesnoSetup(Dalamud.Game.Addon.Lifecycle.AddonEvent ev, Dalamud.Game.Addon.Lifecycle.AddonArgTypes.AddonArgs args)
-        {
-            try
-            {
-                _diagActiveUntil = Environment.TickCount64 + 20000;
-                System.IO.File.AppendAllText(DiagLog, "[RAdiag] SelectYesno(確認ダイアログ)開く\n");
-            }
-            catch { }
-        }
-
-        // PlayerHandlers.Tick から毎フレーム呼ぶ。緊急ミッション中、またはメニュー操作後20秒間、
-        // プレイヤー座標(ワープ追跡)とターゲット(納品ノードへのアクセス先)を細かく記録する。
-        public static void RedAlertDiagTick()
-        {
-            try
-            {
-                if (!PlayerHelper.IsInCosmicZone()) return;
-                var lp = Player.Object;
-                if (lp == null) return;
-
-                // 記録対象か判定: 緊急ミッション中 or メニュー操作後20秒以内
-                var id = CosmicHelper.CurrentLunarMission;
-                bool critical = id != 0 && CosmicHelper.SheetMissionDict.TryGetValue(id, out var si) && si.IsCritical;
-                bool active = critical || Environment.TickCount64 < _diagActiveUntil;
-                if (!active) { _lastDiagPos = lp.Position; return; }
-
-                long now = Environment.TickCount64;
-                if (now - _lastDiagPosTick < 400) return;
-                var pos = lp.Position;
-
-                // ワープ検知(前回サンプルから大きく飛んだ)
-                if (_lastDiagPos != System.Numerics.Vector3.Zero && System.Numerics.Vector3.Distance(_lastDiagPos, pos) > 20f)
-                    System.IO.File.AppendAllText(DiagLog, $"[RAdiag] ★ワープ検知 ({_lastDiagPos.X:F2},{_lastDiagPos.Y:F2},{_lastDiagPos.Z:F2}) → ({pos.X:F2},{pos.Y:F2},{pos.Z:F2})\n");
-
-                _lastDiagPosTick = now;
-                _lastDiagPos = pos;
-
-                var tgt = Svc.Targets.Target;
-                string tinfo = tgt != null
-                    ? $" │ target='{tgt.Name?.TextValue}' dataId={tgt.DataId} tgtPos=({tgt.Position.X:F2},{tgt.Position.Y:F2},{tgt.Position.Z:F2}) dist={System.Numerics.Vector3.Distance(pos, tgt.Position):F1}"
-                    : "";
-                string cflag = critical ? "緊急中" : "メニュー後";
-                System.IO.File.AppendAllText(DiagLog, $"[RAdiag] [{cflag}] {DiagMissionTag()} pos=({pos.X:F2},{pos.Y:F2},{pos.Z:F2}){tinfo}\n");
-            }
-            catch { }
-        }
-
         public static bool? JobSwapCheck()
         {
             if (CosmicHelper.SheetMissionDict[PreviousMissionId].Jobs.Count == 2)

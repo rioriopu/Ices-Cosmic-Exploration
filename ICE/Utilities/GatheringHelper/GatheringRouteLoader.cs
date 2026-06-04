@@ -284,71 +284,91 @@ public static class GatheringRouteLoader
         nodes.Clear();
 
         var flagWorld = FlagToWorld(zoneId, flag);
-        int loaded = 0, added = 0;
-        // IsTargetable=今まさに採取可能(光っている)ノードのみ対象
-        foreach (var obj in Svc.Objects.Where(o => o.ObjectKind == ObjectKind.GatheringPoint && o.IsTargetable))
-        {
-            var pos = obj.Position;
 
-            // ミッションフラグ(=対象ジョブの採集エリア)付近(平面150m)のノードだけ収集する。
-            // プレイヤー基準にすると、目的地へ向かう道中の別ジョブ(園芸)ノードを拾ってしまい、
-            // 採掘師が遠くの園芸ノードへ逸れて右往左往する(実機報告)。Y差はsnap推定で誤差が出るため平面距離で判定。
-            if (flagWorld.HasValue)
+        // 指定中心(XZ平面150m・高さ±15m)の採集ノードを nodes に収集する。
+        // 到達可能性(NearestPointReachable)で採取不能な高所ノードは除外する。
+        // includeInactive=true のときは IsTargetable でない(未アクティブ)ノードも含める
+        //   (Cosmicの採取ノードはミッション受注後にアクティブ化するため、受注前の移動/grab判定を通す保険)。
+        void ScanAround(Vector3 center, bool includeInactive = false)
+        {
+            foreach (var obj in Svc.Objects.Where(o => o.ObjectKind == ObjectKind.GatheringPoint && (includeInactive || o.IsTargetable)))
             {
-                var planar = new Vector2(pos.X - flagWorld.Value.X, pos.Z - flagWorld.Value.Z);
+                var pos = obj.Position;
+                if (nodes.Any(n => n.NodeId == obj.BaseId)) continue; // 重複ノードID回避
+
+                var planar = new Vector2(pos.X - center.X, pos.Z - center.Z);
                 if (planar.Length() > 150f)
                     continue;
-            }
-            else if (Player.DistanceTo(pos) > 150f)
-            {
-                // フラグ変換失敗時のみプレイヤー近傍にフォールバック
-                continue;
-            }
+                if (Math.Abs(pos.Y - center.Y) > 15f)
+                    continue;
 
-            // 異常な高さ(飛行必須/別の高度レイヤー)のノードは除外。歩行可能面から大きく外れた高さへ
-            // ジャンプして無理に向かう挙動を防ぐ。基準はフラグ高度(無ければプレイヤー高度)。
-            float refY = flagWorld.HasValue ? flagWorld.Value.Y : (Player.Available ? Player.Position.Y : pos.Y);
-            if (Math.Abs(pos.Y - refY) > 15f)
-                continue;
-
-            loaded++;
-
-            // 立ち位置(LandZone)はナビメッシュ上の到達可能点に補正。
-            // さらに「足で到達可能な地面がノードより大きく下にある(=登れない高所ノード)」や
-            // 「到達可能点が全く無いノード」は採取不能(キノコの傘の上等)なのでルートから除外する。
-            // これをしないと、採取できない高所ノードへ向かってジャンプを繰り返しスタックする(実機報告)。
-            var landZone = pos;
-            try
-            {
-                if (P.Navmesh.Installed)
+                var landZone = pos;
+                try
                 {
-                    // XZ広め(4f)・下方向も拾えるよう縦5fで最寄り到達可能点を探す
-                    var reachable = P.Navmesh.NearestPointReachable(pos, 4f, 5f);
-                    if (!reachable.HasValue)
-                        continue; // 足で近づける地面が無い→採取不能ノード、スキップ
-                    if (pos.Y - reachable.Value.Y > 3.5f)
-                        continue; // ノードが到達可能地面より3.5m超高い→登れない/採取範囲外、スキップ
-                    landZone = reachable.Value;
+                    if (P.Navmesh.Installed)
+                    {
+                        var reachable = P.Navmesh.NearestPointReachable(pos, 4f, 5f);
+                        if (!reachable.HasValue)
+                            continue; // 足で近づける地面が無い→採取不能ノード、スキップ
+                        if (pos.Y - reachable.Value.Y > 3.5f)
+                            continue; // ノードが到達可能地面より3.5m超高い→登れない/採取範囲外、スキップ
+                        landZone = reachable.Value;
+                    }
                 }
-            }
-            catch
-            {
-                // ナビメッシュ未準備等は無視してノード座標をそのまま使う(スキップはしない)
-            }
+                catch { }
 
-            nodes.Add(new GathNodeInfo
-            {
-                NodeId = obj.BaseId,
-                Position = pos,
-                LandZone = landZone,
-            });
-            added++;
+                nodes.Add(new GathNodeInfo
+                {
+                    NodeId = obj.BaseId,
+                    Position = pos,
+                    LandZone = landZone,
+                });
+            }
+        }
+
+        // 1) ミッションフラグ(=対象ジョブの採集エリア)基準で収集。プレイヤー基準だと道中の別ジョブノードを
+        //    拾って逸れるため、まずはフラグ基準を優先する。
+        if (flagWorld.HasValue)
+            ScanAround(flagWorld.Value);
+        else if (Player.Available)
+            ScanAround(Player.Position);
+
+        // 2) フォールバック: フラグ基準で0件のときは、プレイヤー周辺(150m)で再スキャンする。
+        //    Auxesia等でフラグ→world変換が実ノード位置とズレる/フラグ高度が実ノード高度と合わない場合でも、
+        //    プレイヤーは採集エリア(またはbotが向かった先)に居るので、近傍の実出現ノードを拾って採取を機能させる。
+        //    (実機報告: Auxesiaのマスター採取でフラグ150m内0件のまま棒立ちになる問題への対策)
+        if (nodes.Count == 0 && Player.Available && flagWorld.HasValue)
+            ScanAround(Player.Position);
+
+        // 3) 最終フォールバック: IsTargetableなノードが0件でも、付近にGatheringPoint(未アクティブ)が在れば
+        //    それらを含めて拾う。Cosmicの採取ノードはミッション受注後にアクティブ(IsTargetable)化するため、
+        //    受注前(CheckForMovementRequired)はIsTargetable=0で「採集エリアに着いたのにノード0件」となり受注できず
+        //    鶏卵状態に陥っていた(実機Auxesia: 総数12/IsTargetable0)。未アクティブノードでルートを作って移動・受注を通し、
+        //    受注後はノードがアクティブ化して採取側(SetClosestTargetableNode)がIsTargetableを選ぶので無害。
+        if (nodes.Count == 0)
+        {
+            if (flagWorld.HasValue) ScanAround(flagWorld.Value, includeInactive: true);
+            if (nodes.Count == 0 && Player.Available) ScanAround(Player.Position, includeInactive: true);
         }
 
         if (EzThrottler.Throttle("DynamicRouteScan", 3000))
         {
             var fw = flagWorld.HasValue ? $"({flagWorld.Value.X:F1},{flagWorld.Value.Y:F1},{flagWorld.Value.Z:F1})" : "(none)";
-            PluginLog.Information($"[DynamicRoute] zone {zoneId} flag({flag.X},{flag.Y})→world{fw}: フラグ150m内のアクティブ(光っている)GatheringPoint {nodes.Count}件");
+            var pp = Player.Available ? Player.Position : Vector3.Zero;
+            // 0件の切り分け診断: 採取ノードが「そもそも無い」のか「フィルタ(IsTargetable/距離/到達可能)で除外された」のかを判別する。
+            int rawGP = 0, targetable = 0, near150 = 0;
+            try
+            {
+                foreach (var o in Svc.Objects.Where(o => o.ObjectKind == ObjectKind.GatheringPoint))
+                {
+                    rawGP++;
+                    bool tgt = o.IsTargetable;
+                    if (tgt) targetable++;
+                    if (Player.Available && Player.DistanceTo(o.Position) <= 150f) near150++;
+                }
+            }
+            catch { }
+            PluginLog.Information($"[DynamicRoute] zone {zoneId} flag({flag.X},{flag.Y})→world{fw} player({pp.X:F1},{pp.Y:F1},{pp.Z:F1}): 採用{nodes.Count}件 | GatheringPoint総数={rawGP} うちIsTargetable={targetable} プレイヤー150m内={near150}");
         }
 
         return nodes;

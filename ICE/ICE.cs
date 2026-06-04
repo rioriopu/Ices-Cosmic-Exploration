@@ -57,18 +57,6 @@ public sealed partial class ICE : IDalamudPlugin
     }
     public void Load()
     {
-        // 【一時診断】どのビルドが読み込まれたかをログに記録(再読込できているか確認用)。
-        try
-        {
-            var asm = System.Reflection.Assembly.GetExecutingAssembly();
-            var attrs = asm.GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false);
-            string ver = attrs.Length > 0 ? ((System.Reflection.AssemblyInformationalVersionAttribute)attrs[0]).InformationalVersion : "?";
-            System.IO.File.AppendAllText(@"\\rio-pc\DevPlugins\master_diag.log", $"[ICELoad] build={ver}\n");
-        }
-        catch { }
-        Scheduler.Tasks.Task_ArtifactSearch.RegisterAppraiseDiag(); // 一時診断: 鑑定窓の受信イベント記録
-        Scheduler.Tasks.Task_TurninMission.RegisterRedAlertDiag();  // 一時診断: 緊急ミッション納品フロー(NPCメニュー/選択シグナル/ワープ/納品ノード)記録
-
         EzConfig.Migrate<Config>();
         config = EzConfig.Init<Config>();
 
