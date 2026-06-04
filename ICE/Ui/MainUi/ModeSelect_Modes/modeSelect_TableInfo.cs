@@ -1384,8 +1384,8 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                         }
                     }
                     // マスターシップ(高難易度)ミッション専用: 即報告トグル(評価値500 / 1000)。
-                    // Dev Favorites の ShowNotesReportToggles で表示有無を切替(既定ON=常時表示)。
-                    if (missionInfo.Attributes.HasFlag(MissionAttributes.Mastership) && C.ShowNotesReportToggles)
+                    // Dev Favorites の統合チェック(FixedGatherRoutineEnabled)で表示有無を切替(既定ON=常時表示)。
+                    if (missionInfo.Attributes.HasFlag(MissionAttributes.Mastership) && C.FixedGatherRoutineEnabled)
                     {
                         // 評価値500で即報告(早期切り上げ)
                         if (notesCount > 0)

@@ -239,21 +239,26 @@ namespace ICE.Scheduler.Tasks
                     {
                         var masterConfig = C.MissionConfig[id];
 
-                        // 評価値500の早期報告トグル。閾値が低いため1000判定より先に評価する。
-                        if (masterConfig.MasterReportAt500 && currentScore >= 500)
+                        // 即報告トグル(評価値500/1000)は Dev Favorites の統合チェック(FixedGatherRoutineEnabled)がONの時のみ有効。
+                        // OFF時はこの早期報告を一切行わず、従来通りのマスター挙動(制限時間が続く限り製作)に戻す(機能の独立化)。
+                        if (C.FixedGatherRoutineEnabled)
                         {
-                            IceLogging.Info($"マスター: 評価値{currentScore}が500以上 → 即報告(500トグルON)", tag);
-                            SchedulerMain.State = IceState.TurninMission;
-                            P.TaskManager.Tasks.Clear();
-                            return true;
-                        }
+                            // 評価値500の早期報告トグル。閾値が低いため1000判定より先に評価する。
+                            if (masterConfig.MasterReportAt500 && currentScore >= 500)
+                            {
+                                IceLogging.Info($"マスター: 評価値{currentScore}が500以上 → 即報告(500トグルON)", tag);
+                                SchedulerMain.State = IceState.TurninMission;
+                                P.TaskManager.Tasks.Clear();
+                                return true;
+                            }
 
-                        if (masterConfig.MasterReportAt1000 && currentScore >= 1000)
-                        {
-                            IceLogging.Info($"マスター: 評価値{currentScore}が1000以上 → 即報告(トグルON)", tag);
-                            SchedulerMain.State = IceState.TurninMission;
-                            P.TaskManager.Tasks.Clear();
-                            return true;
+                            if (masterConfig.MasterReportAt1000 && currentScore >= 1000)
+                            {
+                                IceLogging.Info($"マスター: 評価値{currentScore}が1000以上 → 即報告(トグルON)", tag);
+                                SchedulerMain.State = IceState.TurninMission;
+                                P.TaskManager.Tasks.Clear();
+                                return true;
+                            }
                         }
 
                         var remaining = CosmicHandler.MissionTimeRemaining();

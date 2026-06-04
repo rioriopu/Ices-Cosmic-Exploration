@@ -325,18 +325,21 @@ namespace ICE.Ui.MainUi.Settings
                 "But I know there's going to be people who enable this and don't read, so it's a tehe.\n" +
                 "Thanks for using my plugin though, it means a lot <3");
 
-            // Mission Setup の Notes 列にマスター即報告トグル(評価値500/1000)を表示するか。既定ON(常時表示)。
-            var showNotesToggles = C.ShowNotesReportToggles;
-            if (ImGui.Checkbox("Notes列にマスター即報告トグル(評価値500/1000)を表示", ref showNotesToggles))
+            // 旧2チェック(Notes即報告トグル表示 / 固定採取ルーチン有効化)を統合した1チェック。既定ON(常時オン)。
+            var fixedRoutine = C.FixedGatherRoutineEnabled;
+            if (ImGui.Checkbox("採掘士マスター(1621)専用採取ループ", ref fixedRoutine))
             {
-                C.ShowNotesReportToggles = showNotesToggles;
+                C.FixedGatherRoutineEnabled = fixedRoutine;
                 C.Save();
             }
             ImGui.SameLine();
             ImGuiEx.IconWithTooltip(FontAwesomeIcon.QuestionCircle,
-                "Mission Setup の Notes 列に表示する、マスターシップミッション用の即報告チェックボックスの表示有無。\n" +
-                "ON(既定): 評価値500/1000で即報告するチェックボックスを Notes 列に表示\n" +
-                "OFF: Notes 列のチェックボックスを隠す(設定済みの値はそのまま機能します)");
+                "採掘士マスター(クエストID 1621)専用の固定採取ループ。ON時、以下を繰り返します:\n" +
+                "①ミッションウィンドウを開く → ②1621を受注 → ③採取ポイントへアクセス →\n" +
+                "④キングスイールドIIを1回使用 → ⑤トータスパインの琥珀(52057)をそのまま採取(他スキル不使用) →\n" +
+                "⑥1ノードで報告(移動なし) → ⑦最初に戻る\n" +
+                "併せて Mission Setup の Notes 列にマスター即報告トグル(評価値500/1000)を表示します。\n" +
+                "OFF: 固定ループ無効・Notes即報告トグル非表示(通常の採取ロジックで動作)。");
         }
         private static void Separator()
         {

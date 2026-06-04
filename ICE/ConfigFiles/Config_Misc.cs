@@ -45,7 +45,10 @@ public partial class Config
     public bool CrazyTaxiArrow { get; set; } = false;
     public bool PlaceboCheckbox { get; set; } = false;
 
-    // Mission Setup の Notes 列に、マスターの即報告トグル(評価値500/1000)を表示するか。
-    // 既定ON(常時表示)。Dev Favorites からOFFにすると Notes 列のチェックボックスを隠せる。
-    public bool ShowNotesReportToggles { get; set; } = true;
+    // 採掘士マスター(1621)専用採取ループの有効化(Dev Favorites)。既定ON(常時オン)。
+    // 旧「Notes即報告トグル表示」と「固定採取ルーチン有効化」の2チェックをこの1つに統合したもの。
+    // ON時のループ: ①ミッションウィンドウを開く → ②クエスト1621を受注 → ③採取ポイントへアクセス →
+    //   ④キングスイールドIIを1回使用 → ⑤トータスパインの琥珀(52057)をそのまま採取 → ⑥1ノードで報告 → ⑦最初に戻る。
+    // 併せて Mission Setup の Notes 列にマスター即報告トグル(評価値500/1000)を表示する。
+    public bool FixedGatherRoutineEnabled { get; set; } = true;
 }

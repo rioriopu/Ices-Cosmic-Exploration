@@ -40,6 +40,129 @@ namespace ICE.Scheduler.Tasks
         private static DateTime _arrivedSince = DateTime.MinValue;
         private const double ArrivedInteractTimeoutSeconds = 12.0;
 
+        // === 採掘士(MIN)マスター固定採取ルーチン ===
+        // 対象ミッションでは「キングスイールドII(YieldII)を1回 → そのまま採取(他スキル不使用) → 1ノードで報告(移動なし)」
+        // という決め打ちの手順で回す。ユーザー指定の手順(クエストID 1621)。今後同種ミッションが増えたらここに追加する。
+        private static readonly HashSet<uint> FixedKingsYieldMissions = new() { 1621 };
+        // 固定ルーチンで採取する対象アイテム: トータスパインの琥珀 (Tortoisepine Amber)。
+        private const uint FixedRoutineItemId = 52057;
+        // 固定ルーチンは Dev Favorites の FixedGatherRoutineEnabled がオンの時のみ有効。
+        public static bool IsFixedKingsYieldMission(uint missionId) => C.FixedGatherRoutineEnabled && FixedKingsYieldMissions.Contains(missionId);
+
+        // このノードでキングスイールドII(YieldII)を既に使ったか(1ノードにつき1回だけ使う)。
+        private static bool _kingsYieldUsedThisNode = false;
+        // キングスイールドIIが使用可能になるのを待ち始めた時刻。使用不能(GP不足/未使用可)が続いた場合の
+        // デッドロック防止(一定時間で諦めて採取へ)に使う。DateTime.MinValue=未計測。
+        private static DateTime _kingsYieldWaitSince = DateTime.MinValue;
+        private const double KingsYieldWaitTimeoutSeconds = 6.0;
+
+        // 固定ルーチン用: キングスイールドII(YieldII / MIN ActionId 241)をまだ使っていなければ1回だけ使う。
+        // 戻り値 true  = この採取フレームはスキル使用/待機に充てる(まだ採取しない)。
+        // 戻り値 false = スキルは使わない/使えない/使用済み → そのまま採取へ進む。
+        // 旧実装は GetActionStatus を確認せず一度撃ったら成否に関係なくフラグを立てて二度と再試行しなかったため、
+        // 窓が開いた直後の数フレームや一時的GP不足で撃ち損なうと、そのノードで永久に発動しなかった。
+        private static unsafe bool TryUseKingsYieldII()
+        {
+            if (_kingsYieldUsedThisNode)
+                return false;
+
+            var action = GatheringUtil.GathActionDict["YieldII"]; // キングスイールドII (MIN241/BTN224), StatusId 219, GP500, Lv40
+            uint jobId = (uint)Player.Job;
+
+            // 既にバフ(Gathering Yield Up 219)が乗っている → 使用済み扱いで採取へ。
+            if (PlayerHelper.HasStatusId(action.StatusId))
+            {
+                _kingsYieldUsedThisNode = true;
+                _kingsYieldWaitSince = DateTime.MinValue;
+                return false;
+            }
+
+            // レベル不足 / ジョブ非対応(採掘士以外) → 永久に使えないので採取へ。
+            if (Player.Level < action.RequiredLv || !action.ClassAction.TryGetValue(jobId, out var actionId) || actionId == 0)
+            {
+                if (EzThrottler.Throttle("KYIISkipLog", 5000))
+                    IceLogging.Info($"[固定採取] キングスイールドII使用不可: Lv{Player.Level}/必要{action.RequiredLv} job={jobId} 対応={action.ClassAction.ContainsKey(jobId)} → そのまま採取", "[Gather: FixedRoutine]");
+                _kingsYieldUsedThisNode = true;
+                _kingsYieldWaitSince = DateTime.MinValue;
+                return false;
+            }
+
+            // 使用可能になるのを待ち始めた時刻を記録(タイムアウト判定用)
+            if (_kingsYieldWaitSince == DateTime.MinValue)
+                _kingsYieldWaitSince = DateTime.Now;
+            bool waitedTooLong = (DateTime.Now - _kingsYieldWaitSince).TotalSeconds >= KingsYieldWaitTimeoutSeconds;
+
+            // GP不足: コーディアルで回復を試みる。回復が間に合わない場合はタイムアウトで諦めて採取へ。
+            if (PlayerHelper.GetGp() < action.RequiredGp)
+            {
+                bool cordialUsed = TryUseCordialForFixedRoutine();
+                if (EzThrottler.Throttle("KYIIGpLog", 3000))
+                    IceLogging.Info($"[固定採取] GP不足でキングスイールドII待機(GP{PlayerHelper.GetGp()}/{action.RequiredGp}) コーディアル試行={cordialUsed} 経過={(DateTime.Now - _kingsYieldWaitSince).TotalSeconds:F0}s", "[Gather: FixedRoutine]");
+                if (waitedTooLong)
+                {
+                    IceLogging.Info("[固定採取] GP回復が間に合わないためキングスイールドIIを諦めて採取します", "[Gather: FixedRoutine]");
+                    _kingsYieldUsedThisNode = true;
+                    _kingsYieldWaitSince = DateTime.MinValue;
+                    return false;
+                }
+                return true; // GP回復を待つ(採取しない)
+            }
+
+            // ゲームが使用可能(GetActionStatus==0)と判定したら使う。未使用可なら次tickで再試行。
+            uint status = ActionManager.Instance()->GetActionStatus(ActionType.Action, actionId);
+            if (status != 0)
+            {
+                if (EzThrottler.Throttle("KYIIStatusLog", 2000))
+                    IceLogging.Info($"[固定採取] キングスイールドII未使用可(GetActionStatus={status}) 再試行 経過={(DateTime.Now - _kingsYieldWaitSince).TotalSeconds:F0}s", "[Gather: FixedRoutine]");
+                if (waitedTooLong)
+                {
+                    IceLogging.Info("[固定採取] キングスイールドIIが使用可能にならないため諦めて採取します", "[Gather: FixedRoutine]");
+                    _kingsYieldUsedThisNode = true;
+                    _kingsYieldWaitSince = DateTime.MinValue;
+                    return false;
+                }
+                return true; // 使用可能になるまで待つ(採取しない)
+            }
+
+            if (EzThrottler.Throttle("FixedKingsYieldII", 1000))
+            {
+                ActionManager.Instance()->UseAction(ActionType.Action, actionId);
+                if (Mission_Settings.SkillUseAmount.ContainsKey("YieldII"))
+                    Mission_Settings.SkillUseAmount["YieldII"] += 1;
+                _kingsYieldUsedThisNode = true;
+                _kingsYieldWaitSince = DateTime.MinValue;
+                IceLogging.Info($"[固定採取] キングスイールドII(YieldII/{actionId})を使用 mission={CosmicHelper.CurrentLunarMission}", "[Gather: FixedRoutine]");
+            }
+            return true; // 使用 → このフレームは採取せず待機
+        }
+
+        // 固定ルーチンのGP回復用: 手持ちのコーディアルがあれば使う(キングスイールドII発動に必要な500GPを確保)。
+        private static unsafe bool TryUseCordialForFixedRoutine()
+        {
+            Dictionary<uint, (string Name, int GpGain)> cordials = new()
+            {
+                { 12669,   ("Hi-Cordial",          400) },
+                { 1006141, ("HQ Regular Cordial",  350) },
+                { 6141,    ("NQ Regular Cordial",  300) },
+                { 1016911, ("HQ Watered Cordial",  200) },
+                { 16911,   ("NQ Watered Cordial",  150) },
+            };
+            foreach (var cordial in cordials)
+            {
+                bool hq = cordial.Key >= 1_000_000;
+                if (PlayerHelper.GetItemCount(cordial.Key, out var amount, hq, !hq) && amount > 0
+                    && ActionManager.Instance()->GetActionStatus(ActionType.Item, cordial.Key) == 0)
+                {
+                    if (EzThrottler.Throttle("FixedRoutineCordial", 2000))
+                    {
+                        ActionManager.Instance()->UseAction(ActionType.Item, cordial.Key, extraParam: 65535);
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
         // 次ノードへ進める共通処理(各タイムアウト計測もリセット)
         private static void AdvanceToNextNode(int nodeCount)
         {
@@ -95,7 +218,25 @@ namespace ICE.Scheduler.Tasks
             }
             else
             {
+                // 固定採取ルーチン(採掘士マスター/例:1621): 1ノード採取し終えたら移動せず即報告する。
+                // (ユーザー要望: 1個のノードで完結させたい/移動したくない。キングスイールドII+採取で要件を満たす想定)
+                if (IsFixedKingsYieldMission(CosmicHelper.CurrentLunarMission) && Mission_Settings.nodeTotal >= 1)
+                {
+                    _kingsYieldUsedThisNode = false;
+                    IceLogging.Info($"[固定採取] 1ノード完了 → 報告へ移行(移動なし) mission={CosmicHelper.CurrentLunarMission}", "[Gather: FixedRoutine]");
+                    SchedulerMain.State = IceState.TurninMission;
+                    P.TaskManager.Tasks.Clear();
+                    return;
+                }
+
                 IceLogging.Debug("Not currently gathering, starting fresh instead");
+                // ★固定ルーチンの状態を、採取セッション開始前(ノードへ移動中)に毎回リセットする。
+                // 採取中にTask_CheckScoreがスコア充足で報告へ遷移すると、上の「1ノード報告」分岐を通らずに
+                // TurninMissionへ行きフラグが残る → 2回目以降キングスイールドIIが発動しなくなる不具合があった。
+                // ここは毎ループ(次ノードへ向かう間)確実に通るため、ここでリセットすれば確実に毎回1回使える。
+                // (採取中はConditionFlag.Gatheringがtrueで上の採取ブランチに入り、この分岐は通らないのでノード途中の誤リセットは起きない)
+                _kingsYieldUsedThisNode = false;
+                _kingsYieldWaitSince = DateTime.MinValue;
                 P.TaskManager.EnqueueDelay(100);
                 if (CosmicHelper.SheetMissionDict[CosmicHelper.CurrentLunarMission].Attributes.HasFlag(MissionAttributes.ReducedItems))
                 {
@@ -178,10 +319,29 @@ namespace ICE.Scheduler.Tasks
                     // This should prevent us from actually attempting to do another gathering action, while we are currently doing one
                     if (GenericHelpers.TryGetAddonMaster<Gathering>("Gathering", out var gather) && gather.IsAddonReady)
                     {
+                        // 固定採取ルーチン有効時は、採取窓に並ぶアイテム一覧を診断出力(どのIDが選べるか確認用)。
+                        if (IsFixedKingsYieldMission(CosmicHelper.CurrentLunarMission) && EzThrottler.Throttle("FixedItemListDiag", 5000))
+                        {
+                            var listed = string.Join(", ", gather.GatheredItems.Where(x => x.ItemID != 0).Select(x => $"{x.ItemID}:{x.ItemName}(collectable={x.IsCollectable})"));
+                            IceLogging.Info($"[固定採取] 採取窓アイテム一覧 = [{listed}]", "[Gather: FixedRoutine]");
+                        }
+
+                        // 固定ルーチン: コレクタブル/通常どちらの経路でも、アイテム選択の前にまずキングスイールドIIを1回使う。
+                        // (旧実装は通常採取ブランチでしか使わず、1621がコレクタブル/リデュース経路だとKYIIが一切発動しなかった不具合)
+                        if (IsFixedKingsYieldMission(CosmicHelper.CurrentLunarMission))
+                        {
+                            if (TryUseKingsYieldII())
+                                return false;
+                        }
+
                         if (reduceItems || collectableItem)
                         {
-                            // We need to find an item where it's a collectable so we can just initiate the gathering window
-                            var item = gather.GatheredItems.Where(x => x.IsCollectable).FirstOrDefault();
+                            // 固定ルーチン: トータスパインの琥珀(52057)が採取窓にあれば、霊砂(52059)等ではなく必ずそれを選ぶ。
+                            // 見つからなければ従来通り最初のコレクタブルを選ぶ。
+                            var item = (IsFixedKingsYieldMission(CosmicHelper.CurrentLunarMission)
+                                            ? gather.GatheredItems.FirstOrDefault(x => x.ItemID == FixedRoutineItemId)
+                                            : null)
+                                       ?? gather.GatheredItems.Where(x => x.IsCollectable).FirstOrDefault();
                             if (item != null)
                             {
                                 if (EzThrottler.Throttle("Collectable item select"))
@@ -206,9 +366,29 @@ namespace ICE.Scheduler.Tasks
                             if (CheckDelay())
                                 return false;
 
-                            if (UseGatherAction(configId, gatherChance, boonChance, gather.CurrentIntegrity, gather.TotalIntegrity, playerGp))
+                            // 固定採取ルーチン対象(採掘士マスター/例:1621)はキングスイールドIIのみ(採取窓ブロック先頭で実施済み)。
+                            // 他のスキルは一切使わないため、通常ミッションのときだけ UseGatherAction を呼ぶ。
+                            if (!IsFixedKingsYieldMission(CosmicHelper.CurrentLunarMission)
+                                && UseGatherAction(configId, gatherChance, boonChance, gather.CurrentIntegrity, gather.TotalIntegrity, playerGp))
                             {
                                 return false;
+                            }
+
+                            // 固定採取ルーチン: 指定アイテム(トータスパインの琥珀 52057)を最優先で採取する。
+                            // ノードに対象アイテムが無い場合のみ、下の通常の不足アイテム選択へフォールスルーする。
+                            if (IsFixedKingsYieldMission(CosmicHelper.CurrentLunarMission))
+                            {
+                                var fixedItem = gather.GatheredItems.FirstOrDefault(x => x.ItemID == FixedRoutineItemId);
+                                if (fixedItem != null)
+                                {
+                                    if (EzThrottler.Throttle("Gathering Item"))
+                                    {
+                                        fixedItem.Gather();
+                                        IceLogging.Info($"[固定採取] トータスパインの琥珀({FixedRoutineItemId})を採取", "[Gather: FixedRoutine]");
+                                    }
+                                    return false;
+                                }
+                                IceLogging.Verbose($"[固定採取] このノードにトータスパインの琥珀({FixedRoutineItemId})が無いため通常の不足アイテム選択へ", "[Gather: FixedRoutine]");
                             }
 
                             // Find the item with the largest deficit
@@ -267,6 +447,8 @@ namespace ICE.Scheduler.Tasks
             else
             {
                 GatherDelayThrottle = 0;
+                _kingsYieldUsedThisNode = false; // 採取セッション外 → 次ノードに備えて固定ルーチンのスキル使用フラグをリセット
+                _kingsYieldWaitSince = DateTime.MinValue;
                 return true;
             }
 
