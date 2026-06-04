@@ -51,6 +51,10 @@ public static unsafe class AgentWKSMissionEx
         return _getCriticalMissions(agent, list);
     }
 
+    /// <summary>GetCriticalMissions シグネチャのスキャンに成功しているか。
+    /// false の場合は「今 Red Alert が発生中か」をタブ切替なしで判定できないため、呼び出し側は従来挙動へフォールバックする。</summary>
+    public static bool HasCriticalApi => _getCriticalMissions != null;
+
     /// <summary>
     /// Sets the agent's selected job tab by ClassJob ID (8–18), resolving it to the
     /// internal 0–11 job index. Also syncs MissionData and clears HasSavedTab.

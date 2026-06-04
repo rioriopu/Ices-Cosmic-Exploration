@@ -64,6 +64,9 @@ public partial class Config
         public bool TurninBronze { get; set; } = false;
         // マスターシップ(高難易度)ミッション専用: ON=評価値1000超えで即報告 / OFF=制限時間が続く限り製作(残り時間が1製作分未満になったら報告)
         public bool MasterReportAt1000 { get; set; } = false;
+        // マスターシップ専用: ON=評価値500以上で即報告(1000を待たず早期に切り上げて回転数を上げたい場合)。
+        // MasterReportAt1000 と併用時は閾値が低い500が先に発火する。
+        public bool MasterReportAt500 { get; set; } = false;
         public bool Use_BuildinPreset { get; set; } = false;
         public string AutoHookPresetName { get; set; } = string.Empty;
         public double BestTime { get; set; } = double.MaxValue;

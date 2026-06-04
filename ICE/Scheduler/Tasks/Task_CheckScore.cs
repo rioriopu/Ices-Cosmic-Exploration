@@ -239,6 +239,15 @@ namespace ICE.Scheduler.Tasks
                     {
                         var masterConfig = C.MissionConfig[id];
 
+                        // 評価値500の早期報告トグル。閾値が低いため1000判定より先に評価する。
+                        if (masterConfig.MasterReportAt500 && currentScore >= 500)
+                        {
+                            IceLogging.Info($"マスター: 評価値{currentScore}が500以上 → 即報告(500トグルON)", tag);
+                            SchedulerMain.State = IceState.TurninMission;
+                            P.TaskManager.Tasks.Clear();
+                            return true;
+                        }
+
                         if (masterConfig.MasterReportAt1000 && currentScore >= 1000)
                         {
                             IceLogging.Info($"マスター: 評価値{currentScore}が1000以上 → 即報告(トグルON)", tag);

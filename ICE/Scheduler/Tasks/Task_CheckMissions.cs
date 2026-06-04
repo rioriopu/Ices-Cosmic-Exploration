@@ -55,6 +55,10 @@ namespace ICE.Scheduler.Tasks
                 );
         }
         private static int GrabMission_Counter = 0;
+        // マスターシップ最優先 pre-handler でタブ3に在るのに有効マスターが MissionList に出ない場合の待機開始時刻(ms)。
+        // 0=未待機。MasterWaitTimeoutMs を超えたら通常ミッション選択へフォールスルーし、COSMO MISSIONS画面での無限停止を防ぐ。
+        private static long _masterWaitSince = 0;
+        private const long MasterWaitTimeoutMs = 8000;
         private static void ReOpenMissionUi(string tag)
         {
             if (GenericHelpers.TryGetAddonMaster<WKSHud>("WKSHud", out var moonHud) && moonHud.IsAddonReady)
@@ -360,13 +364,31 @@ namespace ICE.Scheduler.Tasks
                     {
                         case MissionTypes.Critical:
                             {
-                                // [緊急診断] 緊急候補が分類されているか(0なら分類段階で弾かれている=Job不一致/Enabled無効/
-                                // GrindOffClassRedAlert未設定等)。dalamud.logのみ・5秒スロットルで性能影響なし。
-                                if (EzThrottler.Throttle("CriticalTabDiag", 5000))
-                                    IceLogging.Info($"[緊急診断] CheckTabs: MissionLibrary[Critical]={MissionLibrary[MissionKind.Critical].Count}件 SelectedJob={Mission_Settings.SelectedJob} GrindOffClassRedAlert={C.GrindOffClassRedAlert}", tag);
-                                if (MissionLibrary[MissionKind.Critical].Count > 0)
+                                // === 緊急(Red Alert)タブ棒立ち対策 ===
+                                // MissionLibrary[Critical] は静的シートデータから作られるため、Red Alert が発生していなくても常に非空になる。
+                                // 従来はこの非空判定だけで CheckMissions(Critical) を enqueue → OpenCorrectTab が Critical タブへ切替を試みるが、
+                                // 緊急非発生時の Critical タブにはジョブサブタブが解決せず OpenCorrectTab が永久 false → COSMO MISSIONS画面で棒立ちになった。
+                                // GetCriticalMissions API で「今 Red Alert で実際に受注可能な緊急」を取得し、それが在る場合のみ Critical チェックへ進む。
+                                if (AgentWKSMissionEx.HasCriticalApi)
                                 {
-                                    P.TaskManager.Enqueue(() => CheckMissions(MissionLibrary[MissionKind.Critical], type), "Checking Critical tab for missions");
+                                    var liveCriticals = CosmicHandler.Critical_AvailableMissions();
+                                    var grabbableCriticals = MissionLibrary[MissionKind.Critical].Where(m => liveCriticals.Contains(m)).ToList();
+                                    if (EzThrottler.Throttle("CriticalTabDiag", 5000))
+                                        IceLogging.Info($"[緊急診断] CheckTabs: 候補(static)={MissionLibrary[MissionKind.Critical].Count}件 live(RedAlert)={liveCriticals.Count}件 grabbable={grabbableCriticals.Count}件 SelectedJob={Mission_Settings.SelectedJob} GrindOffClassRedAlert={C.GrindOffClassRedAlert}", tag);
+                                    if (grabbableCriticals.Count > 0)
+                                    {
+                                        P.TaskManager.Enqueue(() => CheckMissions(grabbableCriticals, type), "Checking Critical tab for missions");
+                                    }
+                                }
+                                else
+                                {
+                                    // API シグネチャ未取得時のみ従来挙動へフォールバック(Red Alert 判定不能なため)。
+                                    if (EzThrottler.Throttle("CriticalTabDiag", 5000))
+                                        IceLogging.Info($"[緊急診断] CheckTabs(fallback): GetCriticalMissions未取得。MissionLibrary[Critical]={MissionLibrary[MissionKind.Critical].Count}件 SelectedJob={Mission_Settings.SelectedJob}", tag);
+                                    if (MissionLibrary[MissionKind.Critical].Count > 0)
+                                    {
+                                        P.TaskManager.Enqueue(() => CheckMissions(MissionLibrary[MissionKind.Critical], type), "Checking Critical tab for missions");
+                                    }
                                 }
                                 break;
                             }
@@ -519,13 +541,31 @@ namespace ICE.Scheduler.Tasks
                         .FirstOrDefault(m => visMaster.Contains(m));
                     if (masterMission != 0)
                     {
+                        _masterWaitSince = 0; // 見つかったので待機タイマをリセット
                         IceLogging.Info($"マスターシップミッションを最優先で受注します: {masterMission}", tag);
                         LogInfo(masterMission);
                         Insert_GrabMissionTask(masterMission);
                         return true;
                     }
-                    // タブ3だがまだ MissionList に反映されていない → 次tickで再評価(MissionList更新待ち)
-                    return false;
+
+                    // タブ3だが有効マスターが MissionList(VisibleMissions) に見当たらない。
+                    // マスター完了直後の再出現待ち or クールダウンの可能性がある。一定時間出てこなければ
+                    // 待機を打ち切り、通常ミッション選択へフォールスルーする。
+                    // (これが無いと return false で永久ループし、COSMO MISSIONS画面をタブ3で開いたまま固まる不具合になる)
+                    if (_masterWaitSince == 0)
+                        _masterWaitSince = Environment.TickCount64;
+                    long masterWaited = Environment.TickCount64 - _masterWaitSince;
+                    if (masterWaited < MasterWaitTimeoutMs)
+                    {
+                        if (EzThrottler.Throttle("MasterWaitMsg", 3000))
+                            IceLogging.Info($"有効マスターが MissionList に未反映。再出現を待機中... ({masterWaited / 1000}s / {MasterWaitTimeoutMs / 1000}s)", tag);
+                        return false; // まだ待機(MissionList更新待ち)
+                    }
+                    // タイムアウト: マスターは現在受注不可(完了/クールダウンと判断)。タイマをリセットし通常ミッション選択へ進む。
+                    _masterWaitSince = 0;
+                    if (EzThrottler.Throttle("MasterWaitTimeout", 5000))
+                        IceLogging.Info("有効マスターが規定時間内に出現しませんでした(完了/クールダウンと判断)。通常ミッション選択へ移行します", tag);
+                    // フォールスルー: 下の OpenCorrectTab(...) 以降の通常ミッション処理へ進む
                 }
 
                 if (OpenCorrectTab(missionList, missionInfo))

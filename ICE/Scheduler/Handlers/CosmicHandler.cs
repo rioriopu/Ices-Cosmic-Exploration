@@ -171,6 +171,33 @@ namespace ICE.Utilities
 
             return allMissions;
         }
+        // 現在 Red Alert で受注可能な緊急(Critical)ミッションのリストを、上段タブを切り替えずに取得する。
+        // GetBasicMissions/GetProvisionalMissions と同様、ゲーム内部APIから直接読むためタブ選択に依存しない。
+        // 緊急は静的シートには常に存在するが、UIへ出る(=受注可能になる)のは Red Alert 発生中のみ。
+        // これを使って「緊急が実際に発生しているか」を判定し、非発生時に Critical タブへ無駄に切り替えて棒立ちするのを防ぐ。
+        internal unsafe static List<uint> Critical_AvailableMissions()
+        {
+            List<uint> allMissions = new();
+
+            if (GenericHelpers.TryGetAddonMaster<WKSMission>(out var wksMission) && wksMission.IsAddonReady)
+            {
+                var wks = AgentWKSMission.Instance();
+                if (wks is null)
+                    return allMissions;
+
+                if (!wks->IsAgentActive())
+                    return allMissions;
+
+                StdVector<MissionEntry> criticalList = default;
+                if (AgentWKSMissionEx.GetCriticalMissions(wks, &criticalList))
+                {
+                    foreach (var mission in criticalList)
+                        allMissions.Add(mission.MissionUnitId);
+                }
+            }
+
+            return allMissions;
+        }
         internal unsafe static List<uint> VisibleMissions()
         {
             List<uint> allMissions = new();

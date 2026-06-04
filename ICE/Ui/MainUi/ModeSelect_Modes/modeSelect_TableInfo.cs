@@ -1383,11 +1383,32 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                             ImGui.EndTooltip();
                         }
                     }
-                    // マスターシップ(高難易度)ミッション専用: 評価値1000超で即報告するか否かのON/OFFトグル
-                    if (missionInfo.Attributes.HasFlag(MissionAttributes.Mastership))
+                    // マスターシップ(高難易度)ミッション専用: 即報告トグル(評価値500 / 1000)。
+                    // Dev Favorites の ShowNotesReportToggles で表示有無を切替(既定ON=常時表示)。
+                    if (missionInfo.Attributes.HasFlag(MissionAttributes.Mastership) && C.ShowNotesReportToggles)
                     {
+                        // 評価値500で即報告(早期切り上げ)
                         if (notesCount > 0)
                             ImGui.SameLine(0, 5);
+
+                        bool reportAt500 = missionConfig.MasterReportAt500;
+                        if (ImGui.Checkbox("##MasterReport500", ref reportAt500))
+                        {
+                            missionConfig.MasterReportAt500 = reportAt500;
+                            C.Save();
+                        }
+                        if (ImGui.IsItemHovered())
+                        {
+                            ImGui.BeginTooltip();
+                            ImGui.Text("マスターシップ: 評価値500以上で即報告");
+                            ImGui.Text("ON  : 評価値が500以上になったら即座に報告(1000を待たず早期に切り上げ)");
+                            ImGui.Text("OFF : この早期報告は無効(1000トグル/通常ロジックに従う)");
+                            ImGui.EndTooltip();
+                        }
+                        notesCount++;
+
+                        // 評価値1000で即報告
+                        ImGui.SameLine(0, 5);
 
                         bool reportAt1000 = missionConfig.MasterReportAt1000;
                         if (ImGui.Checkbox("##MasterReport1000", ref reportAt1000))

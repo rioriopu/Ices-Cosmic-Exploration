@@ -232,38 +232,59 @@ namespace ICE.Scheduler.Tasks
             }
             return false;
         }
+        private static long _selfRepairStart = 0;
         public unsafe static bool? SelfRepair_All()
         {
             string tag = "Self Repair: All";
 
             if (!PlayerHelper.AnyNeedsRepair(Char_Info.RepairPercent))
             {
+                _selfRepairStart = 0;
                 IceLogging.Debug("All gear has been repaired, continuing", tag);
                 return true;
             }
-            else if (Svc.Condition[ConditionFlag.Mounted])
+
+            if (_selfRepairStart == 0) _selfRepairStart = Environment.TickCount64;
+            // 修理が一定時間で完了しない(窓の操作不成立等)場合は無限スタックを避けて中断し、次へ進める。
+            if (Environment.TickCount64 - _selfRepairStart > 30000)
+            {
+                IceLogging.Warning("自己修理が30秒以内に完了しないため中断します(修理窓の操作不成立の可能性)。次の処理へ進みます", tag);
+                _selfRepairStart = 0;
+                return true;
+            }
+
+            bool repairOpen = GenericHelpers.TryGetAddonMaster<Repair>("Repair", out var rep) && rep.IsAddonReady;
+            bool yesnoOpen = GenericHelpers.TryGetAddonMaster<SelectYesno>("SelectYesno", out var yn) && yn.IsAddonReady;
+            if (EzThrottler.Throttle("SelfRepairDiag", 3000))
+                IceLogging.Info($"[自己修理] needRepair={PlayerHelper.AnyNeedsRepair(Char_Info.RepairPercent)} mounted={Svc.Condition[ConditionFlag.Mounted]} Repair窓={repairOpen} SelectYesno={yesnoOpen}", tag);
+
+            if (Svc.Condition[ConditionFlag.Mounted])
             {
                 if (EzThrottler.Throttle("Attempting to dismount for repairing"))
-                {
-                    IceLogging.Debug("Dismounting for self repair", tag);
                     ActionManager.Instance()->UseAction(ActionType.GeneralAction, 9);
-                }
+                return false;
             }
-            else if (GenericHelpers.TryGetAddonByName<AtkUnitBase>("SelectYesno", out var addon) && GenericHelpers.IsAddonReady(addon))
+            // 確認ダイアログ → はい(ECommonsで確実に押す)
+            if (yesnoOpen)
             {
-                if (FrameThrottler.Throttle("SelectYesnoThrottle", 300))
-                {
-                    IceLogging.Debug("SelectYesno Callback", tag);
-                    ECommons.Automation.Callback.Fire(addon, true, 0);
-                }
+                if (FrameThrottler.Throttle("SelfRepairYes", 300)) yn.Yes();
+                return false;
             }
-            else if (GenericHelpers.TryGetAddonByName<AtkUnitBase>("Repair", out var addon2) && GenericHelpers.IsAddonReady(addon2))
+            // Repair窓 → ECommonsの RepairAll で「ぜんぶ修理」を押す(7.51で生コールバックが効かないケース対策)
+            if (repairOpen)
             {
                 if (FrameThrottler.Throttle("Firing off repair request", 300))
                 {
-                    IceLogging.Debug("Repair Callback", tag);
-                    ECommons.Automation.Callback.Fire(addon2, true, 1);
+                    IceLogging.Debug("Repair All (ECommons)", tag);
+                    rep.RepairAll();
                 }
+                return false;
+            }
+            // Repair窓が無い(まだ開いていない/手動で閉じられた)のに装備は損耗 → 自己修理を(再)展開してスタックを防ぐ
+            if (EzThrottler.Throttle("ReopenSelfRepair", 1000))
+            {
+                IceLogging.Debug("Repair窓が無いので自己修理を再展開", tag);
+                ActionManager.Instance()->UseAction(ActionType.GeneralAction, 6);
             }
             return false;
         }

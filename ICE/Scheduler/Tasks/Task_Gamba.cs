@@ -81,24 +81,16 @@ namespace ICE.Scheduler.Tasks
             new() { ItemId = 48158, Weight = 0, Type = GambaType.Other }, // Magicked Prism (Cosmic Exploration)
             new() { ItemId = 50450, Weight = 0, Type = GambaType.Other }, // Cosmic Barding
 
-            // === 7.51 Auxesia の新規Cosmic系コスメ(ルーレット景品候補) ===
-            // 景品プールは静的データに無くライブの輪からしか確定できないため、命名/カテゴリから抽出した候補を事前登録。
-            // 実際の輪に出れば OnWheelOpened が確認・補完する。輪に出ない品はWeight関係なく未使用(無害)。
-            new() { ItemId = 52262, Weight = 200, Type = GambaType.Mount },   // Rocket Punch Identification Key
-            new() { ItemId = 52267, Weight = 200, Type = GambaType.Mount },   // Cosmic Armored Weapon Beta Identification Key
-            new() { ItemId = 52268, Weight = 200, Type = GambaType.Mount },   // Cosmic Predator Identification Key
-            new() { ItemId = 52271, Weight = 200, Type = GambaType.Mount },   // Excavating Vacuum Suit Identification Key
-            new() { ItemId = 52272, Weight = 200, Type = GambaType.Mount },   // Carbide Grey Warp Loader Identification Key
-            new() { ItemId = 52292, Weight = 25,  Type = GambaType.Emote },   // Ballroom Etiquette - Dignified Derision
-            new() { ItemId = 52293, Weight = 25,  Type = GambaType.Emote },   // Ballroom Etiquette - Orchestral Operations
-            new() { ItemId = 52294, Weight = 25,  Type = GambaType.Emote },   // Ballroom Etiquette - Trial by Taco
-            new() { ItemId = 52605, Weight = 50,  Type = GambaType.Outfit },  // Cosmic Operator's Attire Coffer
-            new() { ItemId = 51276, Weight = 0,   Type = GambaType.Housing }, // Auxesian Tower Replica
-            new() { ItemId = 51277, Weight = 0,   Type = GambaType.Housing }, // Cosmic Metal Shelf
-            new() { ItemId = 51278, Weight = 0,   Type = GambaType.Housing }, // Cosmic Steps
-            new() { ItemId = 51279, Weight = 0,   Type = GambaType.Housing }, // Cosmic Partition
-            new() { ItemId = 51280, Weight = 0,   Type = GambaType.Housing }, // Auxesian Waygate
-            new() { ItemId = 51281, Weight = 0,   Type = GambaType.Housing }, // Auxesian Waylight
+            // === 7.51 Auxesia ルーレット景品(ユーザー実機確認・正しい分類) ===
+            new() { ItemId = 51277, Weight = 0,   Type = GambaType.Housing },     // Cosmic Metal Shelf (コスモメタルシェルフ)
+            new() { ItemId = 51278, Weight = 0,   Type = GambaType.Housing },     // Cosmic Steps (コスモステップ)
+            new() { ItemId = 51279, Weight = 0,   Type = GambaType.Housing },     // Cosmic Partition (コスモパーティション)
+            new() { ItemId = 52359, Weight = 0,   Type = GambaType.Orchestrion }, // Landscaping Orchestrion Roll (ランドスケーピング)
+            new() { ItemId = 52648, Weight = 0,   Type = GambaType.Orchestrion }, // Carrots of Brilliance Orchestrion Roll (ブリリアンスキャロット)
+            new() { ItemId = 52267, Weight = 200, Type = GambaType.Mount },       // Cosmic Armored Weapon Beta Identification Key (アームドウェポン改認証鍵)
+            new() { ItemId = 52275, Weight = 25,  Type = GambaType.Minion },      // Lite-loader (ホイットローダー)
+            new() { ItemId = 52449, Weight = 5,   Type = GambaType.Accessory },   // The Faces We Wear - Wrap-around Sunglasses (ラップアラウンド・グラス)
+            new() { ItemId = 52605, Weight = 50,  Type = GambaType.Outfit },      // Cosmic Operator's Attire Coffer (コスモオペレーター・チェスト)
         };
         public static void EnsureGambaWeightsInitialized(bool force = false)
         {
@@ -107,8 +99,14 @@ namespace ICE.Scheduler.Tasks
                 C.GambaItemWeights.Clear();
             foreach (var item in DefaultGambaItems)
             {
-                if (C.GambaItemWeights.Any(x => x.ItemId == item.ItemId))
+                var existing = C.GambaItemWeights.FirstOrDefault(x => x.ItemId == item.ItemId);
+                if (existing != null)
+                {
+                    // 既存エントリのカテゴリ(Type)はDefaultGambaItemsの確定値へ同期する(Weightはユーザー設定を保持)。
+                    // 以前Other等で自動登録された景品を正しいタブへ直すため。
+                    if (existing.Type != item.Type) { existing.Type = item.Type; changed = true; }
                     continue;
+                }
                 C.GambaItemWeights.Add(new Gamba { ItemId = item.ItemId, Weight = item.Weight, Type = item.Type });
                 changed = true;
             }

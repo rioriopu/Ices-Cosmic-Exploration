@@ -44,4 +44,8 @@ public partial class Config
     // And some of these are just for memes
     public bool CrazyTaxiArrow { get; set; } = false;
     public bool PlaceboCheckbox { get; set; } = false;
+
+    // Mission Setup の Notes 列に、マスターの即報告トグル(評価値500/1000)を表示するか。
+    // 既定ON(常時表示)。Dev Favorites からOFFにすると Notes 列のチェックボックスを隠せる。
+    public bool ShowNotesReportToggles { get; set; } = true;
 }

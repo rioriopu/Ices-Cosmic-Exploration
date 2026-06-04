@@ -324,6 +324,19 @@ namespace ICE.Ui.MainUi.Settings
             ImGuiEx.IconWithTooltip(FontAwesomeIcon.QuestionCircle, "This does abosolutely nothing\n" +
                 "But I know there's going to be people who enable this and don't read, so it's a tehe.\n" +
                 "Thanks for using my plugin though, it means a lot <3");
+
+            // Mission Setup の Notes 列にマスター即報告トグル(評価値500/1000)を表示するか。既定ON(常時表示)。
+            var showNotesToggles = C.ShowNotesReportToggles;
+            if (ImGui.Checkbox("Notes列にマスター即報告トグル(評価値500/1000)を表示", ref showNotesToggles))
+            {
+                C.ShowNotesReportToggles = showNotesToggles;
+                C.Save();
+            }
+            ImGui.SameLine();
+            ImGuiEx.IconWithTooltip(FontAwesomeIcon.QuestionCircle,
+                "Mission Setup の Notes 列に表示する、マスターシップミッション用の即報告チェックボックスの表示有無。\n" +
+                "ON(既定): 評価値500/1000で即報告するチェックボックスを Notes 列に表示\n" +
+                "OFF: Notes 列のチェックボックスを隠す(設定済みの値はそのまま機能します)");
         }
         private static void Separator()
         {

@@ -537,6 +537,16 @@ namespace ICE.Scheduler.Tasks
 
             var location = gatherInfo[Mission_Settings.nodeCounter];
 
+            // ★実際に出現している(光っている)ノードの実位置へ移動する。
+            // authoredルートの座標が実ノードの出現位置とズレていても、同一NodeIdのライブな IsTargetable GatheringPoint の
+            // 現在位置で location を更新し、確実に「いま光っているノード」へ向かわせる(ユーザー要望)。
+            var liveNode = Svc.Objects
+                .Where(o => o.ObjectKind == ObjectKind.GatheringPoint && o.IsTargetable && o.BaseId == location.NodeId)
+                .OrderBy(o => Player.DistanceTo(o.Position))
+                .FirstOrDefault();
+            if (liveNode != null)
+                location.Position = liveNode.Position;
+
             // 現在対象のノードが変わったらタイムアウト計測をリセット
             if (_stuckNodeIndex != Mission_Settings.nodeCounter)
             {
