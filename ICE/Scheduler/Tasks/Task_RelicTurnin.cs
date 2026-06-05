@@ -28,7 +28,11 @@ namespace ICE.Scheduler.Tasks
         public static bool? RegisterJob()
         {
             IceLogging.Verbose("Registering what job to turn in on");
-            TurninJob = (uint)Player.Job;
+            // 納品判定(HubActivityCheck)は Mission_Settings.SelectedJob のリレックで行っている。
+            // ところが旧実装は実ジョブ(Player.Job)を登録していたため、Agendaモードで「選択ジョブ≠現ジョブ」
+            // (例: 既にLv20の木工のまま、Agendaは甲冑を選択)のとき、最大で納品不可の木工リレックを
+            // 延々と納品しようとし甲冑へ進めない無限ループになっていた。判定と実行を SelectedJob で一致させる。
+            TurninJob = Mission_Settings.SelectedJob != 0 ? Mission_Settings.SelectedJob : (uint)Player.Job;
 
             return true;
         }

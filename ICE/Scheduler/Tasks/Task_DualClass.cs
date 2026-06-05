@@ -15,6 +15,12 @@ namespace ICE.Scheduler.Tasks
         private const uint MoonCrateItemId = 48233;
         private static FishingDebug _fishingDebug = null;
 
+        // クラフタージョブへ切替えた直後に CraftItem を即発火すると Artisan の製作開始シーケンスが競合し、
+        // "EnduranceNormalStart took too long" を吐いて製作手帳は開くが製作が始まらないことがある。
+        // 切替後に態勢が落ち着く(忙しくない+一定時間経過)まで発火を遅らせるための起点時刻。MinValue=未計測。
+        private static DateTime _crafterSwapSettle = DateTime.MinValue;
+        private const double CrafterSwapSettleMs = 1000.0;
+
         public static void Enqueue()
         {
             Task_CheckScore.Enqueue();
@@ -120,8 +126,23 @@ namespace ICE.Scheduler.Tasks
             {
                 if (EzThrottler.Throttle("Swapping to crafter job"))
                     GearsetHandler.TaskClassChange((Job)crafterJobId);
+                _crafterSwapSettle = DateTime.MinValue; // 切替中はリセット
                 return false;
             }
+
+            // ジョブ切替直後に即 CraftItem を発火すると Artisan の製作開始シーケンスが競合し、製作手帳は
+            // 開くが "EnduranceNormalStart took too long" を吐いて製作が始まらないことがある。
+            // 忙しくない & 切替後に一定時間(落ち着き)経過してから発火する。
+            // (通常クラフト Task_Craft が CraftItem 前にソルバー設定+throttle待ちを挟むのと同趣旨)
+            if (PlayerHelper.CustomIsBusy)
+            {
+                _crafterSwapSettle = DateTime.MinValue;
+                return false;
+            }
+            if (_crafterSwapSettle == DateTime.MinValue)
+                _crafterSwapSettle = DateTime.Now;
+            if ((DateTime.Now - _crafterSwapSettle).TotalMilliseconds < CrafterSwapSettleMs)
+                return false;
 
             if (PlayerHelper.GetItemCount(itemId, out var count) && count < dualCraftAmount)
             {

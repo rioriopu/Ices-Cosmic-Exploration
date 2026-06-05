@@ -551,7 +551,6 @@ namespace ICE.Scheduler.Tasks
                             canTurnin &= exp.Value.Current >= exp.Value.Needed;
                         }
                         TurninRelic = isUpgradable && canTurnin;
-
                     }
                     else
                     {
