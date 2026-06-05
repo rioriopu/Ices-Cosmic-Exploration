@@ -159,7 +159,12 @@ namespace ICE.Scheduler.Tasks
             float sectionSize = isInsideFan ? 30f : 60f;
 
             var (sectionMin, sectionMax) = GetNearestSection(node_MinAngle, node_MaxAngle, angleToPlayer, sectionSize);
-            float selectedAngle = RandomAngleInRange(sectionMin, sectionMax);
+            // Radius_Start=0/Radius_End=360 が PictomancyToFFXIV で同一値(180)に潰れて角度範囲が幅0になり、
+            // 立ち位置が常にノードの+Z方向(=プレイヤー反対側の奥。段差/岩を踏みやすい)に固定される不具合への対処。
+            // 範囲が潰れている(=全周指定のつもり)場合は、立ち位置をプレイヤー方向(angleToPlayer)＝ノードのプレイヤー側に置く。
+            float angleSpan = NormalizeAngle(node_MaxAngle - node_MinAngle);
+            bool degenerateRange = angleSpan < 0.5f || angleSpan > 359.5f;
+            float selectedAngle = degenerateRange ? angleToPlayer : RandomAngleInRange(sectionMin, sectionMax);
             float selectedDistance = NextFloat(routeinfo.Distance_Min, routeinfo.Distance_Max);
 
             Vector3 randomPosition = CalculateFanPosition(nodePos, selectedAngle, selectedDistance, routeinfo.FanHeight);
@@ -188,8 +193,6 @@ namespace ICE.Scheduler.Tasks
                 var nodeFloor = P.Navmesh.PointOnFloor(nodePos, false, 5f);
                 randomPosition = nodeFloor ?? nodePos;
             }
-            // if (EzThrottler.Throttle("Gather Route Throttle", 3000))
-               // IceLogging.Debug($"[GatherMove] angleToPlayer={angleToPlayer:F1}, node_MinAngle={node_MinAngle:F1}, node_MaxAngle={node_MaxAngle:F1}, sectionMin={sectionMin:F1}, sectionMax={sectionMax:F1}, selectedAngle={selectedAngle:F1}, selectedDistance={selectedDistance:F2}, minDist={routeinfo.Distance_Min}, maxDist={routeinfo.Distance_Max}, randomPosition={randomPosition}", handle);
 
             float distanceToTarget = Player.DistanceTo(nodePos);
 
