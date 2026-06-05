@@ -62,6 +62,9 @@ public partial class Config
         public bool TurninGold { get; set; } = false;
         public bool TurninSilver { get; set; } = false;
         public bool TurninBronze { get; set; } = false;
+        // 時間切れまで粘ってからターンインする(スコア閾値では報告しない)。本家 b305e21 "Time Expired" 相当。
+        // ゴール達成でタイマーが延びるTool Mastery等で、最後まで粘ってスコアを最大化したい場合に使う。
+        public bool TurninTimeExpired { get; set; } = false;
         // マスターシップ(高難易度)ミッション専用: ON=評価値1000超えで即報告 / OFF=制限時間が続く限り製作(残り時間が1製作分未満になったら報告)
         public bool MasterReportAt1000 { get; set; } = false;
         // マスターシップ専用: ON=評価値500以上で即報告(1000を待たず早期に切り上げて回転数を上げたい場合)。

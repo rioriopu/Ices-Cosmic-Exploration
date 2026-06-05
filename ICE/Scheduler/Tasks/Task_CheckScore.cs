@@ -157,9 +157,13 @@ namespace ICE.Scheduler.Tasks
                             {
                                 var config = C.MissionConfig[currentMission];
 
-                                shouldTurnin = ((config.TurninGold || config.AutoTurnin) && rank >= MissionRank.Gold) ||
-                                               (config.TurninSilver && rank >= MissionRank.Silver) ||
-                                               (config.TurninBronze && rank >= MissionRank.Bronze);
+                                if (config.TurninTimeExpired)
+                                    // 時間切れモード: スコアでは報告せず、制限時間切れ時のみターンイン(本家 b305e21 相当)
+                                    shouldTurnin = CosmicHandler.IsMissionTimedOut();
+                                else
+                                    shouldTurnin = ((config.TurninGold || config.AutoTurnin) && rank >= MissionRank.Gold) ||
+                                                   (config.TurninSilver && rank >= MissionRank.Silver) ||
+                                                   (config.TurninBronze && rank >= MissionRank.Bronze);
                             }
 
                             if (shouldTurnin)
@@ -321,9 +325,13 @@ namespace ICE.Scheduler.Tasks
                         {
                             var config = C.MissionConfig[id];
 
-                            shouldTurnin = ((config.TurninGold || config.AutoTurnin) && rank >= MissionRank.Gold) ||
-                                           (config.TurninSilver && rank >= MissionRank.Silver) ||
-                                           (config.TurninBronze && rank >= MissionRank.Bronze);
+                            if (config.TurninTimeExpired)
+                                // 時間切れモード: スコアでは報告せず、制限時間切れ時のみターンイン(本家 b305e21 相当)
+                                shouldTurnin = CosmicHandler.IsMissionTimedOut();
+                            else
+                                shouldTurnin = ((config.TurninGold || config.AutoTurnin) && rank >= MissionRank.Gold) ||
+                                               (config.TurninSilver && rank >= MissionRank.Silver) ||
+                                               (config.TurninBronze && rank >= MissionRank.Bronze);
                         }
 
                         if (shouldTurnin)
@@ -442,9 +450,13 @@ namespace ICE.Scheduler.Tasks
                         {
                             var config = C.MissionConfig[id];
 
-                            shouldTurnin = ((config.TurninGold || config.AutoTurnin) && rank >= MissionRank.Gold) ||
-                                           (config.TurninSilver && rank >= MissionRank.Silver) ||
-                                           (config.TurninBronze && rank >= MissionRank.Bronze);
+                            if (config.TurninTimeExpired)
+                                // 時間切れモード: スコアでは報告せず、制限時間切れ時のみターンイン(本家 b305e21 相当)
+                                shouldTurnin = CosmicHandler.IsMissionTimedOut();
+                            else
+                                shouldTurnin = ((config.TurninGold || config.AutoTurnin) && rank >= MissionRank.Gold) ||
+                                               (config.TurninSilver && rank >= MissionRank.Silver) ||
+                                               (config.TurninBronze && rank >= MissionRank.Bronze);
                         }
 
                         if (shouldTurnin)
@@ -517,9 +529,14 @@ namespace ICE.Scheduler.Tasks
                 }
 
                 var config = C.MissionConfig[Id];
-                bool shouldTurnin = ((config.TurninGold || config.AutoTurnin) && rank >= MissionRank.Gold) ||
-                                    (config.TurninSilver && rank >= MissionRank.Silver) ||
-                                    (config.TurninBronze && rank >= MissionRank.Bronze);
+                bool shouldTurnin;
+                if (config.TurninTimeExpired)
+                    // 時間切れモード: スコアでは報告せず、制限時間切れ時のみターンイン(本家 b305e21 相当)
+                    shouldTurnin = CosmicHandler.IsMissionTimedOut();
+                else
+                    shouldTurnin = ((config.TurninGold || config.AutoTurnin) && rank >= MissionRank.Gold) ||
+                                   (config.TurninSilver && rank >= MissionRank.Silver) ||
+                                   (config.TurninBronze && rank >= MissionRank.Bronze);
 
                 if (shouldTurnin)
                 {
