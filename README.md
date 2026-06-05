@@ -1,6 +1,7 @@
-# Ices Cosmic Exploration (ICE)
+# Ices Cosmic Exploration (ICE) - Updated 7.51(by Estell)
 
-Repo: `https://puni.sh/api/repository/ice`
+本家Repo: `https://puni.sh/api/repository/ice`
+フォーク版Repo: 'https://raw.githubusercontent.com/rioriopu/PrivateReleaseRepo/main/repo.json`
 
 Welcome to the moon plugin that makes that dreadful grind of the moon into something that can be automated and made so much simplier.  
 The overall purpose of this is to help you re-roll and grind out certain Cosmic Exploration missinos. From anywhere on trying to get gold on every mission for that title, to grinding out relic experience so you get your crafter/gathering tools. Or even if you're grinding up to 500k points on each and every class.
