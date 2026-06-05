@@ -20,7 +20,9 @@ public class GathNodeInfo
     public float Radius_Start { get; set; } = 0.0f;
 
     [YamlMember(Alias = "radius_end")]
-    public float Radius_End { get; set; } = 360.0f;
+    // 全周を表す。360.0 だと PictomancyToFFXIV で MinAngle と同じ180度に潰れて角度範囲が幅0(立ち位置が
+    // 1方向固定・リトライ無効)になるため、ラップアラウンドで全周ランダムになる 359.99 を既定にする。
+    public float Radius_End { get; set; } = 359.99f;
 
     [YamlMember(Alias = "min_distance")]
     public float Distance_Min { get; set; } = 1.5f; // 動的ノード等の既定立ち位置をノードから少し離す(岩近接対策)
