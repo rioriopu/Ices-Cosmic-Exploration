@@ -326,9 +326,6 @@ namespace ICE.Ui.MainUi.Settings
                 "But I know there's going to be people who enable this and don't read, so it's a tehe.\n" +
                 "Thanks for using my plugin though, it means a lot <3");
 
-            // 採掘士マスター(1621)専用採取ループのチェックボックスと指定ノードUIは非表示化(ユーザー要望)。
-            // 機能ロジック(C.FixedGatherRoutineEnabled)自体は残置。再表示する場合は下記のコメントを解除する。
-            /*
             // 旧2チェック(Notes即報告トグル表示 / 固定採取ルーチン有効化)を統合した1チェック。既定ON(常時オン)。
             var fixedRoutine = C.FixedGatherRoutineEnabled;
             if (ImGui.Checkbox("採掘士マスター(1621)専用採取ループ", ref fixedRoutine))
@@ -374,7 +371,6 @@ namespace ICE.Ui.MainUi.Settings
                 }
                 ImGui.Unindent();
             }
-            */
         }
         private static void Separator()
         {
