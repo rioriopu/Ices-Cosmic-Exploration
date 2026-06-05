@@ -13,6 +13,10 @@ namespace ICE.Scheduler.Tasks
     {
         public static void Enqueue()
         {
+            // ミッション境界では製作対象が無いので何もしない(以降のSheetMissionDict/MissionConfig参照の保護)。
+            if (CosmicHelper.CurrentLunarMission == 0)
+                return;
+
             if (P.Artisan.IsBusy())
             {
                 P.TaskManager.Enqueue(() => WaitingForArtisan(), "Waiting for artisan to finish crafting");
@@ -25,20 +29,35 @@ namespace ICE.Scheduler.Tasks
             }
         }
 
+        private static DateTime _craftActionLockSince = DateTime.MinValue;
         private static bool? WaitingForArtisan()
         {
             if (!P.Artisan.IsBusy())
             {
+                _craftActionLockSince = DateTime.MinValue;
                 IceLogging.Info("Artisan is no longer running, continuing the process");
                 return true;
             }
             else
             {
+                // 単一の製作アクションが異常に長くロックしている(アニメーションロック)状態の脱出。
+                // 通常1アクションは数秒。20秒以上 ExecutingCraftingAction が続く=ハングとみなし、放棄して復帰する(棒立ち防止)。
                 if (Svc.Condition[ConditionFlag.ExecutingCraftingAction])
                 {
-                    // Need to add a timer check here. Make it configuarable maybe... 10s?
-                    // If the timer exceeds 10 seconds, then that means we're stuck in an animation lock
-                    // then need to cancel them all and just force abandon lock failsafe
+                    if (_craftActionLockSince == DateTime.MinValue)
+                        _craftActionLockSince = DateTime.Now;
+                    else if ((DateTime.Now - _craftActionLockSince).TotalSeconds >= 20)
+                    {
+                        IceLogging.Warning("製作アクションが20秒以上ロックしています(アニメーションロックの可能性)。ミッションを放棄して復帰します", "[Task Craft]");
+                        _craftActionLockSince = DateTime.MinValue;
+                        SchedulerMain.State = IceState.AbandonMission;
+                        P.TaskManager.Tasks.Clear();
+                        return true;
+                    }
+                }
+                else
+                {
+                    _craftActionLockSince = DateTime.MinValue; // アクション実行の合間はリセット(個々のアクションのロックのみ検知)
                 }
                 if (GenericHelpers.TryGetAddonMaster<WKSHud>("WKSHud", out var moonHud))
                 {
@@ -54,6 +73,9 @@ namespace ICE.Scheduler.Tasks
             return false;
         }
         private static uint throttleCounter = 0;
+        // throttleCounter は特定経路でしか0に戻らず、別ミッション/ジョブをまたいで>=3のまま残り、設定適用待ちを飛ばして
+        // 即CraftItem発火する競合の温床になる。ミッションが変わったらリセットするための直近ミッションID。
+        private static uint _throttleMissionId = 0;
         private static void InsertArtisanWait(KeyValuePair<ushort, CosmicHelper.CraftingInfo> item, int amount, uint rank)
         {
             P.TaskManager.InsertMulti(
@@ -131,11 +153,18 @@ namespace ICE.Scheduler.Tasks
             var recipeId = item.Value.RecipeId;
             var itemId = item.Value.ItemId;
             var expert = item.Value.ExpertCraft;
-            var expertRaph = C.Artisan_RaphaelMaster;
-
 
             var missionId = CosmicHelper.CurrentLunarMission;
-            var missionConfig = C.MissionConfig[missionId];
+            // ミッション境界(報告/放棄直後)では missionId==0、または未設定ミッションでは MissionConfig 未登録 → 例外。早期return。
+            if (missionId == 0 || !C.MissionConfig.TryGetValue(missionId, out var missionConfig))
+                return true;
+
+            // ミッションが変わったら待機カウンタをリセット(前ミッションの残留で設定適用待ちを飛ばさないように)。
+            if (missionId != _throttleMissionId)
+            {
+                _throttleMissionId = missionId;
+                throttleCounter = 0;
+            }
 
             if (missionConfig.CraftSettings.TryGetValue(recipeId, out var recipeConfig))
             {
@@ -214,7 +243,9 @@ namespace ICE.Scheduler.Tasks
         private static bool? CheckMaterials()
         {
             var id = CosmicHelper.CurrentLunarMission;
-            var mission = CosmicHelper.SheetMissionDict[id];
+            // ミッション境界では id==0 → SheetMissionDict[0] が KeyNotFoundException。早期return。
+            if (id == 0 || !CosmicHelper.SheetMissionDict.TryGetValue(id, out var mission))
+                return true;
 
             bool provisional = mission.IsProvisional;
 
@@ -229,6 +260,15 @@ namespace ICE.Scheduler.Tasks
                     var preCraft = mission.Crafts_Pre.FirstOrDefault();
                     var mainCraft = mission.Crafts_Main.FirstOrDefault();
 
+                    // データ不整合(前提製作はあるがメイン製作が無い等)を防御。CraftingInfoはクラスなので空コレクションでnull。
+                    if (preCraft.Value == null || mainCraft.Value == null)
+                    {
+                        IceLogging.Error("製作データ不整合(Crafts_Pre/Crafts_Main が欠落)。ミッションを放棄します", "[Task Craft: Check Materials]");
+                        SchedulerMain.State = IceState.AbandonMission;
+                        P.TaskManager.Tasks.Clear();
+                        return true;
+                    }
+
                     var preItemId = preCraft.Value.ItemId;
                     var mainItemId = mainCraft.Value.ItemId;
 
@@ -236,9 +276,18 @@ namespace ICE.Scheduler.Tasks
                     PlayerHelper.GetItemCount(preCraft.Value.RequiredItems.FirstOrDefault().Key, out var moonCrateCount);
                     PlayerHelper.GetItemCount(mainCraft.Value.ItemId, out var mainItemCount);
 
-                    if (preItemAmount >= mainCraft.Value.RequiredItems[preItemId])
+                    // メイン製作の必要素材に前提アイテムが含まれない(データ不整合)なら直接index例外になるため TryGetValue で防御。
+                    if (!mainCraft.Value.RequiredItems.TryGetValue(preItemId, out var requiredPreCount))
                     {
-                        IceLogging.Info($"Required pre-Item count: {mainCraft.Value.RequiredItems[preItemId]} | amount necessary: {preItemAmount}");
+                        IceLogging.Error($"製作データ不整合(メイン製作の必要素材に前提アイテム {preItemId} が無い)。ミッションを放棄します", "[Task Craft: Check Materials]");
+                        SchedulerMain.State = IceState.AbandonMission;
+                        P.TaskManager.Tasks.Clear();
+                        return true;
+                    }
+
+                    if (preItemAmount >= requiredPreCount)
+                    {
+                        IceLogging.Info($"Required pre-Item count: {requiredPreCount} | amount necessary: {preItemAmount}");
 
                         // There's enough items to craft the mainhand. Telling it to craft it instead. 
                         if (mainItemCount < mainCraft.Value.RequiredAmount)

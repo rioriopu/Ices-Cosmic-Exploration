@@ -245,7 +245,10 @@ public sealed partial class ICE
                         crafts_Main[itemRecipeId] = new()
                         {
                             ItemId = itemId,
-                            RecipeId = wksRecipeRowId,
+                            // 実レシピID(itemRecipeId)を格納する。非クリティカル分岐は RecipeId=recipeId(実レシピID)なのに、
+                            // ここだけ WKSMissionRecipe のテーブルRowId(wksRecipeRowId)を入れており、ApplyArtisanSettings の
+                            // ChangeSolver が別IDに当たってソルバー(Raphael等)が実レシピに適用されない不整合だった。
+                            RecipeId = itemRecipeId,
                             RequiredAmount = requiredAmount,
                             RecipeInfo = recipeInfo,
                             ItemName = itemName,

@@ -16,7 +16,9 @@ namespace ICE.Scheduler.Tasks
         public static void Enqueue()
         {
             var Id = CosmicHelper.CurrentLunarMission;
-            var mission = CosmicHelper.SheetMissionDict[Id];
+            // ミッション境界(報告/放棄直後)では Id==0。SheetMissionDict[0] は KeyNotFoundException になるため早期return。
+            if (Id == 0 || !CosmicHelper.SheetMissionDict.TryGetValue(Id, out var mission))
+                return;
 
             var jobs = mission.Jobs;
 
@@ -258,10 +260,15 @@ namespace ICE.Scheduler.Tasks
                             return true;
                         }
 
+                        // 時間切れ、または残り時間が1製作分(MasterCraftDurationSeconds)未満なら新規製作せず報告する。
+                        // 注意: MissionTimeRemaining() は時間切れで 0→負 を返す(タイマー無し時のみ -1)。
+                        // 旧条件 remaining >= 0 は、残り時間が負(0をわずかに過ぎた時間切れ)になると false になり、
+                        // 報告に行かず製作継続へ落ちて「時間切れなのに製作しようとして棒立ち」になっていた。
+                        // IsMissionTimedOut()(タイマー有効かつ残り<=0で true)を併用して時間切れを確実に拾う。
                         var remaining = CosmicHandler.MissionTimeRemaining();
-                        if (remaining >= 0 && remaining < MasterCraftDurationSeconds)
+                        if (CosmicHandler.IsMissionTimedOut() || (remaining >= 0 && remaining < MasterCraftDurationSeconds))
                         {
-                            IceLogging.Info($"マスター: 残り時間{remaining}秒が製作所要({MasterCraftDurationSeconds}秒)未満 → 製作せず報告", tag);
+                            IceLogging.Info($"マスター: 時間切れ/残り時間{remaining}秒が製作所要({MasterCraftDurationSeconds}秒)未満 → 製作せず報告", tag);
                             SchedulerMain.State = IceState.TurninMission;
                             P.TaskManager.Tasks.Clear();
                             return true;
@@ -492,6 +499,9 @@ namespace ICE.Scheduler.Tasks
                 var currentScore = CurrentScore();
                 var rank = CurrentRank();
                 var Id = CosmicHelper.CurrentLunarMission;
+                // ミッション境界では Id==0 → C.MissionConfig[0] が KeyNotFoundException。早期return。
+                if (Id == 0 || !C.MissionConfig.ContainsKey(Id))
+                    return false;
 
                 if (CosmicHandler.IsMissionTimedOut())
                 {

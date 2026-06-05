@@ -86,13 +86,6 @@ public static partial class CosmicHelper
                     "Second best weather missions for scoring, still good to focus over the basic A Ranks",
                     896, 938);
 
-        // Auxesia 採掘士(MIN)マスターミッション: 固定採取ルーチン対象。
-        // 手順: ①受注 → ②採取ポイントへ移動しアクセス → ③キングスイールドII(YieldII)を1回使用 →
-        //       ④そのまま採取(他スキル不使用) → ⑤1ノードで報告(移動しない)。
-        AddMissions(dict, 0f,
-                    "採掘士マスター固定ルーチン: キングスイールドIIを1回使い、そのまま採取して1ノードで報告します(他スキル不使用/移動なし)。",
-                    1621);
-
 
 
         return dict;

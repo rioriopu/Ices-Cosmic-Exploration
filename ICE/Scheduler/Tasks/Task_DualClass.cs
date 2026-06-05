@@ -11,6 +11,8 @@ namespace ICE.Scheduler.Tasks
 {
     internal static class Task_DualClass
     {
+        // 二職ミッションの前提素材(月のクレート系)アイテムID。複数箇所で使うため定数化。
+        private const uint MoonCrateItemId = 48233;
         private static FishingDebug _fishingDebug = null;
 
         public static void Enqueue()
@@ -30,8 +32,9 @@ namespace ICE.Scheduler.Tasks
             }
 
             var id = CosmicHelper.CurrentLunarMission;
-            var mission = CosmicHelper.SheetMissionDict[id];
-            var missionConfig = C.MissionConfig[id];
+            // ミッション境界(報告/放棄直後)では id==0 → 直接index例外。早期return。
+            if (id == 0 || !CosmicHelper.SheetMissionDict.TryGetValue(id, out var mission) || !C.MissionConfig.TryGetValue(id, out var missionConfig))
+                return false;
             var crafterJobId = mission.Jobs.Where(x => CosmicHelper.CrafterJobList.Contains(x)).FirstOrDefault();
             var gatheringJobId = mission.Jobs.Where(x => CosmicHelper.GatheringJobList.Contains(x)).FirstOrDefault();
 
@@ -40,7 +43,7 @@ namespace ICE.Scheduler.Tasks
             var recipeId = mission.Crafts_Main.Keys.FirstOrDefault();
             var itemId = mainCraft.ItemId;
 
-            var gatherProfileId = C.MissionConfig[id].GProfileId;
+            var gatherProfileId = missionConfig.GProfileId;
             var dualCraftAmount = 3;
 
             if (missionConfig.TurninGold || missionConfig.AutoTurnin)
@@ -61,7 +64,7 @@ namespace ICE.Scheduler.Tasks
 
             foreach (var requiredItem in mainCraft.RequiredItems)
             {
-                uint crateId = 48233;
+                uint crateId = MoonCrateItemId;
 
                 var materialItemId = requiredItem.Key;
                 var amountNeeded = requiredItem.Value;
@@ -147,7 +150,9 @@ namespace ICE.Scheduler.Tasks
             IceLogging.Debug("Starting 'Check Gather State'");
 
             var id = CosmicHelper.CurrentLunarMission;
-            var mission = CosmicHelper.SheetMissionDict[id];
+            // ミッション境界では id==0 → 直接index例外。早期return。
+            if (id == 0 || !CosmicHelper.SheetMissionDict.TryGetValue(id, out var mission))
+                return false;
             var crafterJobId = mission.Jobs.Where(x => CosmicHelper.CrafterJobList.Contains(x)).FirstOrDefault();
             var gatheringJobId = mission.Jobs.Where(x => CosmicHelper.GatheringJobList.Contains(x)).FirstOrDefault();
 
@@ -254,10 +259,14 @@ namespace ICE.Scheduler.Tasks
 
         public static unsafe bool? GatheringInteraction()
         {
+            // ミッション境界では CurrentLunarMission==0 → CurrentMissionInfo が null / MissionConfig 未登録。早期return。
+            var missionId = CosmicHelper.CurrentLunarMission;
+            if (missionId == 0 || !C.MissionConfig.TryGetValue(missionId, out var dcMissionConfig))
+                return false;
             var missionInfo = CosmicHelper.CurrentMissionInfo;
             bool collectableItem = missionInfo.Attributes.HasFlag(MissionAttributes.Collectables);
             bool reduceItems = missionInfo.Attributes.HasFlag(MissionAttributes.ReducedItems);
-            var configId = C.MissionConfig[CosmicHelper.CurrentLunarMission].GProfileId;
+            var configId = dcMissionConfig.GProfileId;
             if (C.GatherProfiles.TryGetValue(configId, out var gatherConfig))
             {
 
@@ -438,6 +447,10 @@ namespace ICE.Scheduler.Tasks
         {
             string handle = "[Dual Class: Check Items]";
 
+            // ミッション境界では CurrentLunarMission==0 → CurrentMissionInfo/MissionConfig が null/未登録。早期return。
+            if (CosmicHelper.CurrentLunarMission == 0)
+                return true;
+
             if (!Svc.Condition[ConditionFlag.Gathering])
             {
                 IceLogging.Info("We've stopped fishing for some reason... going to go back and check if we have enough of the materials, or just ran out of bait", handle);
@@ -481,7 +494,7 @@ namespace ICE.Scheduler.Tasks
 
                     foreach (var requiredItem in mainCraft.RequiredItems)
                     {
-                        uint crateId = 48233;
+                        uint crateId = MoonCrateItemId;
                         var materialItemId = requiredItem.Key;
                         var amountNeeded = requiredItem.Value;
                         if (materialItemId == crateId) continue;
