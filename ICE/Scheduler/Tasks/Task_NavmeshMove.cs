@@ -1816,11 +1816,20 @@ namespace ICE.Scheduler.Tasks
             float standardAngle = 180f - angleDegrees;
             float angleRadians = standardAngle * (MathF.PI / 180f);
 
-            return new Vector3(
+            var pos = new Vector3(
                 center.X + distance * MathF.Sin(angleRadians),
                 center.Y,
                 center.Z + distance * MathF.Cos(angleRadians)
             );
+
+            // 立ち位置のYはノードのY(GameObject原点)のままだと、岩場等でノード原点が地表から浮く/めり込む場所では
+            // 後段の NearestPointReachable が到達可能点を見つけられず、NearestPointフォールバックで到達不可点(谷の先/
+            // 岩の上)へ吸着して不正パスになる。立ち位置XZ直下の地表(navmesh floor)へYを投影して補正する。
+            var floor = P.Navmesh.PointOnFloor(pos, false, 5f);
+            if (floor.HasValue)
+                pos.Y = floor.Value.Y;
+
+            return pos;
         }
 
         #endregion
