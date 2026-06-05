@@ -109,7 +109,11 @@ namespace ICE.Ui
             }
             else
             {
-                ImGui.Text("Hehe");
+                // 未選択/不明キー(既定の空文字や旧Config)のときは Mission Setup を既定表示にする。
+                // 従来は "Hehe" プレースホルダが出て、起動経路によっては初期画面でMission Setupが出ない不具合だった。
+                C.MainUi_SelectedWindow = "modeSelect_MissionSetup";
+                if (SelectedView.TryGetValue("modeSelect_MissionSetup", out var fallback))
+                    fallback();
             }
         }
     }
