@@ -23,7 +23,7 @@ public class GathNodeInfo
     public float Radius_End { get; set; } = 360.0f;
 
     [YamlMember(Alias = "min_distance")]
-    public float Distance_Min { get; set; } = 1.0f;
+    public float Distance_Min { get; set; } = 1.5f; // 動的ノード等の既定立ち位置をノードから少し離す(岩近接対策)
 
     [YamlMember(Alias = "max_distance")]
     public float Distance_Max { get; set; } = 3.0f;
