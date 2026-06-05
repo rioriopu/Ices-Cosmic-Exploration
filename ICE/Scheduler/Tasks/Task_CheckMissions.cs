@@ -1008,7 +1008,7 @@ namespace ICE.Scheduler.Tasks
                     IceLogging.Info("緊急ミッション: 受注前の移動はスキップし、受注後にレフレダで任務地へワープします", tag);
                 return true;
             }
-            else if (sheetInfo.Attributes.HasFlag(MissionAttributes.Gather))
+            else if (sheetInfo.IsGatherMission)
             {
                 var missionTerritory = sheetInfo.TerritoryId;
                 var mapId = sheetInfo.MapPosition;
@@ -1058,7 +1058,7 @@ namespace ICE.Scheduler.Tasks
                     return true;
                 }
             }
-            else if (sheetInfo.Attributes.HasFlag(MissionAttributes.Fish))
+            else if (sheetInfo.IsFishMission)
             {
                 var location = sheetInfo.MapPosition;
                 var territory = sheetInfo.TerritoryId;
