@@ -167,10 +167,27 @@ namespace ICE.Scheduler.Tasks
             // キノコの傘など歩いて行けない孤立メッシュ島へ吸着→登ろうとしてジャンプ連発(Auxesia多層地形)。
             // NearestPointReachableで到達可能点に補正し、XZ探索も0.1f→3fに拡大。失敗時のみNearestPointへフォールバック。
             // (旧 .Value はnull時NREの潜在バグもあった→HasValueガードで解消)
-            var snappedPos = P.Navmesh.NearestPointReachable(randomPosition, 3f, 5f)
-                             ?? P.Navmesh.NearestPoint(randomPosition, 3f, 5f);
+            // 到達可能点(NearestPointReachable)のみ採用する。見つからない場合は扇形の別角度/距離を数回試す。
+            // 到達可否を無視する NearestPoint へのフォールバックは、谷の対岸や岩の上の孤立メッシュへ吸着して
+            // navmeshが谷を経由する不正パスを引く原因になるため使わない(岩場ノードで多発していた)。
+            Vector3? snappedPos = P.Navmesh.NearestPointReachable(randomPosition, 3f, 5f);
+            for (int retry = 0; !snappedPos.HasValue && retry < 8; retry++)
+            {
+                float rAngle = RandomAngleInRange(node_MinAngle, node_MaxAngle);
+                float rDist = NextFloat(routeinfo.Distance_Min, routeinfo.Distance_Max);
+                var candidate = CalculateFanPosition(nodePos, rAngle, rDist, routeinfo.FanHeight);
+                snappedPos = P.Navmesh.NearestPointReachable(candidate, 3f, 5f);
+                if (snappedPos.HasValue)
+                    randomPosition = candidate;
+            }
             if (snappedPos.HasValue)
                 randomPosition = snappedPos.Value;
+            else
+            {
+                // 全候補が到達不可: ノード直下の地表へ直接向かい、到達経路は navmesh の最短探索に委ねる。
+                var nodeFloor = P.Navmesh.PointOnFloor(nodePos, false, 5f);
+                randomPosition = nodeFloor ?? nodePos;
+            }
             // if (EzThrottler.Throttle("Gather Route Throttle", 3000))
                // IceLogging.Debug($"[GatherMove] angleToPlayer={angleToPlayer:F1}, node_MinAngle={node_MinAngle:F1}, node_MaxAngle={node_MaxAngle:F1}, sectionMin={sectionMin:F1}, sectionMax={sectionMax:F1}, selectedAngle={selectedAngle:F1}, selectedDistance={selectedDistance:F2}, minDist={routeinfo.Distance_Min}, maxDist={routeinfo.Distance_Max}, randomPosition={randomPosition}", handle);
 
