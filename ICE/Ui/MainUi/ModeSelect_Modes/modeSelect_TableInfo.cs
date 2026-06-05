@@ -250,7 +250,7 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                 ImGui.TableSetupColumn("✓");
                 ImGui.TableSetupColumn("Mission Name");
                 ImGui.TableSetupColumn("Cosmo");
-                ImGui.TableSetupColumn("Lunar");
+                ImGui.TableSetupColumn("Planetary"); // 表示ヘッダーは TableHeader("Planetary")。内部IDも揃える(旧"Lunar")
                 ImGui.TableSetupColumn("Score");
                 ImGui.TableSetupColumn("Reward Item"); // 9
 
