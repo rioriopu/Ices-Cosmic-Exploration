@@ -34,8 +34,8 @@ namespace ICE.Scheduler.Tasks
 
             if (NpcData.MoonNpcs[zoneId].TryGetValue(NpcData.NpcType.Drone, out var npcEntry))
             {
-                // 既に近ければ完了
-                if (Player.DistanceTo(npcEntry.Location_Npc) <= 6f)
+                // 既に近ければ完了(話しかけ判定)。停止距離1.5fより少し大きい2fにし、停止後に確実に会話へ進む。
+                if (Player.DistanceTo(npcEntry.Location_Npc) <= 2f)
                 {
                     IceLogging.Debug("We're close enough to the drone npc! Continuing on", handle);
                     return true;
@@ -48,7 +48,7 @@ namespace ICE.Scheduler.Tasks
                 Vector3 randomPos = NpcData.GetRandomPointInCircle(npcEntry.Location_Circle, 0.5f);
                 if (EzThrottler.Throttle("Drone Move Message", 1000))
                     IceLogging.Verbose($"ドローンNPCへボード等も使う賢いナビで移動中。距離: {Player.DistanceTo(npcEntry.Location_Npc):F0}", handle);
-                Task_NavmeshMove.Enqueue_NavmeshTask(randomPos, waitForBusy: false, distance: 5f);
+                Task_NavmeshMove.Enqueue_NavmeshTask(randomPos, waitForBusy: false, distance: 1.5f);
                 return true;
             }
             else
