@@ -51,6 +51,18 @@ namespace ICE.Scheduler.Tasks
                 return true;
             }
 
+            // COSMO MISSIONS(WKSMission)ウィンドウが開いていると Stellar Return(帰還/GeneralAction 26)が発動できない。
+            // 開いていれば先に閉じてから帰還処理へ進む(実機報告: ミッションウィンドウを開いたまま止まり、閉じるとデジョンが始まる)。
+            if (GenericHelpers.TryGetAddonMaster<WKSMission>("WKSMission", out var wksMissionWin) && wksMissionWin.IsAddonReady)
+            {
+                if (EzThrottler.Throttle("CloseWKSMissionForReturn", 500))
+                {
+                    IceLogging.Info("帰還前に COSMO MISSIONS ウィンドウを閉じます(Stellar Return阻害回避)", tag);
+                    GenericHandlers.FireCallback("WKSMission", true, -1);
+                }
+                return false;
+            }
+
             if (CosmicHelper.HubCenter.TryGetValue(Player.Territory.RowId, out var HubCenter))
             {
                 Vector3 PlayerPos = Player.Position;

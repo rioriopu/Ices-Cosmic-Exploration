@@ -326,6 +326,12 @@ public static class GatheringRouteLoader
             }
         }
 
+        // プレイヤーがミッションフラグ付近(150m以内)に居るか。フラグから遠い場合にプレイヤー基準で拾うと、
+        // 別エリアの無関係な(このミッションでは非アクティブな)ノードを採用してそこへ逸れ、フラグへ移動しなくなる
+        // (実機Auxesia: フラグから約675m離れた地点で非アクティブノード25件を採用しスタック→デジョン連発した不具合)。
+        bool playerNearFlag = flagWorld.HasValue && Player.Available
+            && new Vector2(Player.Position.X - flagWorld.Value.X, Player.Position.Z - flagWorld.Value.Z).Length() <= 150f;
+
         // 1) ミッションフラグ(=対象ジョブの採集エリア)基準で収集。プレイヤー基準だと道中の別ジョブノードを
         //    拾って逸れるため、まずはフラグ基準を優先する。
         if (flagWorld.HasValue)
@@ -334,10 +340,10 @@ public static class GatheringRouteLoader
             ScanAround(Player.Position);
 
         // 2) フォールバック: フラグ基準で0件のときは、プレイヤー周辺(150m)で再スキャンする。
-        //    Auxesia等でフラグ→world変換が実ノード位置とズレる/フラグ高度が実ノード高度と合わない場合でも、
-        //    プレイヤーは採集エリア(またはbotが向かった先)に居るので、近傍の実出現ノードを拾って採取を機能させる。
-        //    (実機報告: Auxesiaのマスター採取でフラグ150m内0件のまま棒立ちになる問題への対策)
-        if (nodes.Count == 0 && Player.Available && flagWorld.HasValue)
+        //    ただし「プレイヤーがフラグ付近に居る」時だけ。遠い場合は0件のまま返し、呼び出し側(PathandCheckNode)に
+        //    フラグへ移動させる(別エリアの非アクティブノードを拾って逸れるのを防ぐ)。
+        //    フラグが無いゾーンはプレイヤー基準で拾うしかないのでそのまま実行。
+        if (nodes.Count == 0 && Player.Available && (playerNearFlag || !flagWorld.HasValue))
             ScanAround(Player.Position);
 
         // 3) 最終フォールバック: IsTargetableなノードが0件でも、付近にGatheringPoint(未アクティブ)が在れば
@@ -345,10 +351,12 @@ public static class GatheringRouteLoader
         //    受注前(CheckForMovementRequired)はIsTargetable=0で「採集エリアに着いたのにノード0件」となり受注できず
         //    鶏卵状態に陥っていた(実機Auxesia: 総数12/IsTargetable0)。未アクティブノードでルートを作って移動・受注を通し、
         //    受注後はノードがアクティブ化して採取側(SetClosestTargetableNode)がIsTargetableを選ぶので無害。
+        //    プレイヤー基準の未アクティブ収集も「フラグ付近に居る」時だけに限定する(遠方の別エリアノードを拾わない)。
         if (nodes.Count == 0)
         {
             if (flagWorld.HasValue) ScanAround(flagWorld.Value, includeInactive: true);
-            if (nodes.Count == 0 && Player.Available) ScanAround(Player.Position, includeInactive: true);
+            if (nodes.Count == 0 && Player.Available && (playerNearFlag || !flagWorld.HasValue))
+                ScanAround(Player.Position, includeInactive: true);
         }
 
         if (EzThrottler.Throttle("DynamicRouteScan", 3000))
