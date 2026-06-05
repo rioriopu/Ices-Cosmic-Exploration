@@ -1403,9 +1403,9 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                             if (ImGui.IsItemHovered())
                             {
                                 ImGui.BeginTooltip();
-                                ImGui.Text("マスターシップ: 評価値500以上で即報告");
-                                ImGui.Text("ON  : 評価値が500以上になったら即座に報告(1000を待たず早期に切り上げ)");
-                                ImGui.Text("OFF : この早期報告は無効(1000トグル/通常ロジックに従う)");
+                                ImGui.Text("Mastership: Report immediately at score 500+");
+                                ImGui.Text("ON  : Report as soon as the score reaches 500 (early finish, without waiting for 1000)");
+                                ImGui.Text("OFF : This early report is disabled (follows the 1000 toggle / normal logic)");
                                 ImGui.EndTooltip();
                             }
                             notesCount++;
@@ -1424,9 +1424,9 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                         if (ImGui.IsItemHovered())
                         {
                             ImGui.BeginTooltip();
-                            ImGui.Text("マスターシップ: 評価値1000超で即報告");
-                            ImGui.Text("ON  : 評価値が1000以上になったら即座に報告");
-                            ImGui.Text("OFF : 制限時間が続く限り製作し、残り時間が1製作分未満になったら報告");
+                            ImGui.Text("Mastership: Report immediately above score 1000");
+                            ImGui.Text("ON  : Report as soon as the score reaches 1000+");
+                            ImGui.Text("OFF : Keep crafting while time remains; report when the remaining time is less than one craft");
                             ImGui.EndTooltip();
                         }
                         notesCount++;
