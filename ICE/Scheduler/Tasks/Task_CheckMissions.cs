@@ -106,6 +106,10 @@ namespace ICE.Scheduler.Tasks
         {
             string tag = "Task Check Mission: Refresh Mission Library";
 
+            // マスター待機タイマをリセット。惑星移動/モード変更/再開でタブ3滞留の古い計測が残ると、
+            // 次のマスター判定で即タイムアウト誤判定して再出現を待たずにフォールスルーするのを防ぐ。
+            _masterWaitSince = 0;
+
             foreach (var entry in MissionLibrary)
             {
                 entry.Value.Clear();
@@ -1107,7 +1111,6 @@ namespace ICE.Scheduler.Tasks
 
                 if (randomFishingHole == Vector3.Zero)
                 {
-                    var _random = new Random();
                     var randomIndex = _random.Next(fishingHole.Count);
                     if (EzThrottler.Throttle("Setting fishing hole destination"))
                     {
@@ -1163,6 +1166,9 @@ namespace ICE.Scheduler.Tasks
             {
                 retryCheck = 0;
                 Mission_Settings.ResetNodeCounter();
+                // 採取系 static 計測(タイムアウト/スキル使用回数等)を新ミッション開始前に一括クリアし、
+                // 前ミッションの残骸が次ミッション直後に誤動作するのを防ぐ。
+                Task_Gather.ResetGatherState();
 
                 if (reroll)
                 {
@@ -1173,6 +1179,10 @@ namespace ICE.Scheduler.Tasks
                 {
                     SchedulerMain.State = IceState.ExecutingMission;
                     Task_AbandonMission.ForceAbandon = false;
+                    // ミッションを実際に受注できたので、リロール用の出現回数/直前放棄ランクの累積をクリア
+                    // (惑星/ジョブをまたいだ古い累積で誤った頻出判定をしないため)。
+                    Mission_Settings.missionApperenceCount.Clear();
+                    Mission_Settings.previousAbandonRank = 0;
                 }
                 Mission_Settings.nodeTotal = 0;
                 P.TaskManager.Tasks.Clear();
@@ -1320,7 +1330,7 @@ namespace ICE.Scheduler.Tasks
                             return true;
                         }
 
-                        var random = new Random();
+                        var random = _random; // クラス共有の Random を再利用(ローカル new によるシード重複/無駄生成を回避)
                         void ShuffleList<T>(List<T> list, Random rnd)
                         {
                             for (int i = list.Count - 1; i > 0; i--)
@@ -1623,8 +1633,12 @@ namespace ICE.Scheduler.Tasks
             }
             else
             {
-                var selectedJobTab = Mission_Settings.SelectedJob - 8;
-                if (hudInfo.SelectedJobIndex != selectedJobTab)
+                // SelectedJobIndex のインデックス空間が環境で異なりうる(生の ClassJob 順 SelectedJob-8 か、
+                // 習得済みジョブを詰めた JobTab() か)。どちらかに一致すれば「正しいジョブサブタブに居る」とみなし、
+                // 中間ジョブ未習得時などに恒久的に不一致となって OpenCorrectTab が永久 false→棒立ちするのを防ぐ。
+                var selectedJobTab = (int)Mission_Settings.SelectedJob - 8;
+                var packedJobTab = JobTab(Mission_Settings.SelectedJob);
+                if (hudInfo.SelectedJobIndex != selectedJobTab && hudInfo.SelectedJobIndex != packedJobTab)
                 {
                     if (FrameThrottler.Throttle("Tab swapping", 8))
                     {
@@ -1650,22 +1664,6 @@ namespace ICE.Scheduler.Tasks
                     return true;
                 }
             }
-        }
-        private static void Notes()
-        {
-            /*
-             * This is kind of my place to just... figure out how tf the logic is going to work. 
-             * Right now, the logic is 
-             * 1: Store all the missions in the dictionary.
-             *   - This doesn't matter if what kind of mode, we're just storing it. It should... allow for re-rolling of missions even when in relic mode on weird edge cases (aka, only selected missions for some reason)
-             * 2: Added in logic for checking each tab, and adding drone checking somewhere in there. 
-             *   - The way this works should be: Check each tab for a mission. If one exist in that place, we're just going to clear the queue -> just proceed to the grab mission task 
-             *   - If not, then it continues onto the next kind
-             *   - Drone mode is in there as a general "Hey, we gonna check to see if we can open a drone/have a drone running -> find it between missions (this is nice cause it allows users to dictate when they're going to go looking for a box in case of weather. red alert...)
-             * 3: If we get to this point in the queue and we STILL haven't grabbed a mission, it means that we need to reroll for one. 
-             *   - Logic will be the same here as before. Check to see what ones need to be rerolled if possible
-             *
-            */
         }
     }
 }

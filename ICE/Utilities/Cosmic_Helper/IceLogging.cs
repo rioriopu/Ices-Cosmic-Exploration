@@ -58,11 +58,6 @@ internal static class IceLogging
             PluginLog.Debug(formattedMessage);
 #endif
         }
-        else
-        {
-            var formattedMessage = FormatMessage(message, prefix);
-            // PluginLog.Debug(formattedMessage);
-        }
     }
 
     public static void Info(string message, string prefix = null, bool debugOnly = false)
@@ -75,11 +70,6 @@ internal static class IceLogging
             PluginLog.Information(formattedMessage);
 #endif
         }
-        else
-        {
-            var formattedMessage = FormatMessage(message, prefix);
-            // PluginLog.Information(formattedMessage);
-        }
     }
 
     public static void ChatInfo(string s, string prefix = null)
@@ -90,7 +80,6 @@ internal static class IceLogging
             if (EzThrottler.Throttle($"Throttling chat message: {s}", 1000))
             {
                 Svc.Chat.Print(s);
-                // PluginLog.Information(s);
             }
         }
         else
@@ -98,7 +87,6 @@ internal static class IceLogging
             if (EzThrottler.Throttle($"Throttling chat message: {s}", 1000))
             {
                 Svc.Chat.Print($"{prefix} {s}");
-                // PluginLog.Information($"{prefix} {s}");
             }
         }
     }

@@ -48,6 +48,13 @@ namespace ICE.Utilities
             nodeCounter = 0;
             nodeTotal = 0;
         }
+        // 採取スキルの使用回数カウンタを全てゼロに戻す。CanUseGatheringActionのMaxUse判定はこのカウンタを見るため、
+        // ノード/ミッション単位でリセットしないと累積し続け、やがてMaxUse到達でスキルが永久に使われなくなる(不具合)。
+        internal static void ResetSkillUseAmount()
+        {
+            foreach (var key in new List<string>(SkillUseAmount.Keys))
+                SkillUseAmount[key] = 0;
+        }
         internal static void ResetCollectableState()
         {
             item_collectableId = 0;

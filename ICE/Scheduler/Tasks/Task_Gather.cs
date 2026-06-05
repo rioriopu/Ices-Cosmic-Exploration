@@ -184,18 +184,20 @@ namespace ICE.Scheduler.Tasks
             return true; // 使用 → このフレームは採取せず待機
         }
 
+        // GP回復用コーディアル一覧(ItemId → 名称/GP回復量)。優先度順。複数箇所で共有してローカル再生成を回避。
+        private static readonly Dictionary<uint, (string Name, int GpGain)> CordialList = new()
+        {
+            { 12669,   ("Hi-Cordial",          400) },
+            { 1006141, ("HQ Regular Cordial",  350) },
+            { 6141,    ("NQ Regular Cordial",  300) },
+            { 1016911, ("HQ Watered Cordial",  200) },
+            { 16911,   ("NQ Watered Cordial",  150) },
+        };
+
         // 固定ルーチンのGP回復用: 手持ちのコーディアルがあれば使う(キングスイールドII発動に必要な500GPを確保)。
         private static unsafe bool TryUseCordialForFixedRoutine()
         {
-            Dictionary<uint, (string Name, int GpGain)> cordials = new()
-            {
-                { 12669,   ("Hi-Cordial",          400) },
-                { 1006141, ("HQ Regular Cordial",  350) },
-                { 6141,    ("NQ Regular Cordial",  300) },
-                { 1016911, ("HQ Watered Cordial",  200) },
-                { 16911,   ("NQ Watered Cordial",  150) },
-            };
-            foreach (var cordial in cordials)
+            foreach (var cordial in CordialList)
             {
                 bool hq = cordial.Key >= 1_000_000;
                 if (PlayerHelper.GetItemCount(cordial.Key, out var amount, hq, !hq) && amount > 0
@@ -221,35 +223,80 @@ namespace ICE.Scheduler.Tasks
             _arrivedNodeIndex = -1;
         }
 
+        // 採取に関わる static な計測/状態を一括リセットする。ミッション受注成功時/放棄時に呼び、
+        // 前ミッションのタイムアウト計測やスキル使用回数が次ミッション開始直後に残って誤動作するのを防ぐ。
+        public static void ResetGatherState()
+        {
+            _noLiveNodeSince = DateTime.MinValue;
+            _zeroNodeSince = DateTime.MinValue;
+            _arrivedSince = DateTime.MinValue;
+            _arrivedNodeIndex = -1;
+            _stuckNodeSince = DateTime.MinValue;
+            _stuckNodeIndex = -1;
+            _kingsYieldUsedThisNode = false;
+            _kingsYieldWaitSince = DateTime.MinValue;
+            Mission_Settings.ResetSkillUseAmount();
+        }
+
         // 採取で詰まった時(到着したのに採取窓が開かない/ノードが枯渇・未スポーン/到達不能)の共通解決処理。
         // 方針(ユーザー要望): ①実際に発現している(IsTargetable=光っている)採取ポイントが在れば、そこへ向け直す。
         //                    ②発現ポイントが一定時間1つも無ければ、デジョン(Stellar Return)で拠点へ戻って状況をリセットする。
         // すべてのギャザラーミッションに適用される。
         private static DateTime _noLiveNodeSince = DateTime.MinValue;
-        private const double NoLiveNodeDejonSeconds = 20.0;
-
-        // 現在マップに発現している(IsTargetable)採取ポイントのうち、ルートに含まれるものが在るか。
-        private static bool AnyLiveRouteNode(List<GathNodeInfo> gatherInfo) =>
-            Svc.Objects.Any(o => o.ObjectKind == ObjectKind.GatheringPoint && o.IsTargetable
-                                 && gatherInfo.Any(g => g.NodeId == o.BaseId));
+        private const double NoLiveNodeDejonSeconds = 25.0;
 
         private static void ResolveStuckGatherNode(List<GathNodeInfo> gatherInfo, string reason)
         {
-            // ① 実際に発現しているノードがあれば、最寄りの発現ノードへ向け直す(最優先・即時)。
-            if (AnyLiveRouteNode(gatherInfo))
+            // ① 実際に発現している(IsTargetable=光っている)採取ポイントを「座標ベース」で探す。
+            //    ルートのNodeId一致は要求しない。動的/authoredルートのNodeIdが実ノードのBaseIdと一致しない場合でも
+            //    発現ノードを確実に拾い、発現しているのに「無し」と誤判定して不要にデジョン(HubReturn)→棒立ちするのを防ぐ。
+            //    対象はプレイヤー付近(120m)またはルート座標付近(50m)の発現ノード。
+            var live = Svc.Objects
+                .Where(o => o.ObjectKind == ObjectKind.GatheringPoint && o.IsTargetable)
+                .Where(o => Player.DistanceTo(o.Position) < 120f
+                            || gatherInfo.Any(g => Vector3.Distance(g.Position, o.Position) < 50f))
+                .OrderBy(o => Player.DistanceTo(o.Position))
+                .FirstOrDefault();
+
+            if (live != null)
             {
                 _noLiveNodeSince = DateTime.MinValue;
-                if (EzThrottler.Throttle("StuckRedirectLog", 3000))
-                    IceLogging.Info($"採取で詰まりました({reason})。発現中(光っている)の採取ポイントへ向け直します", "[Gather: StuckResolve]");
-                if (P.Navmesh.Installed && P.Navmesh.IsRunning())
-                    P.Navmesh.Stop();
-                SetClosestTargetableNode(gatherInfo);
                 _arrivedNodeIndex = -1;
                 _stuckNodeIndex = -1;
+
+                // ルートに同一BaseIdが在れば、そのindexに合わせて既存のルート移動・採取に乗せる。
+                int idx = gatherInfo.FindIndex(g => g.NodeId == live.BaseId);
+                if (idx >= 0)
+                {
+                    Mission_Settings.nodeCounter = idx;
+                    if (EzThrottler.Throttle("StuckRedirectLog", 3000))
+                        IceLogging.Info($"採取で詰まりました({reason})。発現中ノードへ向け直します(route idx={idx} BaseId={live.BaseId})", "[Gather: StuckResolve]");
+                    return;
+                }
+
+                // ルートに無い実ノード → 近ければ直接ターゲット&インタラクト、遠ければそこへ移動する。
+                if (Player.DistanceTo(live.Position) <= 6f)
+                {
+                    if (!Player.IsJumping && EzThrottler.Throttle("StuckDirectInteract", 500))
+                    {
+                        Utils.TargetgameObject(live);
+                        Utils.InteractWithObject(live);
+                    }
+                    if (EzThrottler.Throttle("StuckRedirectLog", 3000))
+                        IceLogging.Info($"採取で詰まりました({reason})。目の前の発現ノード(BaseId={live.BaseId})を直接採取します", "[Gather: StuckResolve]");
+                }
+                else
+                {
+                    if (P.Navmesh.Installed && P.Navmesh.IsRunning())
+                        P.Navmesh.Stop();
+                    Task_NavmeshMove.Enqueue_NavmeshTask(live.Position, false, 3f);
+                    if (EzThrottler.Throttle("StuckRedirectLog", 3000))
+                        IceLogging.Info($"採取で詰まりました({reason})。発現中ノード(BaseId={live.BaseId})へ移動します({Player.DistanceTo(live.Position):F0}m)", "[Gather: StuckResolve]");
+                }
                 return;
             }
 
-            // ② 発現ノードが1つも無い。一定時間この状態が続いたらデジョン(Stellar Return)で拠点へ戻り解決する。
+            // ② 発現ノードが付近に1つも無い。一定時間この状態が続いたらデジョン(Stellar Return)で拠点へ戻り解決する。
             //    短時間は再スポーン/ストリームインを待ちつつルート次ノードへ進める(早すぎるデジョンを防ぐ)。
             if (_noLiveNodeSince == DateTime.MinValue)
                 _noLiveNodeSince = DateTime.Now;
@@ -257,20 +304,22 @@ namespace ICE.Scheduler.Tasks
             if ((DateTime.Now - _noLiveNodeSince).TotalSeconds < NoLiveNodeDejonSeconds)
             {
                 if (EzThrottler.Throttle("StuckWaitLog", 3000))
-                    IceLogging.Info($"発現中の採取ポイントが見当たりません({reason})。{NoLiveNodeDejonSeconds:F0}秒待っても出なければデジョンで戻ります(経過 {(DateTime.Now - _noLiveNodeSince).TotalSeconds:F0}s)", "[Gather: StuckResolve]");
+                    IceLogging.Info($"発現中の採取ポイントが付近に見当たりません({reason})。{NoLiveNodeDejonSeconds:F0}秒待っても出なければデジョンで戻ります(経過 {(DateTime.Now - _noLiveNodeSince).TotalSeconds:F0}s)", "[Gather: StuckResolve]");
                 AdvanceToNextNode(gatherInfo.Count);
                 return;
             }
 
             // 一定時間 発現ノード無し → デジョン(Stellar Return)で拠点へ戻る。不可設定/ハブ未登録ならルート次ノードへ。
             _noLiveNodeSince = DateTime.MinValue;
+            // ★採取(Gather)状態の時だけデジョンする。報告/放棄/受注の最中に残存タスクとして本処理が走った場合に
+            //   State を HubReturn で上書きして報告途中で拠点デジョンする破壊的遷移を防ぐ。
             bool canStellarReturn = C.UseHubReturn
                 && !(C.AvoidStellarReturn && !C.AvoidStellarReturnExceptHub)
                 && CosmicHelper.HubCenter.ContainsKey(Player.Territory.RowId)
-                && SchedulerMain.State != IceState.HubReturn;
+                && SchedulerMain.State == IceState.Gather;
             if (canStellarReturn)
             {
-                IceLogging.Warning($"発現中の採取ポイントが{NoLiveNodeDejonSeconds:F0}秒以上見当たらないため、デジョン(Stellar Return)で拠点へ戻って解決します({reason})。", "[Gather: StuckResolve]");
+                IceLogging.Warning($"発現中の採取ポイントが付近に{NoLiveNodeDejonSeconds:F0}秒以上見当たらないため、デジョン(Stellar Return)で拠点へ戻って解決します({reason})。", "[Gather: StuckResolve]");
                 _arrivedNodeIndex = -1;
                 _stuckNodeIndex = -1;
                 if (P.Navmesh.Installed && P.Navmesh.IsRunning())
@@ -284,6 +333,11 @@ namespace ICE.Scheduler.Tasks
 
         public static void Enqueue()
         {
+            // ミッション境界(報告/放棄直後)では CurrentLunarMission==0。以降の CurrentMissionInfo/SheetMissionDict[id] が
+            // KeyNotFound/NRE で落ちるため早期 return(次サイクルで状態機械が適切な状態へ進む)。
+            if (CosmicHelper.CurrentLunarMission == 0)
+                return;
+
             // === 緊急(Critical/Red Alert)採取: 受注後、赤警報エリアへ専用NPC(レフレダ)でワープしてから採取する ===
             // 緊急採取は赤警報の任務地で行う。まだ任務地(物資集積所が見える場所)に居ない場合、通常のフラグへ向かわず、
             // 専用NPC(レフレダ)で職業を選んでワープする。これが無いと受注後にレフレダへ行かず棒立ち/誤った場所で動かない(実機報告)。
@@ -346,6 +400,9 @@ namespace ICE.Scheduler.Tasks
                 // (採取中はConditionFlag.Gatheringがtrueで上の採取ブランチに入り、この分岐は通らないのでノード途中の誤リセットは起きない)
                 _kingsYieldUsedThisNode = false;
                 _kingsYieldWaitSince = DateTime.MinValue;
+                // 採取スキル使用回数をノード単位でリセット(MaxUse判定が累積で永久無効化されるのを防ぐ)。
+                // このブランチは採取セッション外(次ノードへ移動中)のみ通るため、ノード途中ではリセットされない。
+                Mission_Settings.ResetSkillUseAmount();
                 P.TaskManager.EnqueueDelay(100);
                 if (CosmicHelper.SheetMissionDict[CosmicHelper.CurrentLunarMission].Attributes.HasFlag(MissionAttributes.ReducedItems))
                 {
@@ -368,6 +425,10 @@ namespace ICE.Scheduler.Tasks
         public static bool? GatherInteractV2()
         {
             string tag = "Gather: Gather Interacting";
+
+            // ミッション境界では CurrentLunarMission==0 → CurrentMissionInfo が null。早期完了で抜ける。
+            if (CosmicHelper.CurrentLunarMission == 0)
+                return true;
 
             var missionInfo = CosmicHelper.CurrentMissionInfo;
             bool collectableItem = missionInfo.Attributes.HasFlag(MissionAttributes.Collectables);
@@ -468,6 +529,10 @@ namespace ICE.Scheduler.Tasks
                             // just a normal item to gather. so we're just going to do our normal gathering process
                             bool missingDur = gather.CurrentIntegrity != gather.TotalIntegrity;
                             var testItem = gather.GatheredItems.Where(x => x.ItemID != 0).FirstOrDefault();
+                            // 採取窓が開いた瞬間/全アイテム枯渇のフレームでは ItemID!=0 のアイテムが0件のことがある。
+                            // null のまま .GatherChance 等を読むと NRE でタスクが落ちるため、待機して次フレームで再評価する。
+                            if (testItem == null)
+                                return false;
                             int gatherChance = testItem.GatherChance;
                             int boonChance = testItem.BoonChance;
                             int playerGp = PlayerHelper.GetGp();
@@ -526,7 +591,7 @@ namespace ICE.Scheduler.Tasks
                             else
                             {
                                 // we must not need any of those items, so going to just do a first item gather
-                                gather.GatheredItems.Where(x => x.ItemID != 0).FirstOrDefault().Gather();
+                                gather.GatheredItems.Where(x => x.ItemID != 0).FirstOrDefault()?.Gather();
                                 return false;
                             }
                         }
@@ -657,6 +722,10 @@ namespace ICE.Scheduler.Tasks
         {
             ThrottleMessage("- - - Check Gather Locations Task - - -", "[Check Gather Locations]");
 
+            // ミッション境界では CurrentLunarMission==0 → CurrentMissionInfo が null。早期完了で抜ける。
+            if (CosmicHelper.CurrentLunarMission == 0)
+                return true;
+
             var zoneId = Player.Territory;
             var missionEntry = CosmicHelper.CurrentMissionInfo;
             var missionFlag = missionEntry.MapPosition;
@@ -684,7 +753,8 @@ namespace ICE.Scheduler.Tasks
                                                      .Where(x => Svc.Objects.Any(obj => obj.ObjectKind == ObjectKind.GatheringPoint && obj.IsTargetable && obj.BaseId == x.Node.NodeId))
                                                      .OrderBy(x =>
                                                      {
-                                                         var gameObject = Svc.Objects.First(obj => obj.BaseId == x.Node.NodeId);
+                                                         // Where句と同じフィルタ(IsTargetable)で取得し、発現ノードの実位置で距離を測る(条件不一致回避)。
+                                                         var gameObject = Svc.Objects.First(obj => obj.ObjectKind == ObjectKind.GatheringPoint && obj.IsTargetable && obj.BaseId == x.Node.NodeId);
                                                          return Player.DistanceTo(gameObject.Position);
                                                      })
                                                      .Select(x => x.Index)
@@ -771,6 +841,10 @@ namespace ICE.Scheduler.Tasks
         public static bool? PathandCheckNode()
         {
             string tag = "Gather: Navmesh Movement";
+
+            // ミッション境界では CurrentLunarMission==0 → CurrentMissionInfo が null。早期完了で抜ける。
+            if (CosmicHelper.CurrentLunarMission == 0)
+                return true;
 
             var zoneId = Player.Territory;
             var missionEntry = CosmicHelper.CurrentMissionInfo;
@@ -1388,16 +1462,7 @@ namespace ICE.Scheduler.Tasks
 
                         if (PlayerHelper.GetGp() <= C.CordialMinGp)
                         {
-                            Dictionary<uint, (string Name, int GpGain)> cordials = new()
-                        {
-                            { 12669,   ("Hi-Cordial",          400) },
-                            { 1006141, ("HQ Regular Cordial",  350) },
-                            { 6141,    ("NQ Regular Cordial",  300) },
-                            { 1016911, ("HQ Watered Cordial",  200) },
-                            { 16911,   ("NQ Watered Cordial",  150) }
-                        };
-
-                            foreach (var cordial in C.inverseCordialPrio ? cordials.Reverse() : cordials)
+                            foreach (var cordial in C.inverseCordialPrio ? CordialList.Reverse() : CordialList)
                             {
                                 IceLogging.Verbose($"Checking Cordial: {cordial.Value.Name}", tag);
                                 bool hq = cordial.Key >= 1_000_000;

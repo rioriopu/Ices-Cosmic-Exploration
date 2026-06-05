@@ -76,12 +76,16 @@ namespace ICE.Scheduler.Tasks
         private static unsafe void AbandonMissionInstance()
         {
             var WKSInstance = WKSManager.Instance();
+            if (WKSInstance == null || WKSInstance->MissionModule == null)
+                return;
             WKSInstance->MissionModule->AbandonMission();
         }
 
         private static unsafe void ReportMissionInstance()
         {
             var WKSInstance = WKSManager.Instance();
+            if (WKSInstance == null || WKSInstance->MissionModule == null)
+                return;
             WKSInstance->MissionModule->ReportMission();
         }
 

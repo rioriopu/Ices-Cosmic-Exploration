@@ -4,6 +4,9 @@ using System.Runtime.InteropServices;
 
 namespace ICE.Utilities.Cosmic_Helper;
 
+// 注意: 以下の FieldOffset / Size は FFXIVClientStructs(7.51系)で確認した WKSManager のレイアウトに依存する手書きオフセット。
+// ゲームのパッチでこの構造体が変わるとオフセットがズレて誤読/AccessViolation になりうる。
+// パッチ更新時は FFXIVClientStructs 最新の WKSManager 定義と突き合わせて各オフセットを再検証すること。
 [StructLayout(LayoutKind.Explicit, Size = 0xF90)]
 public unsafe struct WKSManagerCustom
 {

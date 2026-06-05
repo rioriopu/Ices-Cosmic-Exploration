@@ -426,7 +426,7 @@ namespace ICE.Scheduler.Tasks
                             IceLogging.Debug("Score is based on time remaining, and we have some sort of rank. Turning in", tag);
                             shouldTurnin = true;
                         }
-                        else if (sheet.Attributes.HasFlag(MissionAttributes.Limited) && Mission_Settings.nodeTotal == 8)
+                        else if (sheet.Attributes.HasFlag(MissionAttributes.Limited) && Mission_Settings.nodeTotal >= 8)
                         {
                             if (!Svc.Condition[ConditionFlag.Gathering])
                             {
