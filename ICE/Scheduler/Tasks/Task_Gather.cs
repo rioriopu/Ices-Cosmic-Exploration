@@ -47,7 +47,15 @@ namespace ICE.Scheduler.Tasks
         // 固定ルーチンで採取する対象アイテム: トータスパインの琥珀 (Tortoisepine Amber)。
         private const uint FixedRoutineItemId = 52057;
         // 固定ルーチンは Dev Favorites の FixedGatherRoutineEnabled がオンの時のみ有効。
-        public static bool IsFixedKingsYieldMission(uint missionId) => C.FixedGatherRoutineEnabled && FixedKingsYieldMissions.Contains(missionId);
+        // ─────────────────────────────────────────────────────────────────────
+        // 採掘士マスター(1621)専用採取ループは現在「無効化(コメントアウト)」している(ユーザー要望)。
+        // 専用ループのロジック一式(KYII使用 / 琥珀52057優先採取 / 1ノード即報告 / 指定ノードへの移動 /
+        // 736・856行のルート差し替え 等)は、すべてこの IsFixedKingsYieldMission() を参照してゲートしているため、
+        // ここで常に false を返すことで関連コードを残したまま機能だけを一括無効化できる。
+        // 復活させる場合: 直下の "=> false;" 行をコメントアウトし、その下の本来の実装行を有効化するだけでよい。
+        public static bool IsFixedKingsYieldMission(uint missionId) => false;
+        // public static bool IsFixedKingsYieldMission(uint missionId) => C.FixedGatherRoutineEnabled && FixedKingsYieldMissions.Contains(missionId);
+        // ─────────────────────────────────────────────────────────────────────
 
         // 固定ルーチンで「指定ノード」が記録されていれば、ルートをその1点に差し替えて返す。
         // これによりループ中は記録した採取ポイントへ移動して採取する(既存の移動/採取/スタック解決の機構をそのまま利用)。
