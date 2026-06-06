@@ -325,6 +325,7 @@ namespace ICE.Ui.MainUi.Settings
             ImGuiEx.IconWithTooltip(FontAwesomeIcon.QuestionCircle, "This does abosolutely nothing\n" +
                 "But I know there's going to be people who enable this and don't read, so it's a tehe.\n" +
                 "Thanks for using my plugin though, it means a lot <3");
+            ImGui.NewLine(); // ImGuiEx.IconWithTooltip(s=null)は内部でSameLineを残すため、改行を補わないと次のチェックボックスが同じ行に詰まる。
 
             // 旧2チェック(Notes即報告トグル表示 / 固定採取ルーチン有効化)を統合した1チェック。既定ON(常時オン)。
             var fixedRoutine = C.FixedGatherRoutineEnabled;
@@ -341,6 +342,7 @@ namespace ICE.Ui.MainUi.Settings
                 "⑥1ノードで報告(移動なし) → ⑦最初に戻る\n" +
                 "併せて Mission Setup の Notes 列にマスター即報告トグル(評価値500/1000)を表示します。\n" +
                 "OFF: 固定ループ無効・Notes即報告トグル非表示(通常の採取ロジックで動作)。");
+            ImGui.NewLine(); // 同上: IconWithTooltip(s=null)のSameLine持ち越し対策(ON時の指定ノードUIが同じ行に詰まるのを防ぐ)。
 
             // 指定ノード: 現在地を記録すると、ループ中はルートに依らずその採取ポイントへ移動して採取する。
             if (C.FixedGatherRoutineEnabled)
