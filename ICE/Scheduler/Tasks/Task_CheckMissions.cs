@@ -1111,7 +1111,6 @@ namespace ICE.Scheduler.Tasks
             {
                 var location = sheetInfo.MapPosition;
                 var territory = sheetInfo.TerritoryId;
-                float radius = MathF.Max(sheetInfo.Radius, 15f);
 
                 // ① カスタム釣り穴(Personal_FishLocation)が設定されていれば最優先で使用する。
                 var customFishingHole = C.Personal_FishLocation.Where(x => x.MapCoords == location).FirstOrDefault();
@@ -1128,8 +1127,43 @@ namespace ICE.Scheduler.Tasks
                     return true;
                 }
 
-                // ② 動的探索: ハードコード座標(MoonFishingLocations)に依存せず、ミッションフラグ中心を基点に
-                //    レイキャストで「釣り可能な水面がある立ち位置」を探す。Auxesia等の未収録ゾーンでも動作する。
+                // ② 既知の釣り場座標(MoonFishingLocations)があれば最優先で使用する(実証済み・確実)。
+                //    座標はゲーム内で採取した「岸の立ち位置」を指すため、ポンド地形でも正しく水辺へ導ける。
+                //    フラグ中心は水面内のことが多く、動的探索(FlagToWorld)では岸/芝生へ誤スナップするため座標を優先。
+                if (GatheringUtil.MoonFishingLocations.TryGetValue(territory, out var territoryHoles)
+                    && territoryHoles.TryGetValue(location, out var fishingHole)
+                    && fishingHole != null && fishingHole.Count > 0)
+                {
+                    foreach (var spot in fishingHole)
+                    {
+                        if (Player.DistanceTo(spot.FishingSpot) < 3)
+                        {
+                            IceLogging.Info($"釣り場に到達しました: {spot.FishingSpot}", tag);
+                            randomFishingHole = Vector3.Zero;
+                            return true;
+                        }
+                    }
+
+                    if (randomFishingHole == Vector3.Zero)
+                    {
+                        var randomIndex = _random.Next(fishingHole.Count);
+                        if (EzThrottler.Throttle("Setting fishing hole destination"))
+                        {
+                            IceLogging.Debug($"向かう釣り場を選択しました: #{randomIndex}", tag);
+                            randomFishingHole = fishingHole[randomIndex].FishingSpot;
+                        }
+                        return false; // 目的地確定待ち(次サイクルで移動)
+                    }
+                    else
+                    {
+                        Task_NavmeshMove.Enqueue_NavmeshTask(randomFishingHole);
+                        randomFishingHole = Vector3.Zero;
+                        return true;
+                    }
+                }
+
+                // ③ 座標が未収録のフラグのみ、動的探索でフォールバックする。
+                //    ※フラグ中心は水面内のことがありFlagToWorldが岸/芝生へスナップするため、座標方式より不確実。
                 var center = GatheringRouteLoader.FlagToWorld(territory, location);
                 if (!center.HasValue)
                 {
@@ -1140,25 +1174,26 @@ namespace ICE.Scheduler.Tasks
                 }
 
                 _fishRay ??= new FishingDebug();
+                float radius = Math.Clamp(sheetInfo.Radius, 15f, 30f); // ポンド想定で過大な半径を抑制
 
-                // ②-a まだ基点付近に居ない → 基点へ移動して周辺ジオメトリ(コリジョン)をストリームインさせる。
+                // ③-a まだ基点付近に居ない → フラグ付近へ移動して周辺ジオメトリ(コリジョン)をストリームインさせる。
                 if (Player.DistanceTo(center.Value) > radius + 5f)
                 {
                     if (EzThrottler.Throttle("Fishing dynamic move-to-flag", 1000))
-                        IceLogging.Verbose($"釣り: フラグ中心へ移動して地形をストリームインさせます {center.Value} (半径{radius:N0})", tag);
-                    Task_NavmeshMove.Enqueue_NavmeshTask(center.Value, distance: 5f);
+                        IceLogging.Verbose($"釣り(動的): フラグ付近へ移動します {center.Value} (半径{radius:N0})", tag);
+                    Task_NavmeshMove.Enqueue_NavmeshTask(center.Value, distance: radius);
                     return true;
                 }
 
-                // ②-b 現在地から釣り可能なら完了。実際の釣行・向き調整はTask_Fishingが担当する。
+                // ③-b 現在地から釣り可能なら完了。実際の釣行・向き調整はTask_Fishingが担当する。
                 if (_fishRay.IsFishable() || _fishRay.FindFishableLocation(out _, 36))
                 {
-                    IceLogging.Info("釣り: 釣り可能な水面を確認。受注/釣行へ進みます。", tag);
+                    IceLogging.Info("釣り(動的): 釣り可能な水面を確認。受注/釣行へ進みます。", tag);
                     randomFishingHole = Vector3.Zero;
                     return true;
                 }
 
-                // ②-c 探索で決めた目的地へ移動中なら継続。到達済みでまだ釣れない場合はリセットして再探索する。
+                // ③-c 探索で決めた目的地へ移動中なら継続。到達済みでまだ釣れない場合はリセットして再探索する。
                 if (randomFishingHole != Vector3.Zero)
                 {
                     if (Player.DistanceTo(randomFishingHole) < 2.5f)
@@ -1172,18 +1207,18 @@ namespace ICE.Scheduler.Tasks
                     }
                 }
 
-                // ②-d 半径内をサンプリングして釣り可能な立ち位置を探索し、見つかれば移動する。
+                // ③-d 半径内をサンプリングして釣り可能な立ち位置を探索し、見つかれば移動する。
                 if (TryFindDynamicFishingStand(center.Value, radius, out var standPos))
                 {
-                    IceLogging.Info($"釣り: 釣り可能な立ち位置を発見。移動します {standPos}", tag);
+                    IceLogging.Info($"釣り(動的): 釣り可能な立ち位置を発見。移動します {standPos}", tag);
                     randomFishingHole = standPos;
                     Task_NavmeshMove.Enqueue_NavmeshTask(standPos, distance: 1.5f);
                     return true;
                 }
 
-                // ②-e フラグ半径内に釣り可能な水面が見つからない → unsupported登録。
+                // ③-e 釣り可能な水面が見つからない → unsupported登録。
                 if (EzThrottler.Throttle("Fishing no water found", 5000))
-                    IceLogging.Error($"釣り: フラグ半径内に釣り可能な水面が見つかりませんでした。unsupported登録します。 Mission:{missionId}", tag);
+                    IceLogging.Error($"釣り(動的): 釣り可能な水面が見つかりませんでした。unsupported登録します。 Mission:{missionId}", tag);
                 SkipUnsupportedAndReselect(missionId);
                 return true;
             }
