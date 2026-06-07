@@ -670,6 +670,15 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                         ImGui.PopStyleColor();
                         ImGui.SameLine();
                     }
+                    // 釣りミッションでAutoHookプリセットが未登録の場合、未対応の警告アイコンを表示する。
+                    // Fish_Presets は GatheringUtil.FishingPreset から設定されるため、空の場合はプリセット未対応。
+                    if (missionInfo.IsFishMission && missionInfo.Fish_Presets.Count == 0)
+                    {
+                        ImGuiEx.IconWithTooltip(EColor.Yellow, FontAwesomeIcon.ExclamationTriangle,
+                                                "AutoHookプリセット未対応\n" +
+                                                "この釣りミッションにはAutoHookプリセットが登録されていないため、自動釣りに対応していません。");
+                        ImGui.SameLine();
+                    }
                     if (missionInfo.Attributes.HasFlag(MissionAttributes.ExpertCraft))
                     {
                         if (EzThrottler.Throttle("Throttling the manip update every couple of seconds", 1000))
