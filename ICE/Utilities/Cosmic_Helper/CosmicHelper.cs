@@ -155,6 +155,10 @@ public static unsafe partial class CosmicHelper
         public bool CRank => Rank is 2;
         public bool Drank => Rank is 1;
 
+        // 作業種別をジョブで判定(16=MIN, 17=BTN, 18=FSH)。Tool Mastery等、WKSMissionText属性マッピングが
+        // 無くてもジョブで採取/釣りを判定できるよう、移動チェックは属性フラグでなくこちらを使う(本家d21a658相当)。
+        public bool IsGatherMission => Jobs.Contains(16) || Jobs.Contains(17);
+        public bool IsFishMission => Jobs.Contains(18);
     }
 
     public static Dictionary<uint, CosmicInfo> SheetMissionDict = new();

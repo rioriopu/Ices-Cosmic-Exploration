@@ -790,7 +790,7 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                         var framePadding = ImGui.GetStyle().FramePadding;
                         var buttonSize = new Vector2(fontSize + framePadding.X * 2, fontSize + framePadding.Y * 2);
                         var spacing = ImGui.GetStyle().ItemSpacing.X;
-                        var totalWidth = (buttonSize.X * 3) + (spacing * 2);
+                        var totalWidth = (buttonSize.X * 4) + (spacing * 3);
 
                         // Center the group
                         var cursorPosX = ImGui.GetCursorPosX();
@@ -801,6 +801,7 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                         ImGui.PushStyleColor(ImGuiCol.Text, missionConfig.TurninGold || missionConfig.AutoTurnin ? GoldColor : DisabledColor);
                         if (ImGuiEx.IconButton(FontAwesomeIcon.Trophy, "##Gold", buttonSize))
                         {
+                            missionConfig.TurninTimeExpired = false; // スコアモード選択でTimeExpired解除
                             // If AutoTurnin is on, we're enabling individual controls
                             if (missionConfig.AutoTurnin)
                             {
@@ -893,6 +894,7 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                         ImGui.PushStyleColor(ImGuiCol.Text, missionConfig.TurninSilver || missionConfig.AutoTurnin ? SilverColor : DisabledColor);
                         if (ImGuiEx.IconButton(FontAwesomeIcon.Trophy, "##Silver", buttonSize))
                         {
+                            missionConfig.TurninTimeExpired = false; // スコアモード選択でTimeExpired解除
                             // If AutoTurnin is on, we're enabling individual controls
                             if (missionConfig.AutoTurnin)
                             {
@@ -985,6 +987,7 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                         ImGui.PushStyleColor(ImGuiCol.Text, missionConfig.TurninBronze || missionConfig.AutoTurnin ? BronzeColor : DisabledColor);
                         if (ImGuiEx.IconButton(FontAwesomeIcon.Trophy, "##Bronze", buttonSize))
                         {
+                            missionConfig.TurninTimeExpired = false; // スコアモード選択でTimeExpired解除
                             // If AutoTurnin is on, we're enabling individual controls
                             if (missionConfig.AutoTurnin)
                             {
@@ -1070,6 +1073,31 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
 
                             ImGui.EndTooltip();
                         }
+
+                        ImGui.SameLine();
+
+                        // Time Expired (制限時間まで粘ってからターンイン。本家 b305e21 相当)
+                        ImGui.PushStyleColor(ImGuiCol.Text, missionConfig.TurninTimeExpired ? GoldColor : DisabledColor);
+                        if (ImGuiEx.IconButton(FontAwesomeIcon.Clock, "##TimeExpired", buttonSize))
+                        {
+                            missionConfig.TurninTimeExpired = !missionConfig.TurninTimeExpired;
+                            if (missionConfig.TurninTimeExpired)
+                            {
+                                // 時間切れモード: スコアによるターンインは無効化(IsMissionTimedOutでのみ報告)
+                                missionConfig.AutoTurnin = false;
+                                missionConfig.TurninGold = false;
+                                missionConfig.TurninSilver = false;
+                                missionConfig.TurninBronze = false;
+                            }
+                            else
+                            {
+                                missionConfig.AutoTurnin = true;
+                            }
+                            C.SaveDebounced();
+                        }
+                        ImGui.PopStyleColor();
+                        if (ImGui.IsItemHovered())
+                            ImGui.SetTooltip("Time Expired: 制限時間まで粘ってからターンインする\n(ゴール達成でタイマーが延びるTool Mastery等向け。スコアでは報告しません)");
 
                         /*
                         if (Table_CenterEnabled(goldEnabled, silverEnabled, bronzeEnabled))

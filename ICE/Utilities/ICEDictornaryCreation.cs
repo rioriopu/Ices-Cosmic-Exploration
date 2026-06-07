@@ -181,7 +181,7 @@ public sealed partial class ICE
                     106 => MissionAttributes.Gather | MissionAttributes.ScoreChains,
                     107 => MissionAttributes.Gather | MissionAttributes.ScoreGatherersBoon,
                     108 => MissionAttributes.Gather | MissionAttributes.ScoreChains | MissionAttributes.ScoreGatherersBoon,
-                    109 or 111 => MissionAttributes.Gather | MissionAttributes.Collectables,
+                    109 or 111 or 372 => MissionAttributes.Gather | MissionAttributes.Collectables,
                     110 => MissionAttributes.Gather | MissionAttributes.ReducedItems | MissionAttributes.ScoreTimeRemaining,
                     112 => MissionAttributes.Gather | MissionAttributes.ReducedItems,
                     // MASTER採取(MIN/BTN, ToDo[0].WKSMissionText)。switch未定義で属性=Noneに落ち、Gatherも消えて
