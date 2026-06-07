@@ -79,10 +79,11 @@ namespace ICE.Scheduler.Tasks
                     SchedulerMain.State = IceState.AbandonMission;
                     return true;
                 }
-                if (CosmicHelper.CurrentBait == 0)
+                // 未装備、または装備中エサがプリセット指定に適合しない場合は、指定エサへ切り替える。
+                if (!IsCurrentBaitAcceptable())
                 {
                     if (EzThrottler.Throttle("Bait Message", 2000))
-                        IceLogging.Debug($"We are reporting we didn't have a bait equipped, so we're going to equip the first bait that we found: [{firstBait}]", handle);
+                        IceLogging.Debug($"装備中エサがプリセットに適合しない(または未装備)ため、指定エサを装備します: [{firstBait}] (現在:{CosmicHelper.CurrentBait})", handle);
                     P.AutoHook.SwapBaitById(firstBait);
                     return false;
                 }
@@ -200,7 +201,8 @@ namespace ICE.Scheduler.Tasks
             }
             bool hasBait = false;
 
-            if (CosmicHelper.CurrentBait == 0)
+            // 未装備、または装備中エサがプリセット指定に適合しない場合は、指定エサへ切り替える。
+            if (!IsCurrentBaitAcceptable())
             {
                 if (EzThrottler.Throttle("Equipping bait"))
                 {
@@ -209,7 +211,7 @@ namespace ICE.Scheduler.Tasks
                     if (preferred != 0)
                     {
                         P.AutoHook.SwapBaitById(preferred);
-                        IceLogging.Debug($"Telling it to equip bait ID: {preferred}", handle);
+                        IceLogging.Debug($"指定エサを装備します: {preferred} (現在:{CosmicHelper.CurrentBait})", handle);
                         return false;
                     }
 
@@ -426,6 +428,25 @@ namespace ICE.Scheduler.Tasks
                 }
             }
             return 0;
+        }
+        // 現在装備中のエサが、現行ミッションのプリセットに適合しているか判定する。
+        // 未装備(0)は不適合(=装備が必要)。汎用(All Baits)プリセットのミッションは全エサ網羅のため常に適合。
+        // 具体的エサ指定(PresetBaitIds)のミッションは、装備中エサがその指定に含まれる場合のみ適合。
+        // これにより、別エサ(例: コスモカゲロウ)が先に装備されていても、プリセット指定エサ(改良コスモカゲロウ)へ
+        // 切り替えるよう促し、AutoHookのグローバルプリセット落ちを防ぐ。
+        private static bool IsCurrentBaitAcceptable()
+        {
+            var current = CosmicHelper.CurrentBait ?? 0;
+            if (current == 0)
+                return false;
+            var missionId = CosmicHelper.CurrentLunarMission;
+            if (missionId == 0)
+                return true;
+            if (GatheringUtil.GenericFishingPresetMissions.Contains(missionId))
+                return true;
+            if (CosmicHelper.SheetMissionDict.TryGetValue(missionId, out var mi) && mi.PresetBaitIds.Count > 0)
+                return mi.PresetBaitIds.Contains(current);
+            return true;
         }
         public static FisherSpotInfo? GetNextFishingSpot(uint zone, Vector2 flag, Vector3 playerPosition)
         {
