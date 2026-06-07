@@ -39,6 +39,9 @@ namespace ICE.Scheduler.Tasks
 
         private static int StartedFishing = 0;
 
+        // 「魚たちに警戒されてしまった…少し場所を変えたほうがいい」のログ検知時にtrueになり、次サイクルで釣り場を移動する。
+        public static bool WaryMoveRequested = false;
+
         private static unsafe bool? FishCheckV2()
         {
             string handle = "Fishing Task: State Check";
@@ -106,6 +109,24 @@ namespace ICE.Scheduler.Tasks
                 if (_fishingDebug == null)
                 {
                     _fishingDebug = new FishingDebug();
+                }
+
+                // 「魚たちに警戒されてしまった…」を検知した場合、別の釣り場へ移動する(同フラグ内の次スポットへ)。
+                if (WaryMoveRequested)
+                {
+                    WaryMoveRequested = false;
+                    if (P.AutoHook.Installed)
+                        P.AutoHook.SetPluginState(false);
+                    var waryMission = CosmicHelper.CurrentMissionInfo;
+                    var waryNext = GetNextFishingSpot(waryMission.TerritoryId, waryMission.MapPosition, Player.Position);
+                    if (waryNext != null)
+                    {
+                        IceLogging.Info($"魚が警戒したため、別の釣り場へ移動します: {waryNext.FishingSpot}", handle);
+                        P.TaskManager.Tasks.Clear();
+                        P.TaskManager.Enqueue(() => InitiateMoving(waryNext.FishingSpot), "Vnav moving (wary relocate)");
+                        return true;
+                    }
+                    IceLogging.Info("魚が警戒しましたが、移動先の登録座標が無いため現在地で釣りを継続します。", handle);
                 }
 
                 if (_fishingDebug.IsFishable())

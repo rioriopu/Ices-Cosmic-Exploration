@@ -90,6 +90,7 @@ public sealed partial class ICE : IDalamudPlugin
         EzCmd.Add("/IceCosmic", OnCommand);
         Init();
         Svc.Framework.Update += Tick;
+        Svc.Chat.ChatMessage += OnChatMessage;
         Svc.PluginInterface.UiBuilder.Draw += OnDraw;
 
         // ガンバの輪(WKSLottery)が開いたら、その時点の景品を自動で設定へ取り込む(カテゴリ推定付き)。
@@ -127,6 +128,18 @@ public sealed partial class ICE : IDalamudPlugin
         ExcelHelper.Init();
         ConsumableInfo.Init();
         
+    }
+
+    // 「魚たちに警戒されてしまったようだ…少し場所を変えたほうがいいだろう」のログを検知し、釣り場移動を要求する。
+    private void OnChatMessage(Dalamud.Game.Chat.IHandleableChatMessage msg)
+    {
+        try
+        {
+            var text = msg.Message?.TextValue;
+            if (!string.IsNullOrEmpty(text) && text.Contains("警戒") && text.Contains("場所を変え"))
+                Scheduler.Tasks.Task_Fishing.WaryMoveRequested = true;
+        }
+        catch { }
     }
 
     private void Tick(object _)
@@ -190,6 +203,7 @@ public sealed partial class ICE : IDalamudPlugin
     public void Dispose()
     {
         GenericHelpers.Safe(() => Svc.AddonLifecycle.UnregisterListener(OnWheelOpened));
+        GenericHelpers.Safe(() => Svc.Chat.ChatMessage -= OnChatMessage);
         GenericHelpers.Safe(() => Svc.Framework.Update -= Tick);
         GenericHelpers.Safe(() => Svc.PluginInterface.UiBuilder.Draw -= OnDraw);
         GenericHelpers.Safe(() => Svc.PluginInterface.UiBuilder.Draw -= windowSystem.Draw);
