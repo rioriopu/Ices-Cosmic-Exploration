@@ -2,6 +2,7 @@
 using FFXIVClientStructs.FFXIV.Client.Game.WKS;
 using FFXIVClientStructs.FFXIV.Client.UI.Agent;
 using ICE.Sounds;
+using ICE.Ui.DebugWindowTabs;
 using ICE.Utilities.Cosmic_Helper;
 using ICE.Utilities.GatheringHelper;
 using System.Collections.Generic;
@@ -907,6 +908,52 @@ namespace ICE.Scheduler.Tasks
         // 未開拓エリア等で採取ノードが見つからない/到達できないミッションをunsupported登録し、現在のgrabシーケンスを
         // 中止してミッション選択(GrabMission)からやり直す。RefreshMissionLibraryがunsupportedを除外するので別ミッションが選ばれる。
         // ミッションはまだ掴んでいない(CheckForMovementRequiredはGrabMissionの前段)ので放棄(Abandon)は不要。
+        // フラグ中心の周囲(半径内)を中心→外周のリング状にサンプリングする。各候補点を歩行可能面へスナップし、
+        // そこから全周(rotationSteps)レイキャストして、釣り可能な水面を cast できる最初の立ち位置を返す。
+        // ハードコード座標に依存しない動的釣り場探索の中核。プレイヤーがフラグ付近に居る前提(コリジョンが
+        // ストリームイン済み)で呼ぶこと。
+        private static bool TryFindDynamicFishingStand(Vector3 center, float radius, out Vector3 standPosition)
+        {
+            standPosition = Vector3.Zero;
+            if (_fishRay == null || !P.Navmesh.Installed)
+                return false;
+
+            const int rings = 5;          // 中心から外周へのリング数
+            const int perRing = 16;       // 各リングの方位サンプル数
+            const int rotationSteps = 24; // 各立ち位置での全周レイキャスト分割数
+            float angleStep = (2f * MathF.PI) / rotationSteps;
+
+            for (int r = 0; r <= rings; r++)
+            {
+                float dist = radius * r / rings;
+                int count = r == 0 ? 1 : perRing; // 中心は1点のみ
+                for (int a = 0; a < count; a++)
+                {
+                    float bearing = (2f * MathF.PI) * a / count;
+                    var probe = new Vector3(
+                        center.X + (dist * MathF.Cos(bearing)),
+                        center.Y,
+                        center.Z + (dist * MathF.Sin(bearing)));
+
+                    // 候補点を歩行可能面へスナップ(高低差のある地形に対応するため縦方向は広めに取る)。
+                    var floor = P.Navmesh.PointOnFloor(probe, false, 10f);
+                    if (!floor.HasValue)
+                        continue;
+                    var stand = floor.Value;
+
+                    for (int i = 0; i < rotationSteps; i++)
+                    {
+                        if (_fishRay.IsFishableAt(stand, i * angleStep, out _))
+                        {
+                            standPosition = stand;
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
         public static void SkipUnsupportedAndReselect(uint missionId)
         {
             if (missionId != 0)
@@ -978,6 +1025,8 @@ namespace ICE.Scheduler.Tasks
             }
         }
         private static Vector3 randomFishingHole = Vector3.Zero;
+        // 動的釣り探索用のレイキャスト判定器(遅延生成・シグネチャスキャンを1回だけ行う)
+        private static FishingDebug? _fishRay;
         private static bool? CheckForMovementRequired(uint missionId)
         {
             string tag = "[Check Missions: Movement Check]";
@@ -1062,69 +1111,81 @@ namespace ICE.Scheduler.Tasks
             {
                 var location = sheetInfo.MapPosition;
                 var territory = sheetInfo.TerritoryId;
-                // territory/locationを直接インデックスするとAuxesia等で釣りデータ未登録の場合KeyNotFoundでクラッシュする。
-                // また見つからない場合、以降のforeach等でfishingHoleをnull参照(NPE)するため、TryGetValueでガードして即return。
-                if (!GatheringUtil.MoonFishingLocations.TryGetValue(territory, out var territoryHoles)
-                    || !territoryHoles.TryGetValue(location, out var fishingHole)
-                    || fishingHole == null || fishingHole.Count == 0)
+                float radius = MathF.Max(sheetInfo.Radius, 15f);
+
+                // ① カスタム釣り穴(Personal_FishLocation)が設定されていれば最優先で使用する。
+                var customFishingHole = C.Personal_FishLocation.Where(x => x.MapCoords == location).FirstOrDefault();
+                if (customFishingHole?.WorldPosition is { } customLoc)
                 {
-                    if (EzThrottler.Throttle("Fishing hole missing", 5000))
-                        IceLogging.Error("We've seemed to have ran into a problem with the fishing hole... either it's missing spots, or it doesn't exist.\n" +
-                            $"Mission ID: {missionId} | Map Position: {location} | Moon Territory: {territory}\n" +
-                            $"Adding to the unsupported list so it's marked on your side for now", tag);
-                    UnsupportedMissions.Ids.Add(missionId);
+                    if (Player.DistanceTo(customLoc) < 3)
+                    {
+                        IceLogging.Info($"カスタム釣り穴に到達しました。 {customLoc}", tag);
+                        randomFishingHole = Vector3.Zero;
+                        return true;
+                    }
+                    IceLogging.Verbose($"カスタム釣り穴へ移動します: {customLoc}", tag);
+                    Task_NavmeshMove.Enqueue_NavmeshTask(customLoc);
                     return true;
                 }
 
-                var customFishingHole = C.Personal_FishLocation.Where(x => x.MapCoords == location).FirstOrDefault();
-                if (customFishingHole != null)
+                // ② 動的探索: ハードコード座標(MoonFishingLocations)に依存せず、ミッションフラグ中心を基点に
+                //    レイキャストで「釣り可能な水面がある立ち位置」を探す。Auxesia等の未収録ゾーンでも動作する。
+                var center = GatheringRouteLoader.FlagToWorld(territory, location);
+                if (!center.HasValue)
                 {
-                    var fishingLoc = customFishingHole.WorldPosition;
-
-                    if (fishingLoc != null)
-                    {
-                        if (Player.DistanceTo(fishingLoc.Value) < 3)
-                        {
-                            IceLogging.Info($"We have a custom fishing hole set, and we're close to it. {fishingLoc.Value}", tag);
-                            randomFishingHole = Vector3.Zero;
-                            return true;
-                        }
-                        else
-                        {
-                            IceLogging.Verbose($"We have a custom fishing hole set, and we're not within fishing range. Queueing up moving to it: {fishingLoc.Value}");
-                            Task_NavmeshMove.Enqueue_NavmeshTask(fishingLoc.Value);
-                            randomFishingHole = Vector3.Zero;
-                            return true;
-                        }
-                    }
+                    if (EzThrottler.Throttle("Fishing flag unresolved", 5000))
+                        IceLogging.Error($"釣り: フラグのワールド座標を解決できませんでした。unsupported登録します。 Mission:{missionId} Flag:{location} Territory:{territory}", tag);
+                    SkipUnsupportedAndReselect(missionId);
+                    return true;
                 }
 
-                foreach (var fishingSpot in fishingHole)
+                _fishRay ??= new FishingDebug();
+
+                // ②-a まだ基点付近に居ない → 基点へ移動して周辺ジオメトリ(コリジョン)をストリームインさせる。
+                if (Player.DistanceTo(center.Value) > radius + 5f)
                 {
-                    if (Player.DistanceTo(fishingSpot.FishingSpot) < 3)
+                    if (EzThrottler.Throttle("Fishing dynamic move-to-flag", 1000))
+                        IceLogging.Verbose($"釣り: フラグ中心へ移動して地形をストリームインさせます {center.Value} (半径{radius:N0})", tag);
+                    Task_NavmeshMove.Enqueue_NavmeshTask(center.Value, distance: 5f);
+                    return true;
+                }
+
+                // ②-b 現在地から釣り可能なら完了。実際の釣行・向き調整はTask_Fishingが担当する。
+                if (_fishRay.IsFishable() || _fishRay.FindFishableLocation(out _, 36))
+                {
+                    IceLogging.Info("釣り: 釣り可能な水面を確認。受注/釣行へ進みます。", tag);
+                    randomFishingHole = Vector3.Zero;
+                    return true;
+                }
+
+                // ②-c 探索で決めた目的地へ移動中なら継続。到達済みでまだ釣れない場合はリセットして再探索する。
+                if (randomFishingHole != Vector3.Zero)
+                {
+                    if (Player.DistanceTo(randomFishingHole) < 2.5f)
                     {
-                        IceLogging.Info($"We've reached our fishing spot! We are current at: {fishingSpot.FishingSpot}", tag);
                         randomFishingHole = Vector3.Zero;
+                    }
+                    else
+                    {
+                        Task_NavmeshMove.Enqueue_NavmeshTask(randomFishingHole, distance: 1.5f);
                         return true;
                     }
                 }
 
-                if (randomFishingHole == Vector3.Zero)
+                // ②-d 半径内をサンプリングして釣り可能な立ち位置を探索し、見つかれば移動する。
+                if (TryFindDynamicFishingStand(center.Value, radius, out var standPos))
                 {
-                    var randomIndex = _random.Next(fishingHole.Count);
-                    if (EzThrottler.Throttle("Setting fishing hole destination"))
-                    {
-                        IceLogging.Debug($"Random number spot said we're going to the following fishing hole #: {randomIndex}");
-                        randomFishingHole = fishingHole[randomIndex].FishingSpot;
-                    }
-                }
-                else
-                {
-                    IceLogging.Verbose("If we've gotten this far, that means we need to figure out a path to go to the node. Doing so now");
-                    Task_NavmeshMove.Enqueue_NavmeshTask(randomFishingHole);
-                    randomFishingHole = Vector3.Zero;
+                    IceLogging.Info($"釣り: 釣り可能な立ち位置を発見。移動します {standPos}", tag);
+                    randomFishingHole = standPos;
+                    Task_NavmeshMove.Enqueue_NavmeshTask(standPos, distance: 1.5f);
                     return true;
                 }
+
+                // ②-e フラグ半径内に釣り可能な水面が見つからない → unsupported登録。
+                if (EzThrottler.Throttle("Fishing no water found", 5000))
+                    IceLogging.Error($"釣り: フラグ半径内に釣り可能な水面が見つかりませんでした。unsupported登録します。 Mission:{missionId}", tag);
+                SkipUnsupportedAndReselect(missionId);
+                return true;
             }
             else if (C.PersonalReturnSpot)
             {
@@ -1154,8 +1215,6 @@ namespace ICE.Scheduler.Tasks
                 IceLogging.Info("Mission was not a gathering or critical mission. Navmesh moving was not necessary. Moving onto next step", tag);
                 return true;
             }
-
-            return false;
         }
         private static int retryCheck = 0;
         private static bool? GrabMission(uint missionId, bool reroll = false)

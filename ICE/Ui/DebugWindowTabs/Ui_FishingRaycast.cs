@@ -186,6 +186,14 @@ namespace ICE.Ui.DebugWindowTabs
             return fishableLocations;
         }
 
+        /// <summary>
+        /// 任意のワールド座標・回転から釣り可能(水面マテリアル)かを判定する。
+        /// 動的探索で「プレイヤーが立っていない候補地点」をプローブするために使用する。
+        /// BGCollisionはストリームイン済みの周辺ジオメトリを保持するため、半径内の候補点なら遠隔判定できる。
+        /// </summary>
+        public bool IsFishableAt(Vector3 position, float rotation, out Vector3? hitPoint)
+            => CheckFishableAtRotation(position, rotation, out hitPoint);
+
         private bool CheckFishableAtRotation(Vector3 position, float rotation, out Vector3? hitPoint)
         {
             hitPoint = null;
