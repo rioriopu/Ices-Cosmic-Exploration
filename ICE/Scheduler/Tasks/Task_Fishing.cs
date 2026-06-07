@@ -223,24 +223,15 @@ namespace ICE.Scheduler.Tasks
                 return false;
             }
 
-            // little check here for seeing if we have any baits
-            foreach (var bait in GatheringUtil.MoonBaits)
-            {
-                foreach (var baitId in bait.Value)
-                {
-                    if (PlayerHelper.GetItemCount(baitId, out var count) && count > 0)
-                    {
-                        if (EzThrottler.Throttle("Throttling bait message", 1000))
-                            IceLogging.Debug("We have the bait! Continuing onwards");
-                        hasBait = true;
-                        break;
-                    }
-                }
-            }
+            // 指定エサ(支給エサ/マスターは改良エサ)が入手可能か確認する。指定エサが尽きていれば
+            // GetPreferredBaitは0を返すため、釣り継続不可としてミッションを破棄する(別エサで代用しない)。
+            hasBait = GetPreferredBait() != 0;
+            if (hasBait && EzThrottler.Throttle("Throttling bait message", 1000))
+                IceLogging.Debug("We have the bait! Continuing onwards");
 
             if (!hasBait)
             {
-                IceLogging.Info("If we've gotten here, that means we're out of bait. Proceeding to turnin/abandon the mission");
+                IceLogging.Info("指定エサが尽きたため釣り継続不可。ミッションを破棄します。");
                 SchedulerMain.State = IceState.AbandonMission;
                 P.TaskManager.Tasks.Clear();
                 return true;
@@ -409,7 +400,7 @@ namespace ICE.Scheduler.Tasks
         private static uint GetPreferredBait()
         {
             var missionId = CosmicHelper.CurrentLunarMission;
-            // マスターミッションは改良コスモエサを最優先(配布される改良エサを使用)。
+            // マスターミッションは配布される改良コスモエサのみを使用。改良エサが尽きたら0を返し、釣り継続不可として破棄させる。
             if (missionId != 0 && GatheringUtil.MasterFishingMissions.Contains(missionId))
             {
                 foreach (var bid in GatheringUtil.ImprovedCosmoBaits)
@@ -417,17 +408,22 @@ namespace ICE.Scheduler.Tasks
                     if (PlayerHelper.GetItemCount(bid, out var c) && c > 0)
                         return bid;
                 }
+                return 0;
             }
+            // プリセットが具体的エサを指定しているミッションは、その指定(支給)エサのみを使用。
+            // 指定エサが尽きたら0を返し、釣り継続不可としてミッションを破棄させる(別エサで代用しない)。
             if (missionId != 0
-                && !GatheringUtil.GenericFishingPresetMissions.Contains(missionId)
-                && CosmicHelper.SheetMissionDict.TryGetValue(missionId, out var mi))
+                && CosmicHelper.SheetMissionDict.TryGetValue(missionId, out var mi)
+                && mi.PresetBaitIds.Count > 0)
             {
                 foreach (var bid in mi.PresetBaitIds)
                 {
                     if (PlayerHelper.GetItemCount(bid, out var c) && c > 0)
                         return bid;
                 }
+                return 0;
             }
+            // 指定エサが無いミッションのみ、MoonBaitsの先頭所持エサで代用する。
             foreach (var bait in GatheringUtil.MoonBaits)
             {
                 foreach (var baitId in bait.Value)
@@ -454,8 +450,7 @@ namespace ICE.Scheduler.Tasks
             // マスターは改良コスモエサのみ適合(別エサが装備されていたら切り替えさせる)。
             if (GatheringUtil.MasterFishingMissions.Contains(missionId))
                 return GatheringUtil.ImprovedCosmoBaits.Contains(current);
-            if (GatheringUtil.GenericFishingPresetMissions.Contains(missionId))
-                return true;
+            // 具体的エサ指定(支給エサ)のミッションは、装備中エサがその指定に含まれる場合のみ適合。
             if (CosmicHelper.SheetMissionDict.TryGetValue(missionId, out var mi) && mi.PresetBaitIds.Count > 0)
                 return mi.PresetBaitIds.Contains(current);
             return true;
