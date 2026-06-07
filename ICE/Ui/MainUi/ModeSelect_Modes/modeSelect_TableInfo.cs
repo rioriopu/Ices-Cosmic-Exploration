@@ -679,6 +679,13 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                                                 "この釣りミッションにはAutoHookプリセットが登録されていないため、自動釣りに対応していません。");
                         ImGui.SameLine();
                     }
+                    // 自動生成の汎用(All Baits)プリセットを使用するミッションは、狙い魚・エサに最適化されていないため警告する。
+                    else if (missionInfo.IsFishMission && GatheringUtil.GenericFishingPresetMissions.Contains(Id))
+                    {
+                        ImGuiEx.IconWithTooltip(EColor.Yellow, FontAwesomeIcon.ExclamationTriangle,
+                                                "汎用プロファイルを使用しています。ミッション失敗の可能性があります。");
+                        ImGui.SameLine();
+                    }
                     if (missionInfo.Attributes.HasFlag(MissionAttributes.ExpertCraft))
                     {
                         if (EzThrottler.Throttle("Throttling the manip update every couple of seconds", 1000))

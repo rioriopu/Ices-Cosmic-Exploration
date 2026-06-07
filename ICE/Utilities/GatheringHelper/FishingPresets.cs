@@ -8,6 +8,16 @@ namespace ICE.Utilities.GatheringHelper;
 
 public static partial class GatheringUtil
 {
+    // 自動生成した汎用(All Baits)プリセットを使用するミッションID。
+    // これらは特定の狙い魚・エサに最適化されておらず全エサを試す汎用プロファイルのため、
+    // ミッション失敗の可能性がある旨をUIで警告する(手動作成のAll-Baitsプリセットとは区別する)。
+    public static readonly HashSet<uint> GenericFishingPresetMissions = new()
+    {
+        1650, 1651, 1652, 1653, 1654, 1655, 1656, 1657, 1658, 1659,
+        1660, 1661, 1662, 1669, 1670, 1671, 1672, 1673, 1674, 1676,
+        1677, 1698, 1699,
+    };
+
     public static Dictionary<uint, List<string>> FishingPreset = new()
     {
         [451] = new()
