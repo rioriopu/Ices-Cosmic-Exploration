@@ -409,6 +409,15 @@ namespace ICE.Scheduler.Tasks
         private static uint GetPreferredBait()
         {
             var missionId = CosmicHelper.CurrentLunarMission;
+            // マスターミッションは改良コスモエサを最優先(配布される改良エサを使用)。
+            if (missionId != 0 && GatheringUtil.MasterFishingMissions.Contains(missionId))
+            {
+                foreach (var bid in GatheringUtil.ImprovedCosmoBaits)
+                {
+                    if (PlayerHelper.GetItemCount(bid, out var c) && c > 0)
+                        return bid;
+                }
+            }
             if (missionId != 0
                 && !GatheringUtil.GenericFishingPresetMissions.Contains(missionId)
                 && CosmicHelper.SheetMissionDict.TryGetValue(missionId, out var mi))
@@ -442,6 +451,9 @@ namespace ICE.Scheduler.Tasks
             var missionId = CosmicHelper.CurrentLunarMission;
             if (missionId == 0)
                 return true;
+            // マスターは改良コスモエサのみ適合(別エサが装備されていたら切り替えさせる)。
+            if (GatheringUtil.MasterFishingMissions.Contains(missionId))
+                return GatheringUtil.ImprovedCosmoBaits.Contains(current);
             if (GatheringUtil.GenericFishingPresetMissions.Contains(missionId))
                 return true;
             if (CosmicHelper.SheetMissionDict.TryGetValue(missionId, out var mi) && mi.PresetBaitIds.Count > 0)

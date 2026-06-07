@@ -18,6 +18,12 @@ public static partial class GatheringUtil
         1677, 1698, 1699,
     };
 
+    // マスター釣りミッション。これらは改良コスモエサ(下記)が配布されるため、エサ選択で改良エサを最優先する。
+    public static readonly HashSet<uint> MasterFishingMissions = new() { 1675, 1676, 1677 };
+
+    // 改良コスモエサ(改良コスモカゲロウ52250/改良コスモリーチ52251/改良星赤虫52252)。マスターで配布される高品質エサ。
+    public static readonly HashSet<uint> ImprovedCosmoBaits = new() { 52250, 52251, 52252 };
+
     public static Dictionary<uint, List<string>> FishingPreset = new()
     {
         [451] = new()
