@@ -101,6 +101,9 @@ public static unsafe partial class CosmicHelper
         public int Fish_AmountRequired { get; set; } = 0;
         public int Fish_VarietyAmount { get; set; } = 0;
         public List<string> Fish_Presets { get; set; } = new();
+        // AutoHookプリセットが指定する具体的なエサID(All Baits=-99や0は除く)。
+        // 複数エサ配布時に「プリセット指定のエサ」を優先装備し、別エサ装備によるグローバルプリセット落ちを防ぐ。
+        public List<uint> PresetBaitIds { get; set; } = new();
 
         // - - - Map Related - - - // 
         public Vector2 MapPosition { get; set; } = new();

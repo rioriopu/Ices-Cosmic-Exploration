@@ -69,21 +69,9 @@ namespace ICE.Scheduler.Tasks
                     return false;
                 }
 
-                var hasBait = false;
-                uint firstBait = 0;
-                foreach (var bait in GatheringUtil.MoonBaits)
-                {
-                    foreach (var baitId in bait.Value)
-                    {
-                        if (PlayerHelper.GetItemCount(baitId, out var baitCount) && baitCount > 0)
-                        {
-                            hasBait = true;
-                            firstBait = baitId;
-                            break;
-                        }
-                    }
-                    if (hasBait) break;
-                }
+                // プリセット指定エサを優先して装備対象を決定(無ければMoonBaits先頭)。
+                uint firstBait = GetPreferredBait();
+                bool hasBait = firstBait != 0;
 
                 if (!hasBait)
                 {
@@ -216,17 +204,13 @@ namespace ICE.Scheduler.Tasks
             {
                 if (EzThrottler.Throttle("Equipping bait"))
                 {
-                    foreach (var bait in GatheringUtil.MoonBaits)
+                    // プリセット指定エサを優先装備。
+                    var preferred = GetPreferredBait();
+                    if (preferred != 0)
                     {
-                        foreach (var baitId in bait.Value)
-                        {
-                            if (PlayerHelper.GetItemCount(baitId, out var count) && count > 0)
-                            {
-                                P.AutoHook.SwapBaitById(baitId);
-                                IceLogging.Debug($"Telling it to equip bait ID: {baitId}", handle);
-                                return false;
-                            }
-                        }
+                        P.AutoHook.SwapBaitById(preferred);
+                        IceLogging.Debug($"Telling it to equip bait ID: {preferred}", handle);
+                        return false;
                     }
 
                     IceLogging.Info("If we've gotten here, that means we're out of bait. Proceeding to turnin/abandon the mission");
@@ -311,17 +295,13 @@ namespace ICE.Scheduler.Tasks
                     IceLogging.Debug($"Adding 1 to the counter. Counter is at: {BaitCounter}");
                     if (BaitCounter >= 2)
                     {
-                        foreach (var bait in GatheringUtil.MoonBaits)
+                        // プリセット指定エサを優先装備。
+                        var preferred = GetPreferredBait();
+                        if (preferred != 0)
                         {
-                            foreach (var baitId in bait.Value)
-                            {
-                                if (PlayerHelper.GetItemCount(baitId, out var count) && count > 0)
-                                {
-                                    P.AutoHook.SwapBaitById(baitId);
-                                    IceLogging.Debug($"Telling it to equip bait ID: {baitId}", handle);
-                                    return false;
-                                }
-                            }
+                            P.AutoHook.SwapBaitById(preferred);
+                            IceLogging.Debug($"Telling it to equip bait ID: {preferred}", handle);
+                            return false;
                         }
                     }
                 }
@@ -417,6 +397,35 @@ namespace ICE.Scheduler.Tasks
             while (difference < -Math.PI) difference += (float)(2 * Math.PI);
 
             return difference;
+        }
+        // 装備すべきエサを決定する。現行ミッションのAutoHookプリセットが具体的なエサ(PresetBaitIds)を指定している
+        // 場合は、所持しているそのエサを優先する(例: マスター「植物魚の多様性調査」=改良コスモカゲロウ)。
+        // これにより、コスモカゲロウと改良コスモカゲロウが両方配布されても、プリセット指定の改良を装備し、
+        // 別エサ装備によるAutoHookのグローバルプリセット落ちを防ぐ。
+        // 汎用(All Baits)プリセットのミッションは指定が広いため対象外とし、従来どおりMoonBaits先頭の所持エサを返す。
+        // 該当エサが無ければMoonBaitsの先頭所持エサ、所持エサが皆無なら0を返す。
+        private static uint GetPreferredBait()
+        {
+            var missionId = CosmicHelper.CurrentLunarMission;
+            if (missionId != 0
+                && !GatheringUtil.GenericFishingPresetMissions.Contains(missionId)
+                && CosmicHelper.SheetMissionDict.TryGetValue(missionId, out var mi))
+            {
+                foreach (var bid in mi.PresetBaitIds)
+                {
+                    if (PlayerHelper.GetItemCount(bid, out var c) && c > 0)
+                        return bid;
+                }
+            }
+            foreach (var bait in GatheringUtil.MoonBaits)
+            {
+                foreach (var baitId in bait.Value)
+                {
+                    if (PlayerHelper.GetItemCount(baitId, out var c) && c > 0)
+                        return baitId;
+                }
+            }
+            return 0;
         }
         public static FisherSpotInfo? GetNextFishingSpot(uint zone, Vector2 flag, Vector3 playerPosition)
         {
