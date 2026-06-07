@@ -908,52 +908,6 @@ namespace ICE.Scheduler.Tasks
         // 未開拓エリア等で採取ノードが見つからない/到達できないミッションをunsupported登録し、現在のgrabシーケンスを
         // 中止してミッション選択(GrabMission)からやり直す。RefreshMissionLibraryがunsupportedを除外するので別ミッションが選ばれる。
         // ミッションはまだ掴んでいない(CheckForMovementRequiredはGrabMissionの前段)ので放棄(Abandon)は不要。
-        // フラグ中心の周囲(半径内)を中心→外周のリング状にサンプリングする。各候補点を歩行可能面へスナップし、
-        // そこから全周(rotationSteps)レイキャストして、釣り可能な水面を cast できる最初の立ち位置を返す。
-        // ハードコード座標に依存しない動的釣り場探索の中核。プレイヤーがフラグ付近に居る前提(コリジョンが
-        // ストリームイン済み)で呼ぶこと。
-        private static bool TryFindDynamicFishingStand(Vector3 center, float radius, out Vector3 standPosition)
-        {
-            standPosition = Vector3.Zero;
-            if (_fishRay == null || !P.Navmesh.Installed)
-                return false;
-
-            const int rings = 5;          // 中心から外周へのリング数
-            const int perRing = 16;       // 各リングの方位サンプル数
-            const int rotationSteps = 24; // 各立ち位置での全周レイキャスト分割数
-            float angleStep = (2f * MathF.PI) / rotationSteps;
-
-            for (int r = 0; r <= rings; r++)
-            {
-                float dist = radius * r / rings;
-                int count = r == 0 ? 1 : perRing; // 中心は1点のみ
-                for (int a = 0; a < count; a++)
-                {
-                    float bearing = (2f * MathF.PI) * a / count;
-                    var probe = new Vector3(
-                        center.X + (dist * MathF.Cos(bearing)),
-                        center.Y,
-                        center.Z + (dist * MathF.Sin(bearing)));
-
-                    // 候補点を歩行可能面へスナップ(高低差のある地形に対応するため縦方向は広めに取る)。
-                    var floor = P.Navmesh.PointOnFloor(probe, false, 10f);
-                    if (!floor.HasValue)
-                        continue;
-                    var stand = floor.Value;
-
-                    for (int i = 0; i < rotationSteps; i++)
-                    {
-                        if (_fishRay.IsFishableAt(stand, i * angleStep, out _))
-                        {
-                            standPosition = stand;
-                            return true;
-                        }
-                    }
-                }
-            }
-            return false;
-        }
-
         public static void SkipUnsupportedAndReselect(uint missionId)
         {
             if (missionId != 0)
@@ -1207,8 +1161,8 @@ namespace ICE.Scheduler.Tasks
                     }
                 }
 
-                // ③-d 半径内をサンプリングして釣り可能な立ち位置を探索し、見つかれば移動する。
-                if (TryFindDynamicFishingStand(center.Value, radius, out var standPos))
+                // ③-d 釣り専用の動的探索モジュールで岸の立ち位置を探し、見つかれば移動する。
+                if (FishingDynamicSearch.TryFindStand(center.Value, radius, _fishRay, out var standPos, out _))
                 {
                     IceLogging.Info($"釣り(動的): 釣り可能な立ち位置を発見。移動します {standPos}", tag);
                     randomFishingHole = standPos;
