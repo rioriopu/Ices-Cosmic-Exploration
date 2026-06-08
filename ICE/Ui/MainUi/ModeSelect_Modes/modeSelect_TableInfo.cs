@@ -3,6 +3,7 @@ using Dalamud.Interface.Colors;
 using Dalamud.Interface.Textures;
 using Dalamud.Interface.Utility.Raii;
 using FFXIVClientStructs.FFXIV.Client.Game.WKS;
+using ICE.Utilities;
 using ICE.Utilities.Cosmic_Helper;
 using ICE.Utilities.GatheringHelper;
 using ICE.Utilities.ImGuiTools;
@@ -2315,12 +2316,45 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
 
                             if (recipeConfig.ArtisanSolverType == ArtisanCraftType.Macro)
                             {
-                                string macroName = recipeConfig.MacroName;
+                                // Artisanのマクロをプルダウンで選択(Artisan.jsonから一覧取得)。一覧に無いものは手入力欄で指定可。
+                                var macros = ArtisanMacroHelper.Macros;
+                                string current = recipeConfig.MacroName;
+                                string preview = string.IsNullOrEmpty(current) ? "(マクロ未選択)" : current;
+
                                 ImGui.SameLine();
                                 ImGui.SetNextItemWidth(200);
-                                if (ImGui.InputText("Macro Name", ref macroName))
+                                if (ImGui.BeginCombo("##MacroSelect", preview))
                                 {
-                                    recipeConfig.MacroName = macroName;
+                                    if (macros.Count == 0)
+                                        ImGui.TextDisabled("Artisanマクロが見つかりません");
+                                    foreach (var m in macros)
+                                    {
+                                        bool isSelected = m.Name == current;
+                                        if (ImGui.Selectable($"{m.Name}##macro{m.Id}", isSelected))
+                                        {
+                                            recipeConfig.MacroName = m.Name;
+                                            C.Save();
+                                        }
+                                        if (isSelected)
+                                            ImGui.SetItemDefaultFocus();
+                                    }
+                                    ImGui.EndCombo();
+                                }
+
+                                // Artisanで新規追加したマクロを反映するための再読込。
+                                ImGui.SameLine();
+                                if (ImGui.SmallButton("再読込##macroReload"))
+                                    ArtisanMacroHelper.Reload();
+                                if (ImGui.IsItemHovered())
+                                    ImGui.SetTooltip("Artisanのマクロ一覧を再読込します(Artisanで作成した直後など)");
+
+                                // 一覧に無いマクロ名や任意名を指定するための手入力フォールバック。
+                                ImGui.SameLine();
+                                string manual = recipeConfig.MacroName;
+                                ImGui.SetNextItemWidth(140);
+                                if (ImGui.InputText("手入力##MacroManual", ref manual))
+                                {
+                                    recipeConfig.MacroName = manual;
                                     C.Save();
                                 }
                             }
