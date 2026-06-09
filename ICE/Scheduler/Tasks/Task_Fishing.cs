@@ -421,6 +421,10 @@ namespace ICE.Scheduler.Tasks
         private static uint GetPreferredBait()
         {
             var missionId = CosmicHelper.CurrentLunarMission;
+            // ミッション別エサ上書き(プリセットは本家のまま・装備エサだけ変更)を最優先で判定。
+            // 例: 1676 は改良コスモリーチではなく通常コスモリーチ(52248)を使う。指定エサが尽きたら0で破棄。
+            if (missionId != 0 && GatheringUtil.FishingBaitOverride.TryGetValue(missionId, out var overrideBait))
+                return (PlayerHelper.GetItemCount(overrideBait, out var oc) && oc > 0) ? overrideBait : 0;
             // マスターミッションは配布される改良コスモエサのみを使用。改良エサが尽きたら0を返し、釣り継続不可として破棄させる。
             if (missionId != 0 && GatheringUtil.MasterFishingMissions.Contains(missionId))
             {
@@ -468,6 +472,9 @@ namespace ICE.Scheduler.Tasks
             var missionId = CosmicHelper.CurrentLunarMission;
             if (missionId == 0)
                 return true;
+            // ミッション別エサ上書き(例:1676=コスモリーチ)は、その指定エサのみ適合(最優先)。
+            if (GatheringUtil.FishingBaitOverride.TryGetValue(missionId, out var overrideBait))
+                return current == overrideBait;
             // マスターは改良コスモエサのみ適合(別エサが装備されていたら切り替えさせる)。
             if (GatheringUtil.MasterFishingMissions.Contains(missionId))
                 return GatheringUtil.ImprovedCosmoBaits.Contains(current);
