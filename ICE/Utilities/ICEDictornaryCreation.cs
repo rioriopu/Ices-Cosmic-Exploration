@@ -835,6 +835,10 @@ public sealed partial class ICE
             }
         }
 
+        // 釣りプリセットを登録（本家の月別レジストラ＋当方の手調整上書き）。
+        // FishingPreset 辞書はここで初めて populate されるため、下の割り当てループより前に必ず呼ぶ。
+        GatheringUtil.RegisterPresets();
+
         foreach (var fishPreset in GatheringUtil.FishingPreset)
         {
             if (CosmicHelper.SheetMissionDict.TryGetValue(fishPreset.Key, out var mission))
