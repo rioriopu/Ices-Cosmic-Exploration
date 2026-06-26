@@ -13,7 +13,8 @@ namespace ICE.Ui.MainUi.Settings
                                    || C.StopWhenLevel
                                    || C.StopOnceHitCosmoCredits
                                    || C.StopOnceHitLunarCredits
-                                   || C.StopOnceRelicFinished;
+                                   || C.StopOnceRelicFinished
+                                   || C.StopWhenMasteryComplete;
 
         public static void Draw()
         {
@@ -115,6 +116,28 @@ namespace ICE.Ui.MainUi.Settings
             {
                 C.StopOnceRelicFinished = relicStop;
                 C.Save();
+            }
+
+            #endregion
+
+            #region Mastery Complete
+
+            // 本家0.0.78.26より移植: 選択ジョブのマスターシップポイントが MasteryCap に達したら停止。
+            bool masteryStop = C.StopWhenMasteryComplete;
+            if (ImGui.Checkbox("Stop When Mastery Complete", ref masteryStop))
+            {
+                C.StopWhenMasteryComplete = masteryStop;
+                C.Save();
+            }
+
+            ImGui.SameLine();
+
+            int masteryCap = C.MasteryCap;
+            ImGui.SetNextItemWidth(200);
+            if (ImGui.SliderInt("##MasteryCapSlider", ref masteryCap, 0, 500_000))
+            {
+                C.MasteryCap = masteryCap >= 0 ? masteryCap : 0;
+                C.SaveDebounced();
             }
 
             #endregion

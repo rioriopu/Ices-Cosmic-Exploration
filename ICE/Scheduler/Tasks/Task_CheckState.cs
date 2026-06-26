@@ -228,6 +228,22 @@ namespace ICE.Scheduler.Tasks
                         return true;
                     }
                 }
+                // マスターシップポイント(選択ジョブの所持数)が MasteryCap 以上で停止(本家0.0.78.26より移植)。
+                if (C.StopWhenMasteryComplete && cosmicClassInfo.ContainsKey(jobId))
+                {
+                    var currentMastery = cosmicClassInfo[jobId].Mastery;
+                    if (currentMastery >= C.MasteryCap)
+                    {
+                        SchedulerMain.State = IceState.Idle;
+                        IceLogging.ChatInfo("Stop When Mastery Complete is enabled. \n" +
+                            $"Your current mastery score is: {currentMastery} and Goal: {C.MasteryCap}", "[I.C.E.]");
+                        if (C.PlaySoundAlert)
+                        {
+                            _ = SoundPlayer.PlaySoundAsync();
+                        }
+                        return true;
+                    }
+                }
                 if (C.StopOnceHitLunarCredits)
                 {
                     var territory = Player.Territory.RowId;
@@ -389,6 +405,7 @@ namespace ICE.Scheduler.Tasks
 
                 var relicLevel = relicInfo.Stage_Current;
                 var classScore = relicInfo.Score;
+                var mastery = relicInfo.Mastery; // マスターシップポイント所持数(本家0.0.78.26移植)
                 var level = Player.GetLevel((Job)job);
 
                 bool MaxLevelExp = true;
@@ -428,6 +445,7 @@ namespace ICE.Scheduler.Tasks
                     PlaylistOptions.DronebitAmount => dronebitAmount >= entry.DronebitAmount,
                     PlaylistOptions.ClassLevel => level >= entry.ClassLevel,
                     PlaylistOptions.ClassScore => classScore >= entry.ClassScore,
+                    PlaylistOptions.MasteryScore => mastery >= entry.ClassScore, // 目標値はClassScoreフィールドを流用(本家準拠)
                     PlaylistOptions.ToolMaxExp => MaxLevelExp,
                     PlaylistOptions.GoldClassMissions => totalCompleted == totalMissions,
                     _ => true

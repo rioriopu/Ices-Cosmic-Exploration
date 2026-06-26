@@ -314,6 +314,7 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                                         PlaylistOptions.DronebitAmount => $"{agendaInfo.DronebitAmount}",
                                         PlaylistOptions.ClassLevel => $"{agendaInfo.ClassLevel}",
                                         PlaylistOptions.ClassScore => $"{agendaInfo.ClassScore}",
+                                        PlaylistOptions.MasteryScore => $"{agendaInfo.ClassScore}",
                                         _ => ""
                                     };
                                     ImGui.Text(optionText);
@@ -540,6 +541,28 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                                 }
                             }
                         }
+                        // 本家0.0.78.26より移植: マスターシップポイント目標(ClassScore フィールドを目標値として流用)。
+                        else if (selectedOption == PlaylistOptions.MasteryScore)
+                        {
+                            var mastery = agendaInfo.ClassScore;
+                            if (ImGui.SliderInt("##MasteryScore", ref mastery, 0, 500_000))
+                            {
+                                agendaInfo.ClassScore = mastery;
+                                C.SaveDebounced();
+                            }
+                            if (ImGui.IsItemHovered())
+                            {
+                                var classInfo = CosmicHelper.Cosmic_ClassInfo();
+                                if (classInfo.TryGetValue(agendaInfo.SelectedJob, out var job))
+                                {
+                                    ImGui.SetTooltip($"Current Mastery: {job.Mastery:N0}");
+                                }
+                                else
+                                {
+                                    ImGui.SetTooltip($"No mastery can be loaded");
+                                }
+                            }
+                        }
 
                         ImGui.TableNextColumn();
                         var currentMode = agendaInfo.SelectedMode;
@@ -689,6 +712,13 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                             {
                                 var ScoreInfo = CosmicHelper.Cosmic_ClassInfo();
                                 current = ScoreInfo[job].Score;
+                                goal = agendaInfo.ClassScore;
+                            }
+                            else if (selectedOption is PlaylistOptions.MasteryScore)
+                            {
+                                // 本家0.0.78.26より移植: 現在のマスターシップポイント所持数を進捗に表示。
+                                var ScoreInfo = CosmicHelper.Cosmic_ClassInfo();
+                                current = ScoreInfo[job].Mastery;
                                 goal = agendaInfo.ClassScore;
                             }
                             else if (selectedOption is PlaylistOptions.GoldClassMissions)

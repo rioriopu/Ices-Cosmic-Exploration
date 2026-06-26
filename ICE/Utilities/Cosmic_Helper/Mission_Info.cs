@@ -108,6 +108,8 @@ public static partial class CosmicHelper
     public class ClassInfo
     {
         public int Score { get; set; } = 0;
+        // マスターシップポイント(WKSScoreList[i].Unknown5が指すアイテムの所持数)。本家0.0.78.26より移植。
+        public int Mastery { get; set; } = 0;
         public int Stage_Current { get; set; } = 0;
         public int Stage_Next { get; set; } = 0;
         public Dictionary<int, ExpInfo> CurrentExp { get; set; } = new();
@@ -174,9 +176,16 @@ public static partial class CosmicHelper
                 ? CosmicHelper.MaxRelicLevel
                 : (byte)(currentStage + 1);
 
+            // マスターシップポイント(本家0.0.78.26移植): WKSScoreList[i].Unknown5 が各ジョブの
+            // 「マスターシップポイント:{職}」アイテムID(51315〜51325)。その所持数を Mastery とする。
+            int mastery = 0;
+            if (Svc.Data.GetExcelSheet<Lumina.Excel.Sheets.WKSScoreList>().GetRowOrDefault((uint)i) is { } scoreRow)
+                PlayerHelper.GetItemCount(scoreRow.Unknown5, out mastery);
+
             ClassInfo entry = new()
             {
                 Score = score,
+                Mastery = mastery,
                 Stage_Current = currentStage,
                 Stage_Next = nextStage,
             };

@@ -18,6 +18,9 @@
         ClassScore = 10,
 
         GoldClassMissions = 11,
-        ToolMaxExp = 12
+        ToolMaxExp = 12,
+
+        // 本家0.0.78.26より移植。各ジョブのマスターシップポイント(WKSScoreList[i].Unknown5が指すアイテム)所持数を目標にする。
+        MasteryScore = 13
     }
 }

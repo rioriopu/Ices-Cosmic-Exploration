@@ -18,6 +18,9 @@ public partial class Config
     public bool StopOnceHitCosmicScore { get; set; } = false;
     public int CosmicScoreCap { get; set; } = 500_000;
     public bool StopOnceRelicFinished { get; set; } = false;
+    // マスターシップポイント(選択ジョブ)が MasteryCap 以上になったら停止する。本家0.0.78.26より移植。
+    public bool StopWhenMasteryComplete { get; set; } = false;
+    public int MasteryCap { get; set; } = 500_000;
     public List<ProvisionalTypes> MissionPrio { get; set; } = new()
     {
         ProvisionalTypes.ProvisionalWeather,
