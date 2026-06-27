@@ -78,6 +78,19 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
             public bool enabled;
         }
 
+        // 秒数を mm:ss.ff 形式に整形する。double.MaxValue や NaN/Infinity、TimeSpan の範囲外(約9.2e14秒)など
+        // 不正値は TimeSpan.FromSeconds が OverflowException を投げるため、安全に "--:--" を返す。
+        private static string FormatSeconds(double seconds)
+        {
+            if (double.IsNaN(seconds) || double.IsInfinity(seconds) ||
+                seconds < 0 || seconds > TimeSpan.MaxValue.TotalSeconds)
+            {
+                return "--:--";
+            }
+
+            return TimeSpan.FromSeconds(seconds).ToString(@"mm\:ss\.ff");
+        }
+
         public static List<Mission> SortMissionList(List<Mission> missions)
         {
             int sortOption = C.TableSortOption;
@@ -1821,8 +1834,10 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
 
                     if (config.TurninRecords.Count > 0)
                     {
-                        ImGui.Text($"Best Time: {TimeSpan.FromSeconds(config.BestTime):mm\\:ss\\.ff}");
-                        ImGui.Text($"Average Time: {TimeSpan.FromSeconds(config.AverageTime):mm\\:ss\\.ff}");
+                        // BestTime/AverageTime が double.MaxValue 等の異常値だと TimeSpan.FromSeconds が
+                        // OverflowException を投げる(古い設定の不整合や Time 異常値が原因)。範囲外は "--:--" 表示にする。
+                        ImGui.Text($"Best Time: {FormatSeconds(config.BestTime)}");
+                        ImGui.Text($"Average Time: {FormatSeconds(config.AverageTime)}");
                     }
                     else
                     {
