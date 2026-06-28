@@ -568,7 +568,13 @@ namespace ICE.Scheduler.Tasks
                             IceLogging.Verbose($"Kind [{exp.Key}] | Current: [{exp.Value.Current}] / Needed: [{exp.Value.Needed}] | Max: [{exp.Value.Max}]", tag);
                             canTurnin &= exp.Value.Current >= exp.Value.Needed;
                         }
-                        TurninRelic = isUpgradable && canTurnin;
+                        // 2026.05.25パッチで分析タイプがⅥ→Ⅶに増加。ギャザラーはⅦ型が埋まらないことがあり、
+                        // 「利用可能な全タイプが Need 到達」を要求する canTurnin が永久に false → 納品に行かない回帰が発生していた。
+                        // ゲーム直値 Stage_Current < Stage_Unlocked(=次ステージ解放済み・未受領=報告待ち)を OR で併用して救済する。
+                        // OR で足すだけなので、既に canTurnin で正常動作しているクラフターには影響しない。
+                        bool stageUnlocked = relicInfo.Stage_Current < relicInfo.Stage_Unlocked;
+                        IceLogging.Verbose($"canTurnin: {canTurnin} | stageUnlocked: {stageUnlocked} (Current: {relicInfo.Stage_Current} / Unlocked: {relicInfo.Stage_Unlocked})", tag);
+                        TurninRelic = isUpgradable && (canTurnin || stageUnlocked);
                     }
                     else
                     {
