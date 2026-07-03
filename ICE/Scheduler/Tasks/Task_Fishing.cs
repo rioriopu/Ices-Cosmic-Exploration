@@ -5,6 +5,8 @@ using FFXIVClientStructs.FFXIV.Client.UI.Misc;
 using ICE.Ui.DebugWindowTabs;
 using ICE.Utilities.Cosmic_Helper;
 using ICE.Utilities.GatheringHelper;
+using System;
+using System.Threading.Tasks;
 using TerraFX.Interop.Windows;
 using static ECommons.UIHelpers.AddonMasterImplementations.AddonMaster;
 using static ICE.Utilities.GatheringHelper.GatheringUtil;
@@ -201,6 +203,25 @@ namespace ICE.Scheduler.Tasks
         }
 
         private static int BaitCounter = 0;
+        // エサ自動切替(SwapBaitById)の試行回数と上限。非同期スワップの連打で状態に反映されず
+        // IsCurrentBaitAcceptable が永久に false になる無限ループ(=キャストしない)を防ぐための保険。
+        private static int BaitSwapAttempts = 0;
+        private const int BaitSwapMaxAttempts = 8;
+
+        // 指定エサへの切替を発行し、成否(AutoHook の Task<bool>)をログに残す。完了前の連打を避けるため
+        // 呼び出し側で十分な間隔(2500ms 以上)を空けること。フレームワークスレッドをブロックしないよう await はここで完結させる。
+        private static async Task SwapBaitAndLog(uint baitId)
+        {
+            try
+            {
+                var ok = await P.AutoHook.SwapBaitById(baitId);
+                IceLogging.Debug($"SwapBaitById({baitId}) 結果: {ok}");
+            }
+            catch (Exception e)
+            {
+                IceLogging.Error($"SwapBaitById({baitId}) が例外: {e.Message}");
+            }
+        }
 
         private static unsafe bool? FishingCheck()
         {
@@ -225,23 +246,43 @@ namespace ICE.Scheduler.Tasks
             // 未装備、または装備中エサがプリセット指定に適合しない場合は、指定エサへ切り替える。
             if (!IsCurrentBaitAcceptable())
             {
-                if (EzThrottler.Throttle("Equipping bait"))
+                // プリセット指定エサを優先装備。
+                var preferred = GetPreferredBait();
+                if (preferred == 0)
                 {
-                    // プリセット指定エサを優先装備。
-                    var preferred = GetPreferredBait();
-                    if (preferred != 0)
-                    {
-                        P.AutoHook.SwapBaitById(preferred);
-                        IceLogging.Debug($"指定エサを装備します: {preferred} (現在:{CosmicHelper.CurrentBait})", handle);
-                        return false;
-                    }
-
                     IceLogging.Info("If we've gotten here, that means we're out of bait. Proceeding to turnin/abandon the mission");
                     SchedulerMain.State = IceState.AbandonMission;
                     P.TaskManager.Tasks.Clear();
                     return true;
                 }
+
+                // 規定回数試しても指定エサが状態(WKS.State.FishingBait)に反映されない場合は、
+                // 無限ループ(=キャストしない)を避けるため、手動装備を促して一旦停止する。
+                // 手動選択は効くが IPC スワップが反映されない環境向けの安全弁。
+                if (BaitSwapAttempts >= BaitSwapMaxAttempts)
+                {
+                    IceLogging.ChatInfo($"指定エサ(ID:{preferred})を自動で装備できませんでした。お手数ですが手動で装備してください。ICEを一時停止します。", "[I.C.E.]");
+                    BaitSwapAttempts = 0;
+                    SchedulerMain.State = IceState.Idle;
+                    P.TaskManager.Tasks.Clear();
+                    return true;
+                }
+
+                // 従来は throttle 既定(約500ms)で SwapBaitById を連打しており、非同期スワップが完了する前に
+                // 再発行されて反映されず無限ループになっていた。2500ms 間隔まで広げて各スワップを完了させ、
+                // 成否は await して観測する(SwapBaitAndLog)。
+                if (EzThrottler.Throttle("Equipping bait", 2500))
+                {
+                    BaitSwapAttempts++;
+                    IceLogging.Debug($"指定エサを装備します(試行{BaitSwapAttempts}/{BaitSwapMaxAttempts}): {preferred} (現在:{CosmicHelper.CurrentBait})", handle);
+                    _ = SwapBaitAndLog(preferred);
+                }
                 return false;
+            }
+            else if (BaitSwapAttempts != 0)
+            {
+                // エサが適合したら試行カウンタをリセット。
+                BaitSwapAttempts = 0;
             }
 
             // 指定エサ(支給エサ/マスターは改良エサ)が入手可能か確認する。指定エサが尽きていれば
@@ -328,6 +369,7 @@ namespace ICE.Scheduler.Tasks
                 IceLogging.Info("We're starting to fish. So kicking it over to checking the fish items", handle);
                 P.TaskManager.Insert(() => FinishFishing(), "Waiting till we actually start fishing", Utils.TaskConfig);
                 BaitCounter = 0;
+                BaitSwapAttempts = 0;
                 return true;
             }
         }
