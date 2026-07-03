@@ -22,9 +22,6 @@ namespace ICE.IPC
         [EzIPC] public Action<string> ImportAndSelectPreset;
         [EzIPC] public Action DeleteSelectedPreset;
         [EzIPC] public Action DeleteAllAnonymousPresets;
-        // AutoHook 側の SwapBaitById は同期 bool を返す。従来 Task<bool> と誤宣言していたため、
-        // EzIPC が Boolean→Task`1 の変換に失敗(ログ「Could not convert Boolean to Task`1」)し、
-        // await 時に NRE、fire-and-forget でもスワップが正しく実行されずエサ切替が効かない原因になっていた。
-        [EzIPC] public Func<uint, bool> SwapBaitById;
+        [EzIPC] public Func<uint, Task<bool>> SwapBaitById;
     }
 }
