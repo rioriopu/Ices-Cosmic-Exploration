@@ -208,13 +208,12 @@ namespace ICE.Scheduler.Tasks
         private static int BaitSwapAttempts = 0;
         private const int BaitSwapMaxAttempts = 8;
 
-        // 指定エサへの切替を発行し、成否(AutoHook の Task<bool>)をログに残す。完了前の連打を避けるため
-        // 呼び出し側で十分な間隔(2500ms 以上)を空けること。フレームワークスレッドをブロックしないよう await はここで完結させる。
-        private static async Task SwapBaitAndLog(uint baitId)
+        // 指定エサへの切替を発行し、成否(AutoHook の同期 bool)をログに残す。
+        private static void SwapBaitAndLog(uint baitId)
         {
             try
             {
-                var ok = await P.AutoHook.SwapBaitById(baitId);
+                var ok = P.AutoHook.SwapBaitById(baitId);
                 IceLogging.Debug($"SwapBaitById({baitId}) 結果: {ok}");
             }
             catch (Exception e)
@@ -282,7 +281,7 @@ namespace ICE.Scheduler.Tasks
                 {
                     BaitSwapAttempts++;
                     IceLogging.Debug($"指定エサを装備します(試行{BaitSwapAttempts}/{BaitSwapMaxAttempts}): {preferred} (現在:{CosmicHelper.CurrentBait})", handle);
-                    _ = SwapBaitAndLog(preferred);
+                    SwapBaitAndLog(preferred);
                 }
                 return false;
             }
