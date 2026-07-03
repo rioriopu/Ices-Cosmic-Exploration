@@ -256,6 +256,13 @@ namespace ICE.Scheduler.Tasks
                     return true;
                 }
 
+                // AutoHook が有効化/初期化されていない状態で SwapBaitById を呼ぶと内部で NRE
+                // (Object reference not set to an instance of an object)を投げる。従来は餌スワップ段階では
+                // AutoHook を有効化しておらず(有効化はキャスト時のみ)、そのため自動切替が失敗し続けていた。
+                // /ahstart はまだ送らない(=まだキャストさせない)。プラグインの有効化のみ行い初期化する。
+                if (P.AutoHook.Installed && EzThrottler.Throttle("Enable AH for bait swap", 1000))
+                    P.AutoHook.SetPluginState(true);
+
                 // 規定回数試しても指定エサが状態(WKS.State.FishingBait)に反映されない場合は、
                 // 無限ループ(=キャストしない)を避けるため、手動装備を促して一旦停止する。
                 // 手動選択は効くが IPC スワップが反映されない環境向けの安全弁。
