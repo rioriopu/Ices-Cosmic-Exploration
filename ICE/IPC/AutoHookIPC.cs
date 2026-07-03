@@ -22,6 +22,9 @@ namespace ICE.IPC
         [EzIPC] public Action<string> ImportAndSelectPreset;
         [EzIPC] public Action DeleteSelectedPreset;
         [EzIPC] public Action DeleteAllAnonymousPresets;
-        [EzIPC] public Func<uint, Task<bool>> SwapBaitById;
+        // AutoHook 側の SwapBaitById は同期 bool を返す。従来 Task<bool> と誤宣言していたため、EzIPC が毎回
+        // Boolean→Task`1 の変換ログ(VRB「Could not convert Boolean to Task`1」)を出していた。実体に合わせて修正。
+        // ※餌切替の挙動そのものは不変。ノイズを消すだけの隔離した変更。
+        [EzIPC] public Func<uint, bool> SwapBaitById;
     }
 }
