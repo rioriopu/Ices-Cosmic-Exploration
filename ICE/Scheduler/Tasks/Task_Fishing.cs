@@ -207,6 +207,8 @@ namespace ICE.Scheduler.Tasks
         // 永久に false になる無限ループ(=キャストしない)を防ぐための保険。上限到達で手動装備を促し停止する。
         private static int BaitSwapAttempts = 0;
         private const int BaitSwapMaxAttempts = 8;
+        // 直近の swimbait 選択の診断内容(チャット表示用)。ICE内部ログのレベルを絞っていても見えるようチャットに出す。
+        private static string _lastSwimbaitDiag = "(未取得)";
 
         /// <summary>
         /// 指定エサ(アイテムID)が現在の釣り場の swimbait リストに在れば、そのインデックスで AutoHook に選択させる。
@@ -221,35 +223,28 @@ namespace ICE.Scheduler.Tasks
                 var ef = EventFramework.Instance();
                 if (ef == null)
                 {
-                    if (EzThrottler.Throttle("swimbait diag", 2000))
-                        IceLogging.Info($"[swimbait診断] EventFramework=null");
+                    _lastSwimbaitDiag = "EventFramework=null";
                     return false;
                 }
                 var fishing = ef->EventHandlerModule.FishingEventHandler;
                 if (fishing == null)
                 {
-                    if (EzThrottler.Throttle("swimbait diag", 2000))
-                        IceLogging.Info($"[swimbait診断] FishingEventHandler=null(釣りイベント未アクティブの可能性)");
+                    _lastSwimbaitDiag = "FishingEventHandler=null(釣りイベント未アクティブの可能性)";
                     return false;
                 }
 
                 var ids = fishing->SwimBaitItemIds; // Span<uint>(最大3枠)
-
-                // 診断: 実機で「どの段階で失敗しているか」を可視化(Infoレベル・2秒スロットル)。
-                if (EzThrottler.Throttle("swimbait diag", 2000))
-                {
-                    var sb = new System.Text.StringBuilder();
-                    for (int k = 0; k < ids.Length; k++)
-                        sb.Append(ids[k]).Append(k < ids.Length - 1 ? "," : "");
-                    IceLogging.Info($"[swimbait診断] 探索itemId={desiredItemId} / SwimBaitItemIds[{ids.Length}]=[{sb}] / CurrentSelected={fishing->CurrentSelectedSwimBait} / WKSBait={CosmicHelper.CurrentBait}");
-                }
+                var sb = new System.Text.StringBuilder();
+                for (int k = 0; k < ids.Length; k++)
+                    sb.Append(ids[k]).Append(k < ids.Length - 1 ? "," : "");
+                _lastSwimbaitDiag = $"探索={desiredItemId} ids[{ids.Length}]=[{sb}] sel={fishing->CurrentSelectedSwimBait} wks={CosmicHelper.CurrentBait}";
 
                 for (int i = 0; i < ids.Length; i++)
                 {
                     if (ids[i] == desiredItemId)
                     {
                         bool ok = P.AutoHook.SwapSwimbaitByIndex((byte)i);
-                        IceLogging.Info($"[swimbait] index={i} itemId={desiredItemId} 結果={ok}");
+                        _lastSwimbaitDiag += $" -> 選択idx={i} 結果={ok}";
                         return true;
                     }
                 }
@@ -257,7 +252,33 @@ namespace ICE.Scheduler.Tasks
             }
             catch (Exception e)
             {
-                IceLogging.Error($"TrySelectSwimbait 例外: {e.Message}");
+                _lastSwimbaitDiag = $"例外:{e.Message}";
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// ゲームネイティブの餌変更 FishingEventHandler.ChangeBait(itemId) を直接呼ぶ。
+        /// AutoHook の SwapBaitById はコスモ改良餌(パッチ7.51追加)を扱えず内部NREになるため、
+        /// これらの餌はネイティブ関数で装備する(手動選択と同じ経路)。
+        /// </summary>
+        private static unsafe bool TryNativeChangeBait(uint itemId)
+        {
+            try
+            {
+                var ef = EventFramework.Instance();
+                if (ef == null) { _lastSwimbaitDiag += " | native:EF=null"; return false; }
+                var fishing = ef->EventHandlerModule.FishingEventHandler;
+                if (fishing == null) { _lastSwimbaitDiag += " | native:FEH=null"; return false; }
+
+                var before = CosmicHelper.CurrentBait ?? 0;
+                fishing->ChangeBait((int)itemId);
+                _lastSwimbaitDiag += $" | native:ChangeBait({itemId}) before={before}";
+                return true;
+            }
+            catch (Exception e)
+            {
+                _lastSwimbaitDiag += $" | native例外:{e.Message}";
                 return false;
             }
         }
@@ -299,7 +320,8 @@ namespace ICE.Scheduler.Tasks
                 // swimbait の選択が反映されない環境などで延々と待ち続ける(=キャストしない)のを避ける。
                 if (BaitSwapAttempts >= BaitSwapMaxAttempts)
                 {
-                    IceLogging.ChatInfo($"指定エサ(ID:{preferred})を自動で装備できませんでした。お手数ですが手動で装備してください。ICEを一時停止します。", "[I.C.E.]");
+                    // 診断をチャットに含める(ICE内部ログを絞っていても見えるように)。
+                    IceLogging.ChatInfo($"指定エサ(ID:{preferred})を自動装備できませんでした。手動で装備してください。ICEを一時停止します。[診断] {_lastSwimbaitDiag}", "[I.C.E.]");
                     BaitSwapAttempts = 0;
                     SchedulerMain.State = IceState.Idle;
                     P.TaskManager.Tasks.Clear();
@@ -309,12 +331,23 @@ namespace ICE.Scheduler.Tasks
                 if (EzThrottler.Throttle("Equipping bait", 2000))
                 {
                     BaitSwapAttempts++;
-                    // まず swimbait(コスモ改良エサ等)として選択を試み、swimbait でなければ通常餌APIへフォールバック。
-                    if (!TrySelectSwimbait(preferred))
+                    _lastSwimbaitDiag = ""; // 今回試行分の診断を蓄積し直す
+                    // 改良コスモ餌(専用釣り餌)は AutoHook が扱えず内部NREのため、ゲームネイティブの ChangeBait で装備する。
+                    // それ以外(A級の支給餌など)は従来どおり AutoHook 経由。swimbait のケースは今回のミッションでは空。
+                    bool swim = TrySelectSwimbait(preferred);
+                    string via;
+                    if (swim)
+                        via = "swimbait";
+                    else if (GatheringUtil.ImprovedCosmoBaits.Contains(preferred) && TryNativeChangeBait(preferred))
+                        via = "native";
+                    else
                     {
                         P.AutoHook.SwapBaitById(preferred);
-                        IceLogging.Debug($"通常餌を装備します(試行{BaitSwapAttempts}/{BaitSwapMaxAttempts}): {preferred} (現在:{CosmicHelper.CurrentBait})", handle);
+                        via = "autohook";
                     }
+                    // 最初の試行時に診断をチャットへ1回出す(ICE内部ログを絞っていても見えるように)。
+                    if (BaitSwapAttempts == 1)
+                        IceLogging.ChatInfo($"[餌診断] via={via} 探索={preferred} 現在={CosmicHelper.CurrentBait} {_lastSwimbaitDiag}", "[I.C.E.]");
                 }
                 return false;
             }
