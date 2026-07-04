@@ -26,5 +26,8 @@ namespace ICE.IPC
         // Boolean→Task`1 の変換ログ(VRB「Could not convert Boolean to Task`1」)を出していた。実体に合わせて修正。
         // ※餌切替の挙動そのものは不変。ノイズを消すだけの隔離した変更。
         [EzIPC] public Func<uint, bool> SwapBaitById;
+        // swimbait(スイムベイト)専用。コスモ探査の改良コスモエサ等は swimbait で、通常餌用の SwapBaitById(item id)では
+        // 装備できず内部NREになる。swimbait は「アイテムIDではなくインデックス(0〜2)」で選択する(AutoHook実装に準拠)。
+        [EzIPC] public Func<byte, bool> SwapSwimbaitByIndex;
     }
 }

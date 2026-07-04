@@ -1,7 +1,9 @@
 ﻿using Dalamud.Game.ClientState.Conditions;
 using ECommons.GameHelpers;
 using FFXIVClientStructs.FFXIV.Client.Game;
+using FFXIVClientStructs.FFXIV.Client.Game.Event;
 using FFXIVClientStructs.FFXIV.Client.UI.Misc;
+using System;
 using ICE.Ui.DebugWindowTabs;
 using ICE.Utilities.Cosmic_Helper;
 using ICE.Utilities.GatheringHelper;
@@ -201,6 +203,46 @@ namespace ICE.Scheduler.Tasks
         }
 
         private static int BaitCounter = 0;
+        // 餌切替の試行回数と上限。切替が状態(WKS.State.FishingBait)に反映されず IsCurrentBaitAcceptable が
+        // 永久に false になる無限ループ(=キャストしない)を防ぐための保険。上限到達で手動装備を促し停止する。
+        private static int BaitSwapAttempts = 0;
+        private const int BaitSwapMaxAttempts = 8;
+
+        /// <summary>
+        /// 指定エサ(アイテムID)が現在の釣り場の swimbait リストに在れば、そのインデックスで AutoHook に選択させる。
+        /// コスモ探査の改良コスモエサ等は swimbait のため、通常餌用の SwapBaitById では装備できない(内部NRE)。
+        /// swimbait のアイテムID配列は FishingEventHandler.SwimBaitItemIds(最大3枠)から取得する。
+        /// </summary>
+        /// <returns>true=swimbait として選択を発行した / false=swimbait ではない(通常餌処理へフォールバック)</returns>
+        private static unsafe bool TrySelectSwimbait(uint desiredItemId)
+        {
+            try
+            {
+                var ef = EventFramework.Instance();
+                if (ef == null)
+                    return false;
+                var fishing = ef->EventHandlerModule.FishingEventHandler;
+                if (fishing == null)
+                    return false;
+
+                var ids = fishing->SwimBaitItemIds; // Span<uint>(最大3枠)
+                for (int i = 0; i < ids.Length; i++)
+                {
+                    if (ids[i] == desiredItemId)
+                    {
+                        bool ok = P.AutoHook.SwapSwimbaitByIndex((byte)i);
+                        IceLogging.Debug($"swimbait選択: index={i} itemId={desiredItemId} 結果={ok}");
+                        return true;
+                    }
+                }
+                return false;
+            }
+            catch (Exception e)
+            {
+                IceLogging.Error($"TrySelectSwimbait 例外: {e.Message}");
+                return false;
+            }
+        }
 
         private static unsafe bool? FishingCheck()
         {
@@ -225,23 +267,43 @@ namespace ICE.Scheduler.Tasks
             // 未装備、または装備中エサがプリセット指定に適合しない場合は、指定エサへ切り替える。
             if (!IsCurrentBaitAcceptable())
             {
-                if (EzThrottler.Throttle("Equipping bait"))
+                // プリセット指定エサを優先装備。
+                var preferred = GetPreferredBait();
+                if (preferred == 0)
                 {
-                    // プリセット指定エサを優先装備。
-                    var preferred = GetPreferredBait();
-                    if (preferred != 0)
-                    {
-                        P.AutoHook.SwapBaitById(preferred);
-                        IceLogging.Debug($"指定エサを装備します: {preferred} (現在:{CosmicHelper.CurrentBait})", handle);
-                        return false;
-                    }
-
                     IceLogging.Info("If we've gotten here, that means we're out of bait. Proceeding to turnin/abandon the mission");
                     SchedulerMain.State = IceState.AbandonMission;
                     P.TaskManager.Tasks.Clear();
                     return true;
                 }
+
+                // 無限ループ防止(保険): 規定回数試しても指定エサが状態に反映されないなら、手動装備を促して停止。
+                // swimbait の選択が反映されない環境などで延々と待ち続ける(=キャストしない)のを避ける。
+                if (BaitSwapAttempts >= BaitSwapMaxAttempts)
+                {
+                    IceLogging.ChatInfo($"指定エサ(ID:{preferred})を自動で装備できませんでした。お手数ですが手動で装備してください。ICEを一時停止します。", "[I.C.E.]");
+                    BaitSwapAttempts = 0;
+                    SchedulerMain.State = IceState.Idle;
+                    P.TaskManager.Tasks.Clear();
+                    return true;
+                }
+
+                if (EzThrottler.Throttle("Equipping bait", 2000))
+                {
+                    BaitSwapAttempts++;
+                    // まず swimbait(コスモ改良エサ等)として選択を試み、swimbait でなければ通常餌APIへフォールバック。
+                    if (!TrySelectSwimbait(preferred))
+                    {
+                        P.AutoHook.SwapBaitById(preferred);
+                        IceLogging.Debug($"通常餌を装備します(試行{BaitSwapAttempts}/{BaitSwapMaxAttempts}): {preferred} (現在:{CosmicHelper.CurrentBait})", handle);
+                    }
+                }
                 return false;
+            }
+            else if (BaitSwapAttempts != 0)
+            {
+                // エサが適合したら試行カウンタをリセット。
+                BaitSwapAttempts = 0;
             }
 
             // 指定エサ(支給エサ/マスターは改良エサ)が入手可能か確認する。指定エサが尽きていれば
@@ -328,6 +390,7 @@ namespace ICE.Scheduler.Tasks
                 IceLogging.Info("We're starting to fish. So kicking it over to checking the fish items", handle);
                 P.TaskManager.Insert(() => FinishFishing(), "Waiting till we actually start fishing", Utils.TaskConfig);
                 BaitCounter = 0;
+                BaitSwapAttempts = 0;
                 return true;
             }
         }
