@@ -220,18 +220,36 @@ namespace ICE.Scheduler.Tasks
             {
                 var ef = EventFramework.Instance();
                 if (ef == null)
+                {
+                    if (EzThrottler.Throttle("swimbait diag", 2000))
+                        IceLogging.Info($"[swimbait診断] EventFramework=null");
                     return false;
+                }
                 var fishing = ef->EventHandlerModule.FishingEventHandler;
                 if (fishing == null)
+                {
+                    if (EzThrottler.Throttle("swimbait diag", 2000))
+                        IceLogging.Info($"[swimbait診断] FishingEventHandler=null(釣りイベント未アクティブの可能性)");
                     return false;
+                }
 
                 var ids = fishing->SwimBaitItemIds; // Span<uint>(最大3枠)
+
+                // 診断: 実機で「どの段階で失敗しているか」を可視化(Infoレベル・2秒スロットル)。
+                if (EzThrottler.Throttle("swimbait diag", 2000))
+                {
+                    var sb = new System.Text.StringBuilder();
+                    for (int k = 0; k < ids.Length; k++)
+                        sb.Append(ids[k]).Append(k < ids.Length - 1 ? "," : "");
+                    IceLogging.Info($"[swimbait診断] 探索itemId={desiredItemId} / SwimBaitItemIds[{ids.Length}]=[{sb}] / CurrentSelected={fishing->CurrentSelectedSwimBait} / WKSBait={CosmicHelper.CurrentBait}");
+                }
+
                 for (int i = 0; i < ids.Length; i++)
                 {
                     if (ids[i] == desiredItemId)
                     {
                         bool ok = P.AutoHook.SwapSwimbaitByIndex((byte)i);
-                        IceLogging.Debug($"swimbait選択: index={i} itemId={desiredItemId} 結果={ok}");
+                        IceLogging.Info($"[swimbait] index={i} itemId={desiredItemId} 結果={ok}");
                         return true;
                     }
                 }
