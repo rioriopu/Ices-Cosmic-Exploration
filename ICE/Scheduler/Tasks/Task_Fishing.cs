@@ -262,7 +262,7 @@ namespace ICE.Scheduler.Tasks
         /// AutoHook の SwapBaitById はコスモ改良餌(パッチ7.51追加)を扱えず内部NREになるため、
         /// これらの餌はネイティブ関数で装備する(手動選択と同じ経路)。
         /// </summary>
-        private static unsafe bool TryNativeChangeBait(int attemptZeroBased)
+        private static unsafe bool TryNativeChangeBait(uint itemId)
         {
             try
             {
@@ -271,12 +271,11 @@ namespace ICE.Scheduler.Tasks
                 var fishing = ef->EventHandlerModule.FishingEventHandler;
                 if (fishing == null) { _lastSwimbaitDiag += " FEH=null"; return false; }
 
-                // ChangeBait はアイテムID(52250)では効かなかった(0.0.78.39で実証)。専用釣り餌ボックスの
-                // インデックス指定と推定し、試行ごとに 0,1,2 を順に試して wks が改良餌になるものを探す。
-                int index = attemptZeroBased % 3;
+                // 専用釣り餌(改良コスモ餌)はゲームネイティブの ChangeBait(アイテムID)で装備する。
+                // 0.0.78.40 のインデックス方式は誤りだったため、0.0.78.39 の実績あるアイテムID指定へ戻した。
                 var before = CosmicHelper.CurrentBait ?? 0;
-                fishing->ChangeBait(index);
-                _lastSwimbaitDiag += $" ChangeBait(idx={index}) before={before}";
+                fishing->ChangeBait((int)itemId);
+                _lastSwimbaitDiag += $" ChangeBait({itemId}) before={before}";
                 return true;
             }
             catch (Exception e)
@@ -342,7 +341,7 @@ namespace ICE.Scheduler.Tasks
                     string via;
                     if (swim)
                         via = "swimbait";
-                    else if (GatheringUtil.ImprovedCosmoBaits.Contains(preferred) && TryNativeChangeBait(BaitSwapAttempts - 1))
+                    else if (GatheringUtil.ImprovedCosmoBaits.Contains(preferred) && TryNativeChangeBait(preferred))
                         via = "native";
                     else
                     {
