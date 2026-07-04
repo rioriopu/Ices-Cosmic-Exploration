@@ -348,8 +348,8 @@ namespace ICE.Scheduler.Tasks
                         P.AutoHook.SwapBaitById(preferred);
                         via = "autohook";
                     }
-                    // 診断は Dalamud の /xllog へ Info で出す(ICE内部ログはレベルフィルタで弾かれるため)。
-                    Svc.Log.Information($"[ICE][餌診断] via={via} 試行{BaitSwapAttempts} 探索={preferred} 現在={CosmicHelper.CurrentBait} {_lastSwimbaitDiag}");
+                    // 通常時の餌切替診断は ICE 内部 Verbose(既定で非表示)。切替が反映されれば数回で釣りに移る。
+                    IceLogging.Verbose($"[餌] via={via} 試行{BaitSwapAttempts} 探索={preferred} 現在={CosmicHelper.CurrentBait}{_lastSwimbaitDiag}");
                 }
                 return false;
             }
