@@ -323,8 +323,8 @@ namespace ICE.Scheduler.Tasks
                 // swimbait の選択が反映されない環境などで延々と待ち続ける(=キャストしない)のを避ける。
                 if (BaitSwapAttempts >= BaitSwapMaxAttempts)
                 {
-                    // 診断詳細は Info ログへ。チャットは簡潔な操作案内のみ。
-                    IceLogging.Info($"[餌診断] 自動装備失敗で停止 探索={preferred} 現在={CosmicHelper.CurrentBait} {_lastSwimbaitDiag}");
+                    // 診断詳細は Dalamud の /xllog へ。チャットは簡潔な操作案内のみ。
+                    Svc.Log.Information($"[ICE][餌診断] 自動装備失敗で停止 探索={preferred} 現在={CosmicHelper.CurrentBait} {_lastSwimbaitDiag}");
                     IceLogging.ChatInfo($"指定エサ(ID:{preferred})を自動装備できませんでした。手動で装備してください。ICEを一時停止します。", "[I.C.E.]");
                     BaitSwapAttempts = 0;
                     SchedulerMain.State = IceState.Idle;
@@ -349,8 +349,8 @@ namespace ICE.Scheduler.Tasks
                         P.AutoHook.SwapBaitById(preferred);
                         via = "autohook";
                     }
-                    // 診断は Info ログへ(チャットには出さない)。
-                    IceLogging.Info($"[餌診断] via={via} 試行{BaitSwapAttempts} 探索={preferred} 現在={CosmicHelper.CurrentBait} {_lastSwimbaitDiag}");
+                    // 診断は Dalamud の /xllog へ Info で出す(ICE内部ログはレベルフィルタで弾かれるため)。
+                    Svc.Log.Information($"[ICE][餌診断] via={via} 試行{BaitSwapAttempts} 探索={preferred} 現在={CosmicHelper.CurrentBait} {_lastSwimbaitDiag}");
                 }
                 return false;
             }
