@@ -262,23 +262,26 @@ namespace ICE.Scheduler.Tasks
         /// AutoHook の SwapBaitById はコスモ改良餌(パッチ7.51追加)を扱えず内部NREになるため、
         /// これらの餌はネイティブ関数で装備する(手動選択と同じ経路)。
         /// </summary>
-        private static unsafe bool TryNativeChangeBait(uint itemId)
+        private static unsafe bool TryNativeChangeBait(int attemptZeroBased)
         {
             try
             {
                 var ef = EventFramework.Instance();
-                if (ef == null) { _lastSwimbaitDiag += " | native:EF=null"; return false; }
+                if (ef == null) { _lastSwimbaitDiag += " EF=null"; return false; }
                 var fishing = ef->EventHandlerModule.FishingEventHandler;
-                if (fishing == null) { _lastSwimbaitDiag += " | native:FEH=null"; return false; }
+                if (fishing == null) { _lastSwimbaitDiag += " FEH=null"; return false; }
 
+                // ChangeBait はアイテムID(52250)では効かなかった(0.0.78.39で実証)。専用釣り餌ボックスの
+                // インデックス指定と推定し、試行ごとに 0,1,2 を順に試して wks が改良餌になるものを探す。
+                int index = attemptZeroBased % 3;
                 var before = CosmicHelper.CurrentBait ?? 0;
-                fishing->ChangeBait((int)itemId);
-                _lastSwimbaitDiag += $" | native:ChangeBait({itemId}) before={before}";
+                fishing->ChangeBait(index);
+                _lastSwimbaitDiag += $" ChangeBait(idx={index}) before={before}";
                 return true;
             }
             catch (Exception e)
             {
-                _lastSwimbaitDiag += $" | native例外:{e.Message}";
+                _lastSwimbaitDiag += $" 例外:{e.Message}";
                 return false;
             }
         }
@@ -320,8 +323,9 @@ namespace ICE.Scheduler.Tasks
                 // swimbait の選択が反映されない環境などで延々と待ち続ける(=キャストしない)のを避ける。
                 if (BaitSwapAttempts >= BaitSwapMaxAttempts)
                 {
-                    // 診断をチャットに含める(ICE内部ログを絞っていても見えるように)。
-                    IceLogging.ChatInfo($"指定エサ(ID:{preferred})を自動装備できませんでした。手動で装備してください。ICEを一時停止します。[診断] {_lastSwimbaitDiag}", "[I.C.E.]");
+                    // 診断詳細は Info ログへ。チャットは簡潔な操作案内のみ。
+                    IceLogging.Info($"[餌診断] 自動装備失敗で停止 探索={preferred} 現在={CosmicHelper.CurrentBait} {_lastSwimbaitDiag}");
+                    IceLogging.ChatInfo($"指定エサ(ID:{preferred})を自動装備できませんでした。手動で装備してください。ICEを一時停止します。", "[I.C.E.]");
                     BaitSwapAttempts = 0;
                     SchedulerMain.State = IceState.Idle;
                     P.TaskManager.Tasks.Clear();
@@ -332,22 +336,21 @@ namespace ICE.Scheduler.Tasks
                 {
                     BaitSwapAttempts++;
                     _lastSwimbaitDiag = ""; // 今回試行分の診断を蓄積し直す
-                    // 改良コスモ餌(専用釣り餌)は AutoHook が扱えず内部NREのため、ゲームネイティブの ChangeBait で装備する。
+                    // 改良コスモ餌(専用釣り餌)は AutoHook が扱えず内部NREのため、ゲームネイティブの ChangeBait(インデックス)で装備する。
                     // それ以外(A級の支給餌など)は従来どおり AutoHook 経由。swimbait のケースは今回のミッションでは空。
                     bool swim = TrySelectSwimbait(preferred);
                     string via;
                     if (swim)
                         via = "swimbait";
-                    else if (GatheringUtil.ImprovedCosmoBaits.Contains(preferred) && TryNativeChangeBait(preferred))
+                    else if (GatheringUtil.ImprovedCosmoBaits.Contains(preferred) && TryNativeChangeBait(BaitSwapAttempts - 1))
                         via = "native";
                     else
                     {
                         P.AutoHook.SwapBaitById(preferred);
                         via = "autohook";
                     }
-                    // 最初の試行時に診断をチャットへ1回出す(ICE内部ログを絞っていても見えるように)。
-                    if (BaitSwapAttempts == 1)
-                        IceLogging.ChatInfo($"[餌診断] via={via} 探索={preferred} 現在={CosmicHelper.CurrentBait} {_lastSwimbaitDiag}", "[I.C.E.]");
+                    // 診断は Info ログへ(チャットには出さない)。
+                    IceLogging.Info($"[餌診断] via={via} 試行{BaitSwapAttempts} 探索={preferred} 現在={CosmicHelper.CurrentBait} {_lastSwimbaitDiag}");
                 }
                 return false;
             }
