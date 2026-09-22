@@ -15,6 +15,19 @@ namespace ICE.Ui
     {
         public static uint SelectedMission = 0;
 
+        // 秒数を mm:ss.ff 形式に整形する。double.MaxValue や NaN/Infinity、TimeSpan の範囲外など
+        // 不正値は TimeSpan.FromSeconds が OverflowException を投げてクラッシュするため、安全に "--:--" を返す。
+        private static string FormatSeconds(double seconds)
+        {
+            if (double.IsNaN(seconds) || double.IsInfinity(seconds) ||
+                seconds < 0 || seconds > TimeSpan.MaxValue.TotalSeconds)
+            {
+                return "--:--";
+            }
+
+            return TimeSpan.FromSeconds(seconds).ToString(@"mm\:ss\.ff");
+        }
+
         public static List<string> JokeList = new()
         {
             "What is a pirates favorite letter?\n" +
@@ -536,8 +549,8 @@ namespace ICE.Ui
 
                 if (config.TurninRecords.Count > 0)
                 {
-                    ImGui.Text($"Best Time: {TimeSpan.FromSeconds(config.BestTimeOverall()):mm\\:ss\\.ff}");
-                    ImGui.Text($"Average Time: {TimeSpan.FromSeconds(config.AverageTime()):mm\\:ss\\.ff}");
+                    ImGui.Text($"Best Time: {FormatSeconds(config.BestTimeOverall())}");
+                    ImGui.Text($"Average Time: {FormatSeconds(config.AverageTime())}");
                 }
                 else
                 {
@@ -665,7 +678,7 @@ namespace ICE.Ui
             {
                 ImGui.TableNextRow();
                 ImGui.TableNextColumn();
-                ImGui.TextUnformatted($"{TimeSpan.FromSeconds(record.Time):mm\\:ss\\.ff}");
+                ImGui.TextUnformatted($"{FormatSeconds(record.Time)}");
                 ImGui.TableNextColumn();
                 ImGui.TextUnformatted(record.State.ToString());
             }

@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using ECommons.GameHelpers;
 using FFXIVClientStructs.FFXIV.Client.Game.WKS;
 using ICE.Utilities.Cosmic_Helper;
@@ -116,6 +116,9 @@ public static partial class CosmicHelper
         public int Score { get; set; } = 0;
         public int Mastery { get; set; } = 0;
         public int Stage_Current { get; set; } = 0;
+        // ゲームが解放済みのステージ(UnlockedStages)。Stage_Current < Stage_Unlocked のとき
+        // 「次ステージ解放済み・未受領=報告待ち」を意味する。分析タイプ別の判定より堅牢な報告可能シグナル。
+        public int Stage_Unlocked { get; set; } = 0;
         public int Stage_Next { get; set; } = 0;
         public Dictionary<int, ExpInfo> CurrentExp { get; set; } = new();
     }
@@ -177,6 +180,8 @@ public static partial class CosmicHelper
 
             var score = wks->State.Scores[arrayIndex];
             var currentStage = researchModule->CurrentStages[arrayIndex];
+            // 解放済みステージ。currentStage < unlockedStage なら報告待ち(分析完了でステージ解放済み・未受領)。
+            var unlockedStage = researchModule->UnlockedStages[arrayIndex];
             // Cap next stage by current hub (Auxesia allows higher than old flat 17).
             var maxStage = CosmicMoonRegistry.GetMaxRelicStage((uint)Svc.ClientState.TerritoryType);
             var nextStage = currentStage >= maxStage
@@ -197,6 +202,7 @@ public static partial class CosmicHelper
                 Score = score,
                 Mastery = masteryScore,
                 Stage_Current = currentStage,
+                Stage_Unlocked = unlockedStage,
                 Stage_Next = nextStage,
             };
 
