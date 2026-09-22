@@ -1,4 +1,4 @@
-﻿using Dalamud.Game.ClientState.Conditions;
+using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Component.GUI;
@@ -12,6 +12,10 @@ namespace ICE.Scheduler.Tasks
     {
         public static void Enqueue()
         {
+            // ミッション境界では製作対象が無いので何もしない(以降のミッション情報参照を保護する)。
+            if (CosmicHelper.CurrentLunarMission == 0)
+                return;
+
             if (P.Artisan.IsBusy())
             {
                 P.TaskManager.Enqueue(() => WaitingForArtisan(), "Waiting for artisan to finish crafting");
@@ -24,17 +28,40 @@ namespace ICE.Scheduler.Tasks
             }
         }
 
+        // 単一の製作アクションがロックし始めた時刻(アニメーションロック検知用)。MinValue=未計測。
+        private static DateTime _craftActionLockSince = DateTime.MinValue;
         private static bool? WaitingForArtisan()
         {
             string tag = "Craft: Waiting for Artisan";
 
             if (!P.Artisan.IsBusy())
             {
+                _craftActionLockSince = DateTime.MinValue;
                 IceLogging.Info("Artisan is no longer running, continuing the process", tag);
                 return true;
             }
             else
             {
+                // 単一の製作アクションが異常に長くロックしている状態からの脱出。通常1アクションは数秒なので、
+                // 20秒以上続く場合はハングとみなしてミッションを放棄し、棒立ちのまま止まるのを防ぐ。
+                if (Svc.Condition[ConditionFlag.ExecutingCraftingAction])
+                {
+                    if (_craftActionLockSince == DateTime.MinValue)
+                        _craftActionLockSince = DateTime.Now;
+                    else if ((DateTime.Now - _craftActionLockSince).TotalSeconds >= 20)
+                    {
+                        IceLogging.Warning("製作アクションが20秒以上ロックしています(アニメーションロックの可能性)。ミッションを放棄して復帰します", tag);
+                        _craftActionLockSince = DateTime.MinValue;
+                        SchedulerMain.State = IceState.AbandonMission;
+                        P.TaskManager.Tasks.Clear();
+                        return true;
+                    }
+                }
+                else
+                {
+                    _craftActionLockSince = DateTime.MinValue; // アクションの合間はリセットする
+                }
+
                 if (GenericHelpers.TryGetAddonMaster<WKSHud>(out var moonHud))
                 {
                     if (!AddonHelper.IsAddonActive("WKSMissionInfomation"))
@@ -68,7 +95,9 @@ namespace ICE.Scheduler.Tasks
             var expert = item.Value.ExpertCraft;
 
             var missionId = CosmicHelper.CurrentLunarMission;
-            var missionConfig = C.MissionConfig[missionId];
+            // ミッション境界(missionId==0)や未設定ミッションでは MissionConfig 未登録で例外になるため早期return。
+            if (missionId == 0 || !C.MissionConfig.TryGetValue(missionId, out var missionConfig))
+                return true;
 
             if (missionConfig.CraftSettings.TryGetValue(recipeId, out var recipeConfig))
             {

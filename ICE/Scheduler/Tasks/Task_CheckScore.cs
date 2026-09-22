@@ -1,4 +1,4 @@
-﻿using Dalamud.Game.ClientState.Conditions;
+using Dalamud.Game.ClientState.Conditions;
 using ECommons.GameHelpers;
 using FFXIVClientStructs.FFXIV.Client.Game.WKS;
 using ICE.Utilities.Cosmic_Helper;
@@ -12,7 +12,9 @@ namespace ICE.Scheduler.Tasks
         public static void Enqueue()
         {
             var Id = CosmicHelper.CurrentLunarMission;
-            var mission = CosmicHelper.SheetMissionDict[Id];
+            // ミッション境界(報告/放棄直後)では Id==0。直接添字だと KeyNotFoundException になるため早期return。
+            if (Id == 0 || !CosmicHelper.SheetMissionDict.TryGetValue(Id, out var mission))
+                return;
 
             var jobs = mission.Jobs;
 
@@ -218,6 +220,9 @@ namespace ICE.Scheduler.Tasks
             if (GenericHelpers.TryGetAddonMaster<WKSMissionInfomation>(out var missionInfo) && missionInfo.IsAddonReady)
             {
                 var id = CosmicHelper.CurrentLunarMission;
+                // ミッション境界(報告/放棄直後)では id==0 で、設定の直接添字が KeyNotFoundException になる。
+                if (id == 0 || !C.MissionConfig.ContainsKey(id))
+                    return false;
                 if (CosmicHelper.SheetMissionDict.TryGetValue(id, out var sheet))
                 {
 
@@ -350,6 +355,9 @@ namespace ICE.Scheduler.Tasks
             if (GenericHelpers.TryGetAddonMaster<WKSMissionInfomation>(out var missionInfo) && missionInfo.IsAddonReady)
             {
                 var id = CosmicHelper.CurrentLunarMission;
+                // ミッション境界(報告/放棄直後)では id==0 で、設定の直接添字が KeyNotFoundException になる。
+                if (id == 0 || !C.MissionConfig.ContainsKey(id))
+                    return false;
                 if (CosmicHelper.SheetMissionDict.TryGetValue(id, out var sheet))
                 {
                     if (sheet.Attributes.HasFlag(MissionAttributes.Critical))
@@ -470,6 +478,9 @@ namespace ICE.Scheduler.Tasks
                     ;
                 var rank = CurrentRank();
                 var Id = CosmicHelper.CurrentLunarMission;
+                // ミッション境界では Id==0 で、設定の直接添字が KeyNotFoundException になる。
+                if (Id == 0 || !C.MissionConfig.ContainsKey(Id))
+                    return false;
 
                 if (CosmicHandler.IsMissionTimedOut())
                 {
