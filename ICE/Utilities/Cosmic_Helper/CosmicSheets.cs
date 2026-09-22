@@ -1,4 +1,4 @@
-﻿using Dalamud.Interface.Textures;
+using Dalamud.Interface.Textures;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using System;
 using System.Collections.Generic;
@@ -44,6 +44,10 @@ public static unsafe partial class CosmicHelper
         public int Fish_AmountRequired { get; set; } = 0;
         public int Fish_VarietyAmount { get; set; } = 0;
         public List<string> Fish_Presets { get; set; } = new();
+
+        // AutoHookプリセットが指定する具体的なエサID(All Baits等の汎用指定は含まない)。
+        // 複数種のエサが配布されるミッションで、プリセット指定のエサを優先装備するために使う。
+        public List<uint> PresetBaitIds { get; set; } = new();
 
         // - - - Map Related - - - // 
         public Vector2 MapPosition { get; set; } = new();

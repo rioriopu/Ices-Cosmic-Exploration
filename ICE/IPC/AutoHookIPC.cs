@@ -1,4 +1,4 @@
-﻿using ECommons.EzIpcManager;
+using ECommons.EzIpcManager;
 using ECommons.Reflection;
 using System.Threading.Tasks;
 
@@ -42,7 +42,14 @@ namespace ICE.IPC
         [EzIPC] public Action<string> ImportAndSelectPreset;
         [EzIPC] public Action DeleteSelectedPreset;
         [EzIPC] public Action DeleteAllAnonymousPresets;
-        [EzIPC] public Func<uint, Task<bool>> SwapBaitById;
+        // AutoHook 側の SwapBaitById は同期 bool を返す。Task<bool> と誤宣言していると EzIPC が毎回
+        // Boolean→Task`1 の変換ログ(VRB「Could not convert Boolean to Task`1」)を出すため、実体に合わせる。
+        // ※餌切替の挙動そのものは不変。ログノイズを消すだけの隔離した変更。
+        [EzIPC] public Func<uint, bool> SwapBaitById;
+
+        // swimbait(スイムベイト)専用。コスモ探査の改良コスモエサ等は通常餌用の SwapBaitById(item id)では
+        // 装備できず内部NREになる。swimbait は「アイテムIDではなくインデックス(0〜2)」で選択する(AutoHook実装に準拠)。
+        [EzIPC] public Func<byte, bool> SwapSwimbaitByIndex;
 
         public void Ah_State(bool state)
         {

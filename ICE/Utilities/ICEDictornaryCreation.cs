@@ -1,4 +1,4 @@
-﻿using ICE.ConfigFiles;
+using ICE.ConfigFiles;
 using ICE.Ui;
 using ICE.Ui.DebugWindowTabs;
 using ICE.Ui.MainUi.Settings;
@@ -948,6 +948,9 @@ public sealed partial class ICE
             if (CosmicHelper.SheetMissionDict.TryGetValue(fishPreset.Key, out var mission))
             {
                 mission.Fish_Presets = fishPreset.Value;
+                // プリセットが指定する具体的なエサIDを抽出して保持(All Baits=-99/0は除く)。
+                // 複数エサが配布されるミッションでの優先装備に使う。
+                mission.PresetBaitIds = ExtractPresetBaitIds(fishPreset.Value);
             }
             else
             {
@@ -1193,5 +1196,44 @@ public sealed partial class ICE
                 }
             }
         }
+    }
+    // AutoHookプリセット(AH4_/AH6_ = base64(gzip(JSON)))の先頭1件をデコードし、
+    // ListOfBaits[].BaitFish.Id のうち具体的なエサID(>0、All Baits=-99や0は除く)を抽出する。
+    // 失敗時は空リストを返す(呼び出し側は従来の先頭所持エサ装着にフォールバック)。
+    private static List<uint> ExtractPresetBaitIds(List<string> presets)
+    {
+        var result = new List<uint>();
+        if (presets == null || presets.Count == 0)
+            return result;
+        try
+        {
+            var preset = presets[0];
+            var underscore = preset.IndexOf('_');
+            if (underscore < 0)
+                return result;
+            var b64 = preset.Substring(underscore + 1);
+            var bytes = System.Convert.FromBase64String(b64);
+            using var ms = new System.IO.MemoryStream(bytes);
+            using var gz = new System.IO.Compression.GZipStream(ms, System.IO.Compression.CompressionMode.Decompress);
+            using var sr = new System.IO.StreamReader(gz);
+            var json = sr.ReadToEnd();
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            if (doc.RootElement.TryGetProperty("ListOfBaits", out var baits) && baits.ValueKind == System.Text.Json.JsonValueKind.Array)
+            {
+                foreach (var entry in baits.EnumerateArray())
+                {
+                    if (entry.TryGetProperty("BaitFish", out var bf) && bf.TryGetProperty("Id", out var idEl))
+                    {
+                        if (idEl.TryGetInt32(out var id) && id > 0 && !result.Contains((uint)id))
+                            result.Add((uint)id);
+                    }
+                }
+            }
+        }
+        catch (System.Exception ex)
+        {
+            IceLogging.Warning($"[ExtractPresetBaitIds] プリセットのエサ抽出に失敗(従来のエサ選択にフォールバック): {ex.Message}");
+        }
+        return result;
     }
 }

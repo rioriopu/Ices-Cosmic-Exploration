@@ -1,4 +1,4 @@
-﻿using ECommons.ExcelServices.TerritoryEnumeration;
+using ECommons.ExcelServices.TerritoryEnumeration;
 using FFXIVClientStructs.FFXIV.Client.UI.Agent;
 using ICE.Utilities.Cosmic_Helper;
 using System.Collections.Generic;
@@ -233,22 +233,10 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
             }
         }
 
+        // SwapBaitById は AutoHook 側の実体が同期 bool のため、await せず直接呼ぶ。
         private static void SwapBait(uint baitId)
         {
-            _ = Task.Run(async () =>
-            {
-                baitSwapped = await TaskSwapBait(baitId);
-            });
-
-            _ = Task.Run(async () =>
-            {
-                await P.AutoHook.SwapBaitById(baitId);
-            });
-        }
-
-        private static async Task<bool> TaskSwapBait(uint bait)
-        {
-            return await P.AutoHook.SwapBaitById(bait);
+            baitSwapped = P.AutoHook.SwapBaitById(baitId);
         }
     }
 }
