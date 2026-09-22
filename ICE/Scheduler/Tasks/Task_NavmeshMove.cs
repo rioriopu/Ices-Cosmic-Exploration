@@ -1,4 +1,4 @@
-﻿using Dalamud.Bindings.ImPlot;
+using Dalamud.Bindings.ImPlot;
 using Dalamud.Game.ClientState.Conditions;
 using ECommons.GameHelpers;
 using FFXIVClientStructs.FFXIV.Client.Game;
@@ -143,6 +143,23 @@ namespace ICE.Scheduler.Tasks
             if (_lastGatherNodeKey != nodeKey || !_cachedGatherPositions.ContainsKey(nodeKey))
             {
                 Vector3 randomPosition = Gather_RandomFanPosition(routeinfo);
+
+                // 立ち位置が到達不可(孤立メッシュ/岩の上/谷の対岸)だと、そこへ向かってジャンプを繰り返したり
+                // 大回りの経路を引いたりする。到達可能点が得られるまで扇形の別角度を数回試し、
+                // それでも駄目ならノード直下の地表へ向かって経路探索に委ねる。
+                Vector3? reachable = P.Navmesh.NearestPointReachable(randomPosition, 3f, 5f);
+                for (int retry = 0; !reachable.HasValue && retry < 8; retry++)
+                {
+                    var candidate = Gather_RandomFanPosition(routeinfo);
+                    reachable = P.Navmesh.NearestPointReachable(candidate, 3f, 5f);
+                    if (reachable.HasValue)
+                        randomPosition = candidate;
+                }
+                if (reachable.HasValue)
+                    randomPosition = reachable.Value;
+                else
+                    randomPosition = P.Navmesh.PointOnFloor(nodePos, false, 5f) ?? nodePos;
+
                 _cachedGatherPositions[nodeKey] = randomPosition;
                 _lastGatherNodeKey = nodeKey;
             }
@@ -1631,11 +1648,20 @@ namespace ICE.Scheduler.Tasks
             float standardAngle = 180f - angleDegrees;
             float angleRadians = standardAngle * (MathF.PI / 180f);
 
-            return new Vector3(
+            var pos = new Vector3(
                 center.X + distance * MathF.Sin(angleRadians),
                 center.Y,
                 center.Z + distance * MathF.Cos(angleRadians)
             );
+
+            // 立ち位置のYをノードのY(オブジェクト原点)のままにすると、岩場などノード原点が地表から浮く/めり込む場所で
+            // 到達可能点が見つからず、到達不可点(谷の先/岩の上)へ吸着して不正な経路になる。
+            // 立ち位置XZの直下の地表へYを投影して補正する。
+            var floor = P.Navmesh.PointOnFloor(pos, false, 5f);
+            if (floor.HasValue)
+                pos.Y = floor.Value.Y;
+
+            return pos;
         }
         public static Vector3 Gather_RandomFanPosition(NodeInfo startNode)
         {

@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
 namespace ICE.Utilities.GatheringHelper.RouteLoader;
@@ -42,7 +42,7 @@ public class NodeInfo
     public float RadiusEnd { get; set; } = 359f;
 
     [JsonPropertyName("min_distance")]
-    public float MinDistance { get; set; } = 1f;
+    public float MinDistance { get; set; } = 1.5f; // 既定の立ち位置をノードから少し離す(岩に近すぎて経路が迂回する対策)
 
     [JsonPropertyName("max_distance")]
     public float MaxDistance { get; set; } = 3f;
