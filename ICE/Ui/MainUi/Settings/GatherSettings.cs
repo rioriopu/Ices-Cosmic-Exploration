@@ -1,10 +1,11 @@
-﻿using Dalamud.Interface;
+using Dalamud.Interface;
 using Dalamud.Interface.Utility.Raii;
 using ICE.Utilities.Cosmic_Helper;
 using ICE.Utilities.GatheringHelper;
 using ICE.Utilities.ImGuiTools;
 using Lumina.Excel.Sheets;
 using System.Collections.Generic;
+using System.Numerics;
 using System.Text;
 using System.Text.Json;
 using static ICE.ConfigFiles.Config;
@@ -315,6 +316,47 @@ namespace ICE.Ui.MainUi.Settings
 
                     ImGui.EndPopup();
                 }
+            }
+
+            // 指定ノード採取: 記録した採取ポイントだけを回る。ルート上のノードが荒れている場所や、
+            // 特定のノードに張り付きたい場合に使う。
+            bool designatedNode = C.DesignatedNodeEnabled;
+            if (ImGui.Checkbox("指定したノードだけで採取する", ref designatedNode))
+            {
+                C.DesignatedNodeEnabled = designatedNode;
+                C.SaveDebounced();
+            }
+            ImGui.SameLine();
+            ImGui_Ice.IconWithTooltip(FontAwesomeIcon.QuestionCircle,
+                "採取したいノードの前に立って「現在地を記録」を押すと、以降はルートを無視してその地点へ移動し採取します。\n" +
+                "記録した惑星にいるときだけ有効です。通常のルート採取に戻すときはチェックを外すか記録をクリアしてください。");
+
+            if (C.DesignatedNodeEnabled)
+            {
+                ImGui.Indent();
+                if (C.DesignatedNodeTerritory != 0)
+                {
+                    ImGui.TextColored(new Vector4(0.4f, 0.9f, 0.4f, 1f),
+                        $"記録済: ({C.DesignatedNodePos.X:F1}, {C.DesignatedNodePos.Y:F1}, {C.DesignatedNodePos.Z:F1}) / BaseId={C.DesignatedNodeBaseId} / 惑星={C.DesignatedNodeTerritory}");
+                }
+                else
+                {
+                    ImGui.TextColored(new Vector4(0.8f, 0.8f, 0.8f, 1f), "未記録(通常のルート採取で動作します)");
+                }
+
+                if (ImGui.Button("現在地を記録"))
+                {
+                    Scheduler.Tasks.Task_Gather.RecordDesignatedNode();
+                }
+                if (C.DesignatedNodeTerritory != 0)
+                {
+                    ImGui.SameLine();
+                    if (ImGui.Button("記録をクリア"))
+                    {
+                        Scheduler.Tasks.Task_Gather.ClearDesignatedNode();
+                    }
+                }
+                ImGui.Unindent();
             }
 
             bool selfGather = C.Gather_NoNav;

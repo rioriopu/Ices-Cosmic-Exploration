@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
+using System.Numerics;
 
 namespace ICE.ConfigFiles;
 
@@ -33,6 +34,13 @@ public partial class Config
     public float HubReturn_Distance { get; set; } = 75f;
     public bool UseRedAlertNpc { get; set; } = false;
     public bool HideRewardWindow { get; set; } = true;
+
+    // 指定ノード採取: 記録した採取ポイントだけを回る。ルート上のノードが荒れている場所や、
+    // 特定のノードに張り付きたい場合に使う。記録した惑星に居るときだけ有効になる。
+    public bool DesignatedNodeEnabled { get; set; } = false;
+    public Vector3 DesignatedNodePos { get; set; } = Vector3.Zero;
+    public uint DesignatedNodeBaseId { get; set; } = 0;
+    public uint DesignatedNodeTerritory { get; set; } = 0;
     public bool FakeIncreaseFisher { get; set; } = false;
 
     public class MissionCommand

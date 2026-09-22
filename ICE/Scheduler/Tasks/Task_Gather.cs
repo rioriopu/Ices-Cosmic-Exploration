@@ -314,6 +314,10 @@ namespace ICE.Scheduler.Tasks
             var gatherFile = GatheringRouteLoader.GetRoute(missionEntry.Gather_MapKey);
             var gatherInfo = gatherFile?.Nodes;
 
+            // 指定ノードが記録されていれば、ルートをその1点に差し替える(記録した採取ポイントだけを回る)。
+            if (TryGetDesignatedRoute(out var designatedRoute))
+                gatherInfo = designatedRoute;
+
             if (gatherInfo != null)
             {
                 if (Mission_Settings.previousRouteId != missionEntry.Gather_MapKey)
@@ -378,6 +382,53 @@ namespace ICE.Scheduler.Tasks
 
             return false;
         }
+        // 指定ノード採取: 記録した採取ポイント1点だけをルートとして返す。
+        // 機能OFF・未記録・記録時と別の惑星にいる場合は false を返し、通常のルート採取に任せる。
+        private static bool TryGetDesignatedRoute(out List<NodeInfo> route)
+        {
+            route = null;
+            if (!C.DesignatedNodeEnabled)
+                return false;
+            if (C.DesignatedNodePos == Vector3.Zero || C.DesignatedNodeTerritory != Player.Territory.RowId)
+                return false;
+
+            route = new List<NodeInfo>
+            {
+                new NodeInfo
+                {
+                    NodeId = C.DesignatedNodeBaseId,
+                    Position = C.DesignatedNodePos,
+                    LandZone = C.DesignatedNodePos,
+                }
+            };
+            return true;
+        }
+
+        /// <summary>現在地を指定ノードとして記録する(設定UIのボタンから呼ぶ)。</summary>
+        /// <remarks>15m以内に採取ポイントがあれば、その BaseId も記録して採取対象を特定できるようにする。</remarks>
+        public static void RecordDesignatedNode()
+        {
+            C.DesignatedNodePos = Player.Position;
+            C.DesignatedNodeTerritory = Player.Territory.RowId;
+            var nearest = Svc.Objects
+                .Where(o => o.ObjectKind == ObjectKind.GatheringPoint)
+                .OrderBy(o => Player.DistanceTo(o.Position))
+                .FirstOrDefault();
+            C.DesignatedNodeBaseId = (nearest != null && Player.DistanceTo(nearest.Position) <= 15f) ? nearest.BaseId : 0u;
+            C.Save();
+            IceLogging.Info($"[指定ノード] 記録しました: pos=({C.DesignatedNodePos.X:F1},{C.DesignatedNodePos.Y:F1},{C.DesignatedNodePos.Z:F1}) baseId={C.DesignatedNodeBaseId} territory={C.DesignatedNodeTerritory}", "[Gather: DesignatedNode]");
+        }
+
+        /// <summary>指定ノードの記録をクリアする。クリア後は通常のルート採取に戻る。</summary>
+        public static void ClearDesignatedNode()
+        {
+            C.DesignatedNodePos = Vector3.Zero;
+            C.DesignatedNodeBaseId = 0;
+            C.DesignatedNodeTerritory = 0;
+            C.Save();
+            IceLogging.Info("[指定ノード] 記録をクリアしました", "[Gather: DesignatedNode]");
+        }
+
         private static void SetClosestTargetableNode(List<NodeInfo> gatherInfo)
         {
             var closestIndex = gatherInfo.Select((node, index) => new { Node = node, Index = index })
@@ -416,6 +467,10 @@ namespace ICE.Scheduler.Tasks
             var missionEntry = CosmicHelper.CurrentMissionInfo;
             var gatherFile = GatheringRouteLoader.GetRoute(missionEntry.Gather_MapKey);
             var gatherInfo = gatherFile?.Nodes;
+
+            // 指定ノードが記録されていれば、ルートをその1点に差し替える(記録した採取ポイントだけを回る)。
+            if (TryGetDesignatedRoute(out var designatedRoute))
+                gatherInfo = designatedRoute;
 
             if (gatherInfo == null || gatherInfo.Count == 0)
             {
