@@ -1,4 +1,4 @@
-﻿using Dalamud.Game.ClientState.Conditions;
+using Dalamud.Game.ClientState.Conditions;
 using ECommons.GameHelpers;
 using FFXIVClientStructs.FFXIV.Client.Game.WKS;
 using ICE.Sounds;
@@ -298,9 +298,12 @@ namespace ICE.Scheduler.Tasks
 
             var isGold = managerPtr->IsMissionGolded(PreviousMissionId);
 
-            var sheetInfo = CosmicHelper.SheetMissionDict[PreviousMissionId];
+            // ミッション境界では PreviousMissionId==0 のことがあり、直接添字だと SheetMissionDict[0] が
+            // KeyNotFoundException を投げて GoldCheck が完了できず、毎tick再試行でエラー多発かつ
+            // 下の状態遷移に進めずスタックする。TryGetValue にして無ければ Gold掃除を飛ばす。
+            CosmicHelper.SheetMissionDict.TryGetValue(PreviousMissionId, out var sheetInfo);
 
-            if (C.RemoveAfterGold && isGold)
+            if (C.RemoveAfterGold && isGold && sheetInfo != null)
             {
                 List<uint> seqMissions = new();
                 foreach (var mission in sheetInfo.SequenceMissions_Next)
@@ -320,16 +323,18 @@ namespace ICE.Scheduler.Tasks
                             if (!special && C.KeepARanks)
                                 continue;
 
-                            C.MissionConfig[mission].Enabled = false;
+                            if (C.MissionConfig.TryGetValue(mission, out var mc))
+                                mc.Enabled = false;
                         }
                     }
                     C.Save();
                 }
             }
-            if (C.RemoveAfterGold && !isGold)
+            if (C.RemoveAfterGold && !isGold && sheetInfo != null)
             {
                 foreach (var prevMission in sheetInfo.SequenceMissions_Previous)
-                    C.MissionConfig[prevMission].Enabled = true;
+                    if (C.MissionConfig.TryGetValue(prevMission, out var mc2))
+                        mc2.Enabled = true;
 
                 C.Save();
             }
