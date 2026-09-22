@@ -1,4 +1,4 @@
-﻿using Dalamud.Game.ClientState.Conditions;
+using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.ClientState.Objects.Enums;
 using ECommons.GameHelpers;
 using FFXIVClientStructs.FFXIV.Client.Game;
@@ -339,11 +339,10 @@ namespace ICE.Scheduler.Tasks
                     if (closestDistance == null)
                     {
                         // We're currently too far from any node
-                        if (C.ClosestNodeSelection)
-                        {
-                            SetClosestTargetableNode(gatherInfo);
-                        }
-                        else if (Mission_Settings.nodeCounter >= gatherInfo.Count)
+                        // 常に最寄りの採取可能ノードを選ぶ。設定に任せてindex順巡回にすると、
+                        // 実際には出現していないルート座標へ歩いて空振りを繰り返す(座標がズレた月で多発)。
+                        SetClosestTargetableNode(gatherInfo);
+                        if (Mission_Settings.nodeCounter >= gatherInfo.Count)
                         {
                             // resetting it back to 0 because we're outside the normal index array
                             Mission_Settings.nodeCounter = 0;
@@ -369,21 +368,8 @@ namespace ICE.Scheduler.Tasks
                         }
                         else
                         {
-                            if (C.ClosestNodeSelection)
-                            {
-                                SetClosestTargetableNode(gatherInfo);
-                            }
-                            else
-                            {
-                                // Node is not targetable, increment to next node
-                                Mission_Settings.nodeCounter++;
-
-                                // Check if we're out of bounds and wrap back to 0
-                                if (Mission_Settings.nodeCounter >= gatherInfo.Count)
-                                {
-                                    Mission_Settings.nodeCounter = 0;
-                                }
-                            }
+                            // ここでも最寄りの採取可能ノードを優先する。
+                            SetClosestTargetableNode(gatherInfo);
                             return true;
                         }
                     }
