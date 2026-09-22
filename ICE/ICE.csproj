@@ -90,4 +90,23 @@
 	<Target Name="EnsureGlamourerApiSubmodule" BeforeTargets="BeforeBuild" Condition="!Exists('$(MSBuildThisFileDirectory)..\Glamourer.Api\Glamourer.Api.csproj')">
 		<Exec Command="git submodule update --init Glamourer.Api" WorkingDirectory="$(MSBuildThisFileDirectory).." />
 	</Target>
+
+	<!-- ビルド成果物を開発用プラグインフォルダへ一式配備する。
+	     本家1.0から依存DLL(OtterGui / Glamourer.Api / Microsoft.Extensions.DependencyInjection / JetBrains.Annotations)が
+	     増えており、ICE.dll だけを差し替えると起動に失敗するため、出力ディレクトリの内容をまとめてコピーする。
+	     ゲーム起動中はDLLがロックされてコピーできないが、その場合も警告だけ出してビルド自体は成功させる。
+	     配備先を変えるときは -p:IceDeployDir=<path>、配備したくないときは -p:IceDeploy=false を指定する。 -->
+	<PropertyGroup>
+		<IceDeployDir Condition="'$(IceDeployDir)' == ''">C:\DevPlugins\ICE</IceDeployDir>
+		<IceDeploy Condition="'$(IceDeploy)' == ''">true</IceDeploy>
+	</PropertyGroup>
+
+	<Target Name="DeployToDevPlugins" AfterTargets="Build" Condition="'$(IceDeploy)' == 'true' AND '$(Configuration)' == 'Release' AND Exists('$(IceDeployDir)')">
+		<ItemGroup>
+			<!-- 配布zipを作る $(AssemblyName) サブフォルダは配備対象から外す -->
+			<IceDeployFiles Include="$(OutputPath)**\*" Exclude="$(OutputPath)$(AssemblyName)\**\*" />
+		</ItemGroup>
+		<Copy SourceFiles="@(IceDeployFiles)" DestinationFiles="@(IceDeployFiles->'$(IceDeployDir)\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" ContinueOnError="WarnAndContinue" />
+		<Message Importance="high" Text="[ICE] 開発用プラグインフォルダへ配備しました: $(IceDeployDir)" />
+	</Target>
 </Project>
