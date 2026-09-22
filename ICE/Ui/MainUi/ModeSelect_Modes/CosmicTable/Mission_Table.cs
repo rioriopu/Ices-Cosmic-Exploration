@@ -1,4 +1,4 @@
-﻿using Dalamud.Interface;
+using Dalamud.Interface;
 using Dalamud.Interface.Utility.Raii;
 using ICE.Utilities.Cosmic_Helper;
 using ICE.Utilities.GatheringHelper;
@@ -330,6 +330,21 @@ public static class CosmicTables
                 {
                     ImGui.BeginTooltip();
                     ImGui.Text("This mission doesn't have a fishing preset yet, this is your warning for this.");
+                    ImGui.EndTooltip();
+                }
+            }
+            // 自動生成の汎用(All Baits)プリセットを使うミッションは、狙いの魚やエサに最適化されていないため
+            // ミッション失敗の可能性がある旨を警告する。
+            else if (mission.SheetInfo.Jobs.Contains(18) && GatheringUtil.GenericFishingPresetMissions.Contains(mission.Id))
+            {
+                using (var warningPush = ImRaii.PushColor(ImGuiCol.Text, EColor.Yellow))
+                {
+                    ImGuiEx.Icon(FontAwesomeIcon.ExclamationTriangle);
+                }
+                if (ImGui.IsItemHovered())
+                {
+                    ImGui.BeginTooltip();
+                    ImGui.Text("汎用プロファイルを使用しています。ミッション失敗の可能性があります。");
                     ImGui.EndTooltip();
                 }
             }
