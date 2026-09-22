@@ -1,4 +1,4 @@
-﻿using ECommons.GameHelpers;
+using ECommons.GameHelpers;
 using ICE.Utilities.Cosmic_Helper;
 using System;
 using System.Collections.Generic;
@@ -28,7 +28,10 @@ namespace ICE.Scheduler.Tasks
         public static bool? RegisterJob()
         {
             IceLogging.Verbose("Registering what job to turn in on");
-            TurninJob = (uint)Player.Job;
+            // 納品判定(HubActivityCheck)は Mission_Settings.SelectedJob のツールで行っている。
+            // 実ジョブ(Player.Job)を登録していると、Agendaモードで「選択ジョブ≠現ジョブ」のとき
+            // 納品できないツールを延々と納品しようとして進めない無限ループになる。判定と実行を揃える。
+            TurninJob = Mission_Settings.SelectedJob != 0 ? Mission_Settings.SelectedJob : (uint)Player.Job;
 
             return true;
         }

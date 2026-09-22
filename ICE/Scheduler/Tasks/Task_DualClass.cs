@@ -1,4 +1,4 @@
-﻿using Dalamud.Game.ClientState.Conditions;
+using Dalamud.Game.ClientState.Conditions;
 using ECommons.GameHelpers;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Component.GUI;
@@ -12,6 +12,11 @@ namespace ICE.Scheduler.Tasks
     internal static class Task_DualClass
     {
         private static FishingDebug _fishingDebug = null;
+
+        // クラフタージョブへ切替えた直後に CraftItem を即発火すると Artisan の製作開始シーケンスと競合し、
+        // 製作手帳は開くが製作が始まらないことがある。切替後に態勢が落ち着くまで発火を遅らせる起点時刻。
+        private static DateTime _crafterSwapSettle = DateTime.MinValue;
+        private const double CrafterSwapSettleMs = 1000.0;
 
         public static void Enqueue()
         {
@@ -117,8 +122,21 @@ namespace ICE.Scheduler.Tasks
             {
                 if (EzThrottler.Throttle("Swapping to crafter job"))
                     GearsetHandler.TaskClassChange((Job)crafterJobId);
+                _crafterSwapSettle = DateTime.MinValue; // 切替中はリセットする
                 return false;
             }
+
+            // 切替直後に即 CraftItem を発火すると Artisan の製作開始シーケンスと競合するため、
+            // 忙しくない かつ 切替後に一定時間経過してから発火する。
+            if (PlayerHelper.CustomIsBusy)
+            {
+                _crafterSwapSettle = DateTime.MinValue;
+                return false;
+            }
+            if (_crafterSwapSettle == DateTime.MinValue)
+                _crafterSwapSettle = DateTime.Now;
+            if ((DateTime.Now - _crafterSwapSettle).TotalMilliseconds < CrafterSwapSettleMs)
+                return false;
 
             if (PlayerHelper.GetItemCount(itemId, out var count) && count < dualCraftAmount)
             {
