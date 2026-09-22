@@ -92,6 +92,7 @@ public sealed partial class ICE : IDalamudPlugin
         EzCmd.Add("/IceCosmic", OnCommand);
         Init();
         Svc.Framework.Update += Tick;
+        Svc.Chat.ChatMessage += OnChatMessage;
         Svc.PluginInterface.UiBuilder.Draw += OnDraw;
 
         TaskManager = new(new(showDebug: false, timeLimitMS: 10 * 60 * 3000));
@@ -124,6 +125,18 @@ public sealed partial class ICE : IDalamudPlugin
         UpdateMissingGathering();
     }
 
+    // 「魚たちに警戒されてしまったようだ…少し場所を変えたほうがいいだろう」のログを検知し、釣り場の移動を要求する。
+    // 同じ釣り場で粘り続けて釣果が落ちるのを避けるため、次サイクルで別スポットへ移動させる。
+    private void OnChatMessage(Dalamud.Game.Chat.IHandleableChatMessage msg)
+    {
+        try
+        {
+            var text = msg.Message?.TextValue;
+            if (!string.IsNullOrEmpty(text) && text.Contains("警戒") && text.Contains("場所を変え"))
+                Scheduler.Tasks.Task_Fishing.WaryMoveRequested = true;
+        }
+        catch { }
+    }
     private static void Init()
     {
         ExcelHelper.Init();

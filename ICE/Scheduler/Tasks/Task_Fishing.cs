@@ -1,6 +1,7 @@
-﻿using Dalamud.Game.ClientState.Conditions;
+using Dalamud.Game.ClientState.Conditions;
 using ECommons.GameHelpers;
 using FFXIVClientStructs.FFXIV.Client.Game;
+using FFXIVClientStructs.FFXIV.Client.Game.Event;
 using FFXIVClientStructs.FFXIV.Client.UI.Misc;
 using ICE.Ui.Debug_Tabs.Debug_Ui;
 using ICE.Utilities.Cosmic_Helper;
@@ -38,6 +39,9 @@ namespace ICE.Scheduler.Tasks
         }
 
         private static int StartedFishing = 0;
+
+        // 「魚たちに警戒されてしまった…」のログ検知時に true になり、次サイクルで釣り場を移動する。
+        public static bool WaryMoveRequested = false;
         private static int SafetyThrottle = 0;
 
         private static unsafe bool? FishCheckV2()
@@ -80,21 +84,9 @@ namespace ICE.Scheduler.Tasks
                     return false;
                 }
 
-                var hasBait = false;
-                uint firstBait = 0;
-                foreach (var bait in GatheringUtil.MoonBaits)
-                {
-                    foreach (var baitId in bait.Value)
-                    {
-                        if (PlayerHelper.GetItemCount(baitId, out var baitCount) && baitCount > 0)
-                        {
-                            hasBait = true;
-                            firstBait = baitId;
-                            break;
-                        }
-                    }
-                    if (hasBait) break;
-                }
+                // プリセット指定エサを優先して装備対象を決定する(指定が無ければ MoonBaits 先頭)。
+                uint firstBait = GetPreferredBait();
+                bool hasBait = firstBait != 0;
 
                 if (!hasBait)
                 {
@@ -103,6 +95,46 @@ namespace ICE.Scheduler.Tasks
                     SafetyThrottle = 0;
                     P.AutoHook.Ah_State(false);
                     return true;
+                }
+
+                // 未装備、または装備中エサがプリセット指定に適合しない場合は、指定エサへ切り替える。
+                if (!IsCurrentBaitAcceptable())
+                {
+                    // 無限ループ防止(保険): 規定回数試しても状態に反映されないなら手動装備を促して停止する。
+                    if (BaitSwapAttempts >= BaitSwapMaxAttempts)
+                    {
+                        Svc.Log.Information($"[ICE][餌診断] 自動装備失敗で停止 探索={firstBait} 現在={CosmicHelper.CurrentBait()} {_lastSwimbaitDiag}");
+                        IceLogging.ChatInfo($"指定エサ(ID:{firstBait})を自動装備できませんでした。手動で装備してください。ICEを一時停止します。", "[I.C.E.]");
+                        BaitSwapAttempts = 0;
+                        SchedulerMain.State = IceState.Idle;
+                        P.TaskManager.Tasks.Clear();
+                        return true;
+                    }
+
+                    if (EzThrottler.Throttle("Equipping bait", 2000))
+                    {
+                        BaitSwapAttempts++;
+                        _lastSwimbaitDiag = "";
+                        // 改良コスモ餌(専用釣り餌)は AutoHook が扱えないため、ネイティブ ChangeBait で装備する。
+                        bool swim = TrySelectSwimbait(firstBait);
+                        string via;
+                        if (swim)
+                            via = "swimbait";
+                        else if (GatheringUtil.ImprovedCosmoBaits.Contains(firstBait) && TryNativeChangeBait(firstBait))
+                            via = "native";
+                        else
+                        {
+                            P.AutoHook.SwapBaitById(firstBait);
+                            via = "autohook";
+                        }
+                        IceLogging.Verbose($"[餌] via={via} 試行{BaitSwapAttempts} 探索={firstBait} 現在={CosmicHelper.CurrentBait()}{_lastSwimbaitDiag}");
+                    }
+                    return false;
+                }
+                else if (BaitSwapAttempts != 0)
+                {
+                    // エサが適合したら試行カウンタをリセットする。
+                    BaitSwapAttempts = 0;
                 }
 
                 if (CosmicHelper.CurrentMissionInfo.Attributes.HasFlag(MissionAttributes.Collectables) && !PlayerHelper.HasStatusId(805))
@@ -125,6 +157,23 @@ namespace ICE.Scheduler.Tasks
                     _fishingDebug = new FishingDebug();
                 }
 
+                // 「魚たちに警戒されてしまった…」を検知した場合、同じ場所で粘らず別の釣り場へ移動する。
+                if (WaryMoveRequested)
+                {
+                    WaryMoveRequested = false;
+                    if (P.AutoHook.Installed)
+                        P.AutoHook.Ah_State(false);
+                    var waryMission = CosmicHelper.CurrentMissionInfo;
+                    var waryNext = GetNextFishingSpot(waryMission.TerritoryId, waryMission.MapPosition, Player.Position);
+                    if (waryNext != null)
+                    {
+                        IceLogging.Info($"魚が警戒したため、別の釣り場へ移動します: {waryNext.FishingSpot}", handle);
+                        P.TaskManager.Tasks.Clear();
+                        P.TaskManager.Enqueue(() => InitiateMoving(waryNext.FishingSpot), "Vnav moving (wary relocate)");
+                        return true;
+                    }
+                    IceLogging.Info("魚が警戒しましたが、移動先の登録座標が無いため現在地で釣りを継続します。", handle);
+                }
                 if (_fishingDebug.IsFishable())
                 {
                     var currentSpot = GetCurrentFishingSpot();
@@ -414,6 +463,152 @@ namespace ICE.Scheduler.Tasks
 
             return difference;
         }
+        // 餌切替の試行回数と上限。切替が状態(WKS.State.FishingBait)に反映されず IsCurrentBaitAcceptable が
+        // 永久に false になる無限ループ(=キャストしない)を防ぐための保険。上限到達で手動装備を促して停止する。
+        private static int BaitSwapAttempts = 0;
+        private const int BaitSwapMaxAttempts = 8;
+        // 直近のエサ選択の診断内容。ICE内部ログのレベルを絞っていても追えるよう /xllog にも出す。
+        private static string _lastSwimbaitDiag = "(未取得)";
+
+        /// <summary>
+        /// 指定エサ(アイテムID)が現在の釣り場の swimbait リストに在れば、そのインデックスで AutoHook に選択させる。
+        /// swimbait のアイテムID配列は FishingEventHandler.SwimBaitItemIds(最大3枠)から取得する。
+        /// </summary>
+        /// <returns>true=swimbait として選択を発行した / false=swimbait ではない(他経路へフォールバック)</returns>
+        private static unsafe bool TrySelectSwimbait(uint desiredItemId)
+        {
+            try
+            {
+                var ef = EventFramework.Instance();
+                if (ef == null)
+                {
+                    _lastSwimbaitDiag = "EventFramework=null";
+                    return false;
+                }
+                var fishing = ef->EventHandlerModule.FishingEventHandler;
+                if (fishing == null)
+                {
+                    _lastSwimbaitDiag = "FishingEventHandler=null(釣りイベント未アクティブの可能性)";
+                    return false;
+                }
+
+                var ids = fishing->SwimBaitItemIds; // Span<uint>(最大3枠)
+                var sb = new System.Text.StringBuilder();
+                for (int k = 0; k < ids.Length; k++)
+                    sb.Append(ids[k]).Append(k < ids.Length - 1 ? "," : "");
+                _lastSwimbaitDiag = $"探索={desiredItemId} ids[{ids.Length}]=[{sb}] sel={fishing->CurrentSelectedSwimBait} wks={CosmicHelper.CurrentBait()}";
+
+                for (int i = 0; i < ids.Length; i++)
+                {
+                    if (ids[i] == desiredItemId)
+                    {
+                        bool ok = P.AutoHook.SwapSwimbaitByIndex((byte)i);
+                        _lastSwimbaitDiag += $" -> 選択idx={i} 結果={ok}";
+                        return true;
+                    }
+                }
+                return false;
+            }
+            catch (System.Exception e)
+            {
+                _lastSwimbaitDiag = $"例外:{e.Message}";
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// ゲームネイティブの餌変更 FishingEventHandler.ChangeBait(itemId) を直接呼ぶ。
+        /// AutoHook の SwapBaitById は改良コスモ餌(専用釣り餌)を扱えず内部NREになるため、
+        /// これらの餌はネイティブ関数で装備する(手動選択と同じ経路)。反映は次フレーム以降。
+        /// </summary>
+        private static unsafe bool TryNativeChangeBait(uint itemId)
+        {
+            try
+            {
+                var ef = EventFramework.Instance();
+                if (ef == null) { _lastSwimbaitDiag += " EF=null"; return false; }
+                var fishing = ef->EventHandlerModule.FishingEventHandler;
+                if (fishing == null) { _lastSwimbaitDiag += " FEH=null"; return false; }
+
+                // 専用釣り餌(改良コスモ餌)はアイテムID指定で装備する。インデックス指定では効かない。
+                var before = CosmicHelper.CurrentBait();
+                fishing->ChangeBait((int)itemId);
+                _lastSwimbaitDiag += $" ChangeBait({itemId}) before={before}";
+                return true;
+            }
+            catch (System.Exception e)
+            {
+                _lastSwimbaitDiag += $" 例外:{e.Message}";
+                return false;
+            }
+        }
+
+        // 装備すべきエサを決定する。現行ミッションのAutoHookプリセットが具体的なエサ(PresetBaitIds)を指定している
+        // 場合は、所持しているそのエサを優先する(例: マスター「植物魚の多様性調査」=改良コスモカゲロウ)。
+        // これにより複数種のエサが配布されても、プリセット指定のエサを装備し、別エサ装備による
+        // AutoHookのグローバルプリセット落ちを防ぐ。指定が無いミッションのみ MoonBaits 先頭所持エサで代用する。
+        private static uint GetPreferredBait()
+        {
+            var missionId = CosmicHelper.CurrentLunarMission;
+            // ミッション別エサ上書き(プリセットは本家のまま・装備エサだけ変更)を最優先で判定。
+            if (missionId != 0 && GatheringUtil.FishingBaitOverride.TryGetValue(missionId, out var overrideBait))
+                return (PlayerHelper.GetItemCount(overrideBait, out var oc) && oc > 0) ? overrideBait : 0;
+            // マスターミッションは配布される改良コスモエサのみを使用。尽きたら0を返し釣り継続不可とする。
+            if (missionId != 0 && GatheringUtil.MasterFishingMissions.Contains(missionId))
+            {
+                foreach (var bid in GatheringUtil.ImprovedCosmoBaits)
+                {
+                    if (PlayerHelper.GetItemCount(bid, out var c) && c > 0)
+                        return bid;
+                }
+                return 0;
+            }
+            // プリセットが具体的エサを指定しているミッションは、その指定(支給)エサのみを使用する。
+            if (missionId != 0
+                && CosmicHelper.SheetMissionDict.TryGetValue(missionId, out var mi)
+                && mi.PresetBaitIds.Count > 0)
+            {
+                foreach (var bid in mi.PresetBaitIds)
+                {
+                    if (PlayerHelper.GetItemCount(bid, out var c) && c > 0)
+                        return bid;
+                }
+                return 0;
+            }
+            // 指定エサが無いミッションのみ、MoonBaitsの先頭所持エサで代用する。
+            foreach (var bait in GatheringUtil.MoonBaits)
+            {
+                foreach (var baitId in bait.Value)
+                {
+                    if (PlayerHelper.GetItemCount(baitId, out var c) && c > 0)
+                        return baitId;
+                }
+            }
+            return 0;
+        }
+
+        // 現在装備中のエサが、現行ミッションのプリセットに適合しているか判定する。
+        // 未装備(0)は不適合(=装備が必要)。汎用(All Baits)プリセットのミッションは全エサ網羅のため常に適合。
+        private static bool IsCurrentBaitAcceptable()
+        {
+            var current = CosmicHelper.CurrentBait();
+            if (current == 0)
+                return false;
+            var missionId = CosmicHelper.CurrentLunarMission;
+            if (missionId == 0)
+                return true;
+            // ミッション別エサ上書きは、その指定エサのみ適合(最優先)。
+            if (GatheringUtil.FishingBaitOverride.TryGetValue(missionId, out var overrideBait))
+                return current == overrideBait;
+            // マスターは改良コスモエサのみ適合(別エサが装備されていたら切り替えさせる)。
+            if (GatheringUtil.MasterFishingMissions.Contains(missionId))
+                return GatheringUtil.ImprovedCosmoBaits.Contains(current);
+            // 具体的エサ指定(支給エサ)のミッションは、装備中エサがその指定に含まれる場合のみ適合。
+            if (CosmicHelper.SheetMissionDict.TryGetValue(missionId, out var mi) && mi.PresetBaitIds.Count > 0)
+                return mi.PresetBaitIds.Contains(current);
+            return true;
+        }
+
         public static FisherSpotInfo? GetNextFishingSpot(uint zone, Vector2 flag, Vector3 playerPosition)
         {
             // Check if the zone and flag exist
