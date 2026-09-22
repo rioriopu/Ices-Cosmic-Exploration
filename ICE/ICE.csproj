@@ -64,6 +64,8 @@
 		<PackageReference Include="NAudio" Version="2.3.0" />
 		<PackageReference Include="Pictomancy" Version="1.0.9" />
 		<PackageReference Include="TerraFX.Interop.Windows" Version="10.0.26100.6" />
+		<!-- 旧yaml設定(0.0.78系より前)からの移行に使用する -->
+		<PackageReference Include="YamlDotNet" Version="17.1.0" />
 	</ItemGroup>
 
 	<ItemGroup>

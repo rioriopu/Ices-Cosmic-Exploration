@@ -1058,6 +1058,12 @@ public sealed partial class ICE
 
     private static void MigrateConfigSettings()
     {
+        // 旧yaml形式の設定が残っている場合は、新しい設定形式へ移行する(初回のみ)。
+        if (!C.OldConfigMigrateV1)
+        {
+            ConfigMigration.MigrateFromOldYaml(C);
+        }
+
         if (!C.MigratedOldArtisan)
         {
             Artisan_MigrateNew();
