@@ -1,4 +1,4 @@
-﻿using Dalamud.Game.ClientState.Conditions;
+using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.ClientState.Objects.Types;
 using ECommons.Automation.NeoTaskManager;
 using ECommons.DalamudServices.Legacy;
@@ -48,6 +48,42 @@ public static unsafe class Utils
         agent->FlagMarkerCount = 0;
         agent->SetFlagMapMarker(territoryId, map.RowId, x, y);
         agent->OpenMapByMapId(map.RowId, territoryId);
+    }
+
+    /// <summary>
+    /// ミッションのフラグ座標(MapPosition)をワールド座標へ変換し、歩ける地面へ投影する。
+    /// MapPosition は「マップマーカー生値 - 1024」で保持されており、コスミックマップ(SizeFactor=100)では
+    /// ワールド座標(X,Z)とほぼ1:1で対応する。MapToWorld(1〜42のマップ座標前提)を通すと座標系が違い巨大値になる。
+    /// Yはプレイヤーの現在高度を基準にする(0にすると下層のメッシュへ誤って吸着し、的外れな場所へ向かう)。
+    /// </summary>
+    public static Vector3? FlagToWorld(uint territoryId, Vector2 flag)
+    {
+        try
+        {
+            var map = ExcelHelper.TerritorySheet.GetRow(territoryId).Map.Value;
+            float scalar = map.SizeFactor / 100f;
+            if (scalar <= 0f) scalar = 1f;
+            float baseY = Player.Available ? Player.Position.Y : 0f;
+            Vector3 world = new(flag.X / scalar, baseY, flag.Y / scalar);
+
+            if (P.Navmesh.Installed)
+            {
+                var floor = P.Navmesh.PointOnFloor(world, false, 50f);
+                if (floor.HasValue)
+                    return floor.Value;
+
+                // フラグがメッシュ外の場合は、XZを広め・Yを狭めに取って最寄りのメッシュへ寄せる
+                // (Yを広げるとプレイヤーと違う層のメッシュを拾ってしまう)。
+                var nearest = P.Navmesh.NearestPoint(world, 200f, 60f);
+                if (nearest.HasValue)
+                    return nearest.Value;
+            }
+            return world;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     public static float MapToWorld(float value, uint scale, int offset) => -offset * (scale / 100.0f) + 50.0f * (value - 1) * (scale / 100.0f);

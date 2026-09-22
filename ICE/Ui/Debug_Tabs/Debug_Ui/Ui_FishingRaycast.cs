@@ -1,4 +1,4 @@
-﻿using ECommons.GameHelpers;
+using ECommons.GameHelpers;
 using FFXIVClientStructs.FFXIV.Client.System.Framework;
 using FFXIVClientStructs.FFXIV.Common.Component.BGCollision;
 using ICE.Utilities.Cosmic_Helper;
@@ -186,6 +186,14 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
 
             return fishableLocations;
         }
+
+        /// <summary>
+        /// 任意のワールド座標・回転から釣り可能(水面)かを判定する。
+        /// 動的探索で「プレイヤーが立っていない候補地点」を調べるために使う。
+        /// 周辺の地形はストリームイン済みのものを参照するため、半径内の候補点なら遠隔で判定できる。
+        /// </summary>
+        public bool IsFishableAt(Vector3 position, float rotation, out Vector3? hitPoint)
+            => CheckFishableAtRotation(position, rotation, out hitPoint);
 
         private bool CheckFishableAtRotation(Vector3 position, float rotation, out Vector3? hitPoint)
         {

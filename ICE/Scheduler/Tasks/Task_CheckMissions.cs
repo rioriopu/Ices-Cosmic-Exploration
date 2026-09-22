@@ -1,8 +1,9 @@
-﻿using ECommons.GameHelpers;
+using ECommons.GameHelpers;
 using FFXIVClientStructs.FFXIV.Client.Game.WKS;
 using FFXIVClientStructs.FFXIV.Client.UI.Agent;
 using ICE.Sounds;
 using ICE.Utilities.Cosmic_Helper;
+using ICE.Ui.Debug_Tabs.Debug_Ui;
 using ICE.Utilities.GatheringHelper;
 using ICE.Utilities.GatheringHelper.RouteLoader;
 using System.Collections.Generic;
@@ -1016,6 +1017,10 @@ namespace ICE.Scheduler.Tasks
                     || !zoneFishing.TryGetValue(location, out var fishingHole)
                     || fishingHole.Count == 0)
                 {
+                    // 釣り場座標が未収録のフラグは、諦める前にフラグ周辺を動的に探索して岸の立ち位置を探す。
+                    var dynamicResult = TryDynamicFishingMove(sheetInfo, territory, location, tag);
+                    if (dynamicResult.HasValue)
+                        return dynamicResult.Value;
                     IceLogging.Error("We've seemed to have ran into a problem with the fishing hole... either it's missing spots, or it doesn't exist. Please report back to me on this with logs leading up to this\n" +
                         $"Mission ID: {missionId} | Map Position: {location} | Moon Territory: {territory}\n" +
                         $"Adding to the unsupported list so it's marked on your side for now", tag);
@@ -1533,6 +1538,63 @@ namespace ICE.Scheduler.Tasks
              *   - Logic will be the same here as before. Check to see what ones need to be rerolled if possible
              *
             */
+        }
+        private static FishingDebug _fishRay = null;
+        private static Vector3 dynamicFishingHole = Vector3.Zero;
+
+        // 釣り場座標(MoonFishingLocations)が未収録のフラグ向けのフォールバック。
+        // フラグ周辺をグリッド状に探索し、釣り可能な岸の立ち位置を探して移動する。
+        // 戻り値 null = 動的探索でも解決できない(呼び出し側で未対応として登録する)。
+        private static bool? TryDynamicFishingMove(CosmicHelper.CosmicInfo sheetInfo, uint territory, Vector2 location, string tag)
+        {
+            var center = Utils.FlagToWorld(territory, location);
+            if (!center.HasValue)
+                return null;
+
+            _fishRay ??= new FishingDebug();
+            float radius = Math.Clamp(sheetInfo.Radius, 15f, 30f); // 池を想定し、過大な半径は抑える
+
+            // まだフラグ付近に居ない → 周辺の地形を読み込ませるためにフラグへ近づく。
+            if (Player.DistanceTo(center.Value) > radius + 5f)
+            {
+                if (EzThrottler.Throttle("Fishing dynamic move-to-flag", 1000))
+                    IceLogging.Verbose($"釣り(動的): フラグ付近へ移動します {center.Value} (半径{radius:N0})", tag);
+                Task_NavmeshMove.Enqueue_NavmeshTask(center.Value, true, radius);
+                return true;
+            }
+
+            // 現在地から釣れるなら完了。実際の釣行や向き調整は釣りタスクが担当する。
+            if (_fishRay.IsFishable() || _fishRay.FindFishableLocation(out _, 36))
+            {
+                IceLogging.Info("釣り(動的): 釣り可能な水面を確認しました。", tag);
+                dynamicFishingHole = Vector3.Zero;
+                return true;
+            }
+
+            // 探索で決めた目的地へ移動中なら継続する。到達してもまだ釣れない場合はリセットして再探索する。
+            if (dynamicFishingHole != Vector3.Zero)
+            {
+                if (Player.DistanceTo(dynamicFishingHole) < 2.5f)
+                {
+                    dynamicFishingHole = Vector3.Zero;
+                }
+                else
+                {
+                    Task_NavmeshMove.Enqueue_NavmeshTask(dynamicFishingHole, true, 1.5f);
+                    return true;
+                }
+            }
+
+            // 釣り可能な岸の立ち位置を探し、見つかれば移動する。
+            if (FishingDynamicSearch.TryFindStand(center.Value, radius, _fishRay, out var standPos, out _))
+            {
+                IceLogging.Info($"釣り(動的): 釣り可能な立ち位置を発見しました。移動します {standPos}", tag);
+                dynamicFishingHole = standPos;
+                Task_NavmeshMove.Enqueue_NavmeshTask(standPos, true, 1.5f);
+                return true;
+            }
+
+            return null; // 見つからない → 呼び出し側で未対応として登録する
         }
     }
 }
