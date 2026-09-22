@@ -1,8 +1,8 @@
 {
   "Author": "Ice",
-  "Name": "Ice's Cosmic Exploration",
+  "Name": "Ice's Cosmic Exploration - forked by Estell",
   "Punchline": "The gathering companion that we all needed.",
-  "Description": "A little helper to go gather your heart out.",
+  "Description": "パッチ7.51対応版\n\nA little helper to go gather your heart out.",
   "ApplicableVersion": "any",
   "Tags": [
     "Gatherers"
