@@ -169,9 +169,11 @@ namespace ICE.Scheduler.Tasks
                 ? $"レベリング装備の売却を開始します: {plan.Items.Count} 点（中止: Stop ボタン / /ice stop / Esc）"
                 : $"Selling leveling gear: {plan.Items.Count} items (abort: Stop button / /ice stop / Esc)", "[I.C.E.]");
 
+            P.TaskManager.Enqueue(() => { Task_BuyLevelingGear.ResetReturnStart(); return true; });
             P.TaskManager.Enqueue(() => Task_BuyLevelingGear.ReturnToHub(), "Leveling gear: Stellar Return to the hub", Utils.TaskConfig);
             P.TaskManager.Enqueue(() => Task_Repair.Repair_PathTo(), "Leveling gear: walking to the vendor", Utils.TaskConfig);
-            P.TaskManager.Enqueue(() => { _start = DateTime.Now; return true; });
+            // 無進捗タイマーは売却開始時点から数える(帰還や徒歩の移動時間を含めない)
+            P.TaskManager.Enqueue(() => { _start = DateTime.Now; _lastProgress = DateTime.Now; return true; });
             P.TaskManager.Enqueue(() => SellAll(), "Leveling gear: selling", Utils.TaskConfig);
             P.TaskManager.Enqueue(() => { _start = DateTime.Now; return true; });
             P.TaskManager.Enqueue(() => CloseAllMenus(), "Leveling gear: closing menus", Utils.TaskConfig);

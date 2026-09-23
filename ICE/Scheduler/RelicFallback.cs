@@ -68,15 +68,18 @@ namespace ICE.Scheduler
             foreach (var type in neededTypes)
             {
                 string typeName = CosmicHelper.ExpDictionary.TryGetValue(type, out var n) ? n : type.ToString();
-                // 緊急(赤警報)は散発的でレリックの候補選択にも乗らないため、得られる手段として数えない
+                // 緊急(赤警報)は散発的でレリックの候補選択にも乗らないため、得られる手段として数えない。
+                // マスター(Rank 6)や「Only Enabled」で無効のミッションは条件を満たしてもライブラリに入らないので、
+                // 母集団から外す(入れると「条件は満たすのに候補に無い」状態で往復ループになる)
                 var givers = CosmicHelper.SheetMissionDict.Values
-                    .Where(m => m.TerritoryId == territory && m.Jobs.Contains(job) && !m.IsProvisional && !m.IsCritical
+                    .Where(m => m.TerritoryId == territory && m.Jobs.Contains(job) && !m.IsProvisional && !m.IsCritical && !m.IsMaster
+                                && (!C.XPRelicOnlyEnabled || (C.MissionConfig.TryGetValue(m.MissionId, out var cfg) && cfg.Enabled))
                                 && m.RelicXpInfo.TryGetValue(type, out var xp) && xp > 0)
                     .ToList();
                 if (givers.Count == 0)
                 {
-                    lines.Add($"{typeName}: この惑星の通常ミッションでは得られない");
-                    continue; // 判定対象外(別の理由で進まない)
+                    lines.Add($"{typeName}: この惑星の通常ミッション(有効なもの)では得られない");
+                    continue; // 判定対象外(レベリングでは解決しない)
                 }
 
                 var obtainable = givers.Where(m => selectableSet.Contains(m.MissionId) && m.Rank <= highestRank && m.Level <= jobLv).ToList();
@@ -102,8 +105,21 @@ namespace ICE.Scheduler
             return true;
         }
 
-        public static void Begin(uint job, uint reqRank, uint reqLevel, string types)
+        // 直前の復帰(End)の記録。同じ理由で短時間に再び切り替わる=往復ループの検知に使う
+        private static DateTime _lastEndAt = DateTime.MinValue;
+        private static string _lastEndKey = "";
+
+        /// <summary>一時レベリングを開始する。直前に同じ理由で復帰したばかり(60秒以内)なら往復ループとみなし false を返す。</summary>
+        public static bool Begin(uint job, uint reqRank, uint reqLevel, string types)
         {
+            string key = $"{job}:{reqRank}:{reqLevel}:{types}";
+            if (_lastEndKey == key && (DateTime.Now - _lastEndAt).TotalSeconds < 60)
+            {
+                IceLogging.ChatError(IsJapanese
+                    ? $"レリックモード: レベリングとの切替が短時間に繰り返されています（{types}/{RankName(reqRank)}クラス）。条件判定が噛み合っていないため停止します。ログを確認してください"
+                    : $"Relic mode: switching back and forth with Leveling repeatedly ({types}/rank {RankName(reqRank)}). Stopping; check the log", "[I.C.E.]");
+                return false;
+            }
             Active = true;
             Job = job;
             RequiredRank = reqRank;
@@ -112,11 +128,14 @@ namespace ICE.Scheduler
             IceLogging.ChatInfo(IsJapanese
                 ? $"レリックモード: コスモデータ{types}は{RankName(reqRank)}クラスのミッションでしか得られず、{RankName(reqRank)}クラスは未解放です（Lv{reqLevel}以上と下位クラスの達成が必要）。条件を満たすまで一時的にレベリングモードで動きます"
                 : $"Relic mode: analysis {types} only comes from rank {RankName(reqRank)} missions, which are not unlocked yet (needs Lv{reqLevel} and the lower rank completed). Switching to Leveling mode until then", "[I.C.E.]");
+            return true;
         }
 
         public static void End(string reason)
         {
             if (!Active) return;
+            _lastEndAt = DateTime.Now;
+            _lastEndKey = $"{Job}:{RequiredRank}:{RequiredLevel}:{NeededTypes}";
             IceLogging.ChatInfo(IsJapanese
                 ? $"レリックモードに戻ります（{reason}）"
                 : $"Returning to Relic mode ({reason})", "[I.C.E.]");

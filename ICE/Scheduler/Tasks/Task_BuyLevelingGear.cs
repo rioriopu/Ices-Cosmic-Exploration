@@ -194,7 +194,8 @@ namespace ICE.Scheduler.Tasks
                 string shopName = entries[0].Item.ShopName;
                 int menuIndex = entries[0].Item.MenuIndex;
                 int shopIndex = entries[0].Item.ShopIndex;
-                P.TaskManager.Enqueue(() => { _groupStart = DateTime.Now; _retry = 0; _verifyItem = 0; _menuCloses = 0; _lastMenuSig = ""; return true; }, "Leveling gear: next shop");
+                // 無進捗タイマー(_lastProgress)は店舗ごとに起点し直す(帰還や徒歩の移動時間を「無進捗」に数えない)
+                P.TaskManager.Enqueue(() => { _groupStart = DateTime.Now; _lastProgress = DateTime.Now; _retry = 0; _verifyItem = 0; _menuCloses = 0; _lastMenuSig = ""; return true; }, "Leveling gear: next shop");
                 P.TaskManager.Enqueue(() => BuyGroup(menu, shopName, menuIndex, shopIndex, entries), $"Leveling gear: {menu} / {shopName}", Utils.TaskConfig);
             }
             P.TaskManager.Enqueue(() => { _groupStart = DateTime.Now; return true; });
@@ -204,6 +205,9 @@ namespace ICE.Scheduler.Tasks
 
         private static DateTime _returnStart = DateTime.MinValue;
         private const double ReturnTimeoutSeconds = 90;
+
+        /// <summary>帰還タイムアウトの起点を今にする(帰還タスクを積む直前に呼ぶ。前回中断時の値を引きずらない)。</summary>
+        public static void ResetReturnStart() => _returnStart = DateTime.Now;
 
         /// <summary>
         /// 拠点から離れた場所(採取地など)に居るときはコスモデジョン(Stellar Return)で拠点へ戻る。拠点付近ならそのまま次へ。
@@ -246,6 +250,12 @@ namespace ICE.Scheduler.Tasks
             if (Player.Mounted)
             {
                 if (EzThrottler.Throttle("LGear dismount", 1000)) Utils.Dismount();
+                return false;
+            }
+            // 移動中(IsBusy に含まれる)だと発動できないので、navmesh が走っていれば止める
+            if (P.Navmesh.Installed && P.Navmesh.IsRunning())
+            {
+                P.Navmesh.Stop();
                 return false;
             }
             if (!Player.IsBusy && EzThrottler.Throttle("LGear stellar return", 3000))

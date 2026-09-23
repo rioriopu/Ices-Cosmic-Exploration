@@ -555,6 +555,13 @@ namespace ICE.Scheduler.Tasks
                 // 掲示板には受注レベル未満/ランク未解放のミッションも(ロック表示で)並ぶ。受けられないものは候補から外し、
                 // ランク判定(highestRank)も「受けられるミッション」で行う。受注に失敗したミッションも一定時間は除外する。
                 var lockedBasic = CosmicHandler.Basic_LockedMissions();
+                // ゲームはレベル不足をフラグに出さない(Locked はメニュー表示用、ConditionLocked はサーバ側の条件)ため、
+                // 受注レベル(ミッションの Level: 10/50/90/100)を満たさないものも ICE 側で「ロック中」として扱う
+                uint filterJob = Goldjob != 0 ? Goldjob : Mission_Settings.SelectedJob;
+                int filterLv = Player.GetLevel((Job)filterJob);
+                foreach (var id in basicMissionList)
+                    if (CosmicHelper.SheetMissionDict.TryGetValue(id, out var si) && si.Level > filterLv)
+                        lockedBasic.Add(id);
                 var lockedRanks = new HashSet<uint>();
                 foreach (var rank in basicMissionList.Select(x => CosmicHelper.SheetMissionDict.TryGetValue(x, out var s) ? s.Rank : 0u).Distinct())
                 {
@@ -689,8 +696,25 @@ namespace ICE.Scheduler.Tasks
                             IceLogging.Info($"レリック判定 v{P.GetType().Assembly.GetName().Version}: 必要種類=[{string.Join(",", neededTypes.Select(t => CosmicHelper.ExpDictionary.TryGetValue(t, out var n) ? n : t.ToString()))}] Lv{jobLv} 掲示板最高ランク={RelicFallback.RankName(highestRank)} 候補{selectable.Count}件 → {(blocked ? "受注できるミッションが無い → レベリングへ" : "続行")} {detail}", tag);
                             if (blocked)
                             {
+                                // レベルもランクも満たしているのに候補に入らない(受注失敗で除外中、設定で無効 等)ならレベリングでは解決しない。
+                                // 往復ループにせず、理由を通知して停止する
+                                if (jobLv >= reqLevel && highestRank >= reqRank)
+                                {
+                                    IceLogging.ChatError(Task_BuyLevelingGear.IsJapanese
+                                        ? $"レリックモード: コスモデータ{blockedTypes}を得られるミッションは Lv/ランクの条件を満たしていますが候補に入っていません（受注に失敗して除外中か、設定で無効）。設定とミッション一覧を確認してください。停止します"
+                                        : $"Relic mode: missions giving {blockedTypes} meet the level/rank requirement but are not selectable (accept failed or disabled). Check settings; stopping", "[I.C.E.]");
+                                    SchedulerMain.State = IceState.Idle;
+                                    P.TaskManager.Tasks.Clear();
+                                    return true;
+                                }
                                 IceLogging.Info($"レリックモード: 必要なコスモデータ{blockedTypes}を得られるミッションは{RelicFallback.RankName(reqRank)}クラス(Lv{reqLevel})以上で、現在は Lv{jobLv}/解放ランク{RelicFallback.RankName(highestRank)}。レベリングモードへ切り替えます", tag);
-                                RelicFallback.Begin(job, reqRank, reqLevel, blockedTypes);
+                                if (!RelicFallback.Begin(job, reqRank, reqLevel, blockedTypes))
+                                {
+                                    // 直前に復帰したばかりで同じ理由の再切替 → 往復ループなので停止
+                                    SchedulerMain.State = IceState.Idle;
+                                    P.TaskManager.Tasks.Clear();
+                                    return true;
+                                }
                                 Mission_Settings.Mode = ModeSelect.LevelMode;
                                 P.TaskManager.Tasks.Clear();
                                 SchedulerMain.State = IceState.Start;
