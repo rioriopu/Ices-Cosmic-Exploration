@@ -5,6 +5,7 @@ using ICE.Sounds;
 using ICE.Utilities.Cosmic_Helper;
 using ICE.Utilities.GatheringHelper;
 using System.Collections.Generic;
+using System.Linq;
 using static ECommons.UIHelpers.AddonMasterImplementations.AddonMaster;
 using MissionRank = FFXIVClientStructs.FFXIV.Client.Game.WKS.WKSMissionModule.MissionRank;
 
@@ -56,10 +57,21 @@ namespace ICE.Scheduler.Tasks
                     }
                     else
                     {
-                        if (EzThrottler.Throttle("No recorded site: 2000"))
-                            IceLogging.Error("There is currently not a preset destination that we have recorded, so this means it's a new red alert. Please give me time to add this", tag);
+                        // 納品地点の座標が未登録(Auxesia 等)。その惑星に赤警報NPC(レフレダ)が登録されていれば、
+                        // 職業名でメニューを選んでワープする動的方式で任務地へ向かう。
+                        if (NpcData.TryGetNpc(Player.Territory.RowId, NpcData.NpcType.RedAlert, out _))
+                        {
+                            if (EzThrottler.Throttle("Auxesia RA route msg", 2000))
+                                IceLogging.Info("緊急ミッション(座標未登録)。レフレダで職業に応じた任務地を選んでワープします", tag);
+                            P.TaskManager.Insert(() => RedAlert_AuxesiaTravel(id), "RedAlert: レフレダ職業選択→ワープ");
+                        }
+                        else
+                        {
+                            if (EzThrottler.Throttle("No recorded site: 2000"))
+                                IceLogging.Error("There is currently not a preset destination that we have recorded, so this means it's a new red alert. Please give me time to add this", tag);
 
-                        P.TaskManager.Insert(() => RedAlert_CloseToTurnin(), "Checking to make sure we have a turnin that is close");
+                            P.TaskManager.Insert(() => RedAlert_CloseToTurnin(), "Checking to make sure we have a turnin that is close");
+                        }
                     }
                 }
                 else
@@ -106,6 +118,87 @@ namespace ICE.Scheduler.Tasks
 
             return false;
         }
+        // ジョブID(8〜18) → ClassJob シートの名前(日本語クライアントなら「鍛冶師」等)。レフレダのメニュー選択肢と照合する。
+        private static string GetJobJpName(uint jobId)
+        {
+            try
+            {
+                var cj = Svc.Data.GetExcelSheet<Lumina.Excel.Sheets.ClassJob>().GetRowOrDefault(jobId);
+                return cj?.Name.ExtractText() ?? "";
+            }
+            catch { return ""; }
+        }
+
+        // 納品地点の座標が未登録の惑星(Auxesia 等)向けの緊急ミッション移動。
+        // 座標をハードコードせず、レフレダのメニューで「ミッションの職業名を含む選択肢」を選んでワープする。
+        // ワープ後は物資集積所(納品オブジェクト)が見えるので true を返し、後続の納品/採取処理に任せる。
+        public static bool? RedAlert_AuxesiaTravel(uint missionId)
+        {
+            string tag = "[RedAlert Auxesia]";
+            if (!NpcData.TryGetNpc(Player.Territory.RowId, NpcData.NpcType.RedAlert, out var lefleda))
+                return true; // レフレダ未登録 → 何もできないので後続へ
+
+            // ワープ後: 納品オブジェクト(物資集積所)が出現していれば到着
+            if (Utils.TryGetObjectCollectionPoint() != null)
+                return true;
+
+            // レフレダのメニュー(SelectString): ミッションの職業名を含む選択肢を選ぶ
+            if (GenericHelpers.TryGetAddonMaster<SelectString>(out var ss) && ss.IsAddonReady)
+            {
+                string jobName = "";
+                if (CosmicHelper.SheetMissionDict.TryGetValue(missionId, out var mi) && mi.Jobs.Count > 0)
+                    jobName = GetJobJpName(mi.Jobs[0]);
+
+                var entries = new List<string>();
+                foreach (var e in ss.Entries) entries.Add(e.Text ?? "");
+                int pick = -1;
+                if (!string.IsNullOrEmpty(jobName))
+                    for (int i = 0; i < entries.Count; i++)
+                        if (entries[i].Contains(jobName)) { pick = i; break; }
+
+                if (pick >= 0)
+                {
+                    if (EzThrottler.Throttle("Auxesia RA select", 500))
+                        ss.Entries[pick].Select();
+                }
+                else if (EzThrottler.Throttle("Auxesia RA nomatch", 2000))
+                {
+                    IceLogging.Info($"緊急ミッション mission={missionId} job='{jobName}' に一致する選択肢が見つかりません: [{string.Join(" | ", entries)}]", tag);
+                }
+                return false;
+            }
+            // 確認ダイアログ → はい
+            if (GenericHelpers.TryGetAddonMaster<SelectYesno>(out var yn) && yn.IsAddonReady)
+            {
+                if (EzThrottler.Throttle("Auxesia RA yes", 300)) yn.Yes();
+                return false;
+            }
+            // 会話 → クリック送り
+            if (GenericHelpers.TryGetAddonMaster<Talk>(out var talk) && talk.IsAddonReady)
+            {
+                if (EzThrottler.Throttle("Auxesia RA talk", 100)) talk.Click();
+                return false;
+            }
+
+            // メニューが出ていない → レフレダへ移動して話しかける
+            if (Player.DistanceTo(lefleda.Location_Circle) < 5)
+            {
+                if (Utils.TryGetObjectByDataId(lefleda.NpcId, out var npc) && npc != null)
+                {
+                    if (Player.Mounted) { Utils.Dismount(); return false; }
+                    if (EzThrottler.Throttle("Auxesia RA interact", 500))
+                    {
+                        Utils.TargetgameObject(npc);
+                        Utils.InteractWithObject(npc);
+                    }
+                }
+                return false;
+            }
+
+            Task_NavmeshMove.Task_NavTo(lefleda.Location_Circle, false, 3.0f);
+            return false;
+        }
+
         public static bool? Mission_TurninV2()
         {
             string tag = "[Mission Turnin]";

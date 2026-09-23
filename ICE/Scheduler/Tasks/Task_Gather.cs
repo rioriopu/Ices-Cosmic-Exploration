@@ -20,12 +20,174 @@ namespace ICE.Scheduler.Tasks
         private static int _lastCollectability = -1;
         private static DateTime _lastCollectProgress = DateTime.MinValue;
 
+        // ノード到達タイムアウト: 一定時間あるノードへ到達できない(登れない高所ノード等)場合、発現ノードへ向け直す。
+        private static uint _lastGatherMissionId = 0;
+        private static int _stuckNodeIndex = -1;
+        private static DateTime _stuckNodeSince = DateTime.MinValue;
+        private const double NodeSkipSeconds = 8.0;
+        // 採取ノードが0件のまま続いた時間。枯渇/未読込で永久にスキャンし続けるのを防ぎ、一定時間で納品/放棄に決着させる。
+        private static DateTime _zeroNodeSince = DateTime.MinValue;
+        private const double ZeroNodeResolveSeconds = 30.0;
+        // 到着済み(navmesh停止)だが採取窓が開かない状態のタイムアウト。navmesh停止中は移動のスタック検知が効かないため。
+        private static int _arrivedNodeIndex = -1;
+        private static DateTime _arrivedSince = DateTime.MinValue;
+        private const double ArrivedInteractTimeoutSeconds = 12.0;
+        // 発現ノードが付近に1つも無い状態が続いた時間。一定時間で Stellar Return により拠点へ戻って仕切り直す。
+        private static DateTime _noLiveNodeSince = DateTime.MinValue;
+        private const double NoLiveNodeDejonSeconds = 25.0;
+
+        // 読み込み済みルートのノードを書き換えないよう、実位置だけ差し替えた複製を作る
+        private static NodeInfo CloneNodeAt(NodeInfo src, Vector3 position) => new()
+        {
+            NodeId = src.NodeId, Position = position, LandZone = src.LandZone,
+            RadiusStart = src.RadiusStart, RadiusEnd = src.RadiusEnd,
+            MinDistance = src.MinDistance, MaxDistance = src.MaxDistance, FanHeight = src.FanHeight,
+        };
+
+        // 次ノードへ進める共通処理(各タイムアウト計測もリセット)
+        private static void AdvanceToNextNode(int nodeCount)
+        {
+            Mission_Settings.nodeCounter++;
+            if (Mission_Settings.nodeCounter >= nodeCount || nodeCount <= 0)
+                Mission_Settings.nodeCounter = 0;
+            _stuckNodeIndex = -1;
+            _arrivedNodeIndex = -1;
+        }
+
+        // 採取に関わる計測/状態を一括リセットする。新しいミッションの開始時に呼び、前ミッションの計測が残って誤動作するのを防ぐ。
+        public static void ResetGatherState()
+        {
+            _noLiveNodeSince = DateTime.MinValue;
+            _zeroNodeSince = DateTime.MinValue;
+            _arrivedSince = DateTime.MinValue;
+            _arrivedNodeIndex = -1;
+            _stuckNodeSince = DateTime.MinValue;
+            _stuckNodeIndex = -1;
+            Mission_Settings.ResetSkillUseAmount();
+        }
+
+        // 採取で詰まった時(到着したのに採取窓が開かない/ノードが枯渇・未スポーン/到達不能)の共通解決処理。
+        // ①実際に発現している(光っている)採取ポイントが付近に在れば、そこへ向け直す。
+        // ②発現ポイントが一定時間1つも無ければ、Stellar Return で拠点へ戻って状況をリセットする。
+        private static void ResolveStuckGatherNode(List<NodeInfo> gatherInfo, string reason)
+        {
+            // ① プレイヤー付近(120m)またはルート座標付近(50m)の発現ノードを座標ベースで探す。
+            //    ルートの NodeId 一致は要求しない(動的/静的ルートの NodeId が実ノードと一致しない場合でも拾えるように)。
+            var live = Svc.Objects
+                .Where(o => o.ObjectKind == ObjectKind.GatheringPoint && o.IsTargetable)
+                .Where(o => Player.DistanceTo(o.Position) < 120f
+                            || gatherInfo.Any(g => Vector3.Distance(g.Position, o.Position) < 50f))
+                .OrderBy(o => Player.DistanceTo(o.Position))
+                .FirstOrDefault();
+
+            if (live != null)
+            {
+                _noLiveNodeSince = DateTime.MinValue;
+                _arrivedNodeIndex = -1;
+                _stuckNodeIndex = -1;
+
+                // ルートに同一 BaseId が在れば、そのindexに合わせて既存のルート移動・採取に乗せる。
+                int idx = gatherInfo.FindIndex(g => g.NodeId == live.BaseId);
+                if (idx >= 0)
+                {
+                    Mission_Settings.nodeCounter = idx;
+                    if (EzThrottler.Throttle("StuckRedirectLog", 3000))
+                        IceLogging.Info($"採取で詰まりました({reason})。発現中ノードへ向け直します(route idx={idx} BaseId={live.BaseId})", "[Gather: StuckResolve]");
+                    return;
+                }
+
+                // ルートに無い実ノード → 近ければ直接ターゲット&インタラクト、遠ければそこへ移動する。
+                if (Player.DistanceTo(live.Position) <= 6f)
+                {
+                    if (!Player.IsJumping && EzThrottler.Throttle("StuckDirectInteract", 500))
+                    {
+                        Utils.TargetgameObject(live);
+                        Utils.InteractWithObject(live);
+                    }
+                    if (EzThrottler.Throttle("StuckRedirectLog", 3000))
+                        IceLogging.Info($"採取で詰まりました({reason})。目の前の発現ノード(BaseId={live.BaseId})を直接採取します", "[Gather: StuckResolve]");
+                }
+                else
+                {
+                    if (P.Navmesh.Installed && P.Navmesh.IsRunning())
+                        P.Navmesh.Stop();
+                    Task_NavmeshMove.Enqueue_NavmeshTask(live.Position, false, 3f);
+                    if (EzThrottler.Throttle("StuckRedirectLog", 3000))
+                        IceLogging.Info($"採取で詰まりました({reason})。発現中ノード(BaseId={live.BaseId})へ移動します({Player.DistanceTo(live.Position):F0}m)", "[Gather: StuckResolve]");
+                }
+                return;
+            }
+
+            // ② 発現ノードが付近に1つも無い。短時間は再スポーン/読込を待ちつつ次ノードへ進め、一定時間続いたら拠点へ戻る。
+            if (_noLiveNodeSince == DateTime.MinValue)
+                _noLiveNodeSince = DateTime.Now;
+
+            if ((DateTime.Now - _noLiveNodeSince).TotalSeconds < NoLiveNodeDejonSeconds)
+            {
+                if (EzThrottler.Throttle("StuckWaitLog", 3000))
+                    IceLogging.Info($"発現中の採取ポイントが付近に見当たりません({reason})。{NoLiveNodeDejonSeconds:F0}秒待っても出なければ拠点へ戻ります(経過 {(DateTime.Now - _noLiveNodeSince).TotalSeconds:F0}s)", "[Gather: StuckResolve]");
+                AdvanceToNextNode(gatherInfo.Count);
+                return;
+            }
+
+            _noLiveNodeSince = DateTime.MinValue;
+            // 採取(Gather)状態の時だけ拠点へ戻る。報告/放棄/受注の最中に残存タスクとして走った場合に State を上書きしない。
+            bool canStellarReturn = C.UseHubReturn
+                && !(C.AvoidStellarReturn && !C.AvoidStellarReturnExceptHub)
+                && CosmicMoonRegistry.TryGetHubCenter(Player.Territory.RowId, out _)
+                && SchedulerMain.State == IceState.Gather;
+            if (canStellarReturn)
+            {
+                IceLogging.Warning($"発現中の採取ポイントが付近に{NoLiveNodeDejonSeconds:F0}秒以上見当たらないため、Stellar Return で拠点へ戻って仕切り直します({reason})。", "[Gather: StuckResolve]");
+                _arrivedNodeIndex = -1;
+                _stuckNodeIndex = -1;
+                if (P.Navmesh.Installed && P.Navmesh.IsRunning())
+                    P.Navmesh.Stop();
+                P.TaskManager.Tasks.Clear();
+                SchedulerMain.State = IceState.HubReturn; // HubReturn → Stellar Return → Start → ミッション再選択
+                return;
+            }
+            AdvanceToNextNode(gatherInfo.Count);
+        }
+
         public static void Enqueue()
         {
             // ミッション境界(報告/放棄直後)では CurrentLunarMission==0 → CurrentMissionInfo が null になるため早期に抜ける。
             if (CosmicHelper.CurrentLunarMission == 0)
                 return;
-
+            // 新しいミッションに変わったら、前ミッションの採取タイムアウト計測やスキル使用回数を持ち越さない。
+            if (_lastGatherMissionId != CosmicHelper.CurrentLunarMission)
+            {
+                _lastGatherMissionId = CosmicHelper.CurrentLunarMission;
+                ResetGatherState();
+            }
+            // === 緊急(Red Alert)採取: 受注後、任務地へ移動してから採取する ===
+            // 緊急採取は赤警報の任務地で行う。まだ任務地(物資集積所が見える場所)に居ない場合は通常のフラグへ向かわず、
+            // 座標登録済みなら赤警報NPC経由のナビで、未登録(Auxesia 等)ならレフレダで職業を選んでワープする。
+            var enqueueMissionInfo = CosmicHelper.CurrentMissionInfo;
+            bool isCriticalGather = enqueueMissionInfo != null && enqueueMissionInfo.Attributes.HasFlag(MissionAttributes.Critical);
+            if (!Svc.Condition[ConditionFlag.Gathering] && isCriticalGather && Utils.TryGetObjectCollectionPoint() == null)
+            {
+                if (GatheringUtil.CriticalSpots.TryGetValue(enqueueMissionInfo.Critical_MapKey, out var criticalLoc) && criticalLoc.WorldCords != Vector3.Zero)
+                {
+                    // 座標登録済みの惑星: 遠ければ赤警報NPC経由のナビで任務地へ
+                    if (Player.DistanceTo(criticalLoc.WorldCords) >= 75)
+                    {
+                        if (EzThrottler.Throttle("CriticalGatherTravel", 2000))
+                            IceLogging.Info("緊急採取: 任務地へ移動(赤警報NPC経由)してから採取します", "[Gather: CriticalTravel]");
+                        Task_NavmeshMove.Enqueue_RedAlertNavmesh(criticalLoc.WorldCords, distance: 75, missionId: CosmicHelper.CurrentLunarMission);
+                        return;
+                    }
+                }
+                else if (NpcData.TryGetNpc(Player.Territory.RowId, NpcData.NpcType.RedAlert, out _))
+                {
+                    // 座標未登録(Auxesia 等): レフレダのメニューで職業に応じた任務地を選んでワープ
+                    if (EzThrottler.Throttle("CriticalGatherTravel", 2000))
+                        IceLogging.Info("緊急採取: 専用NPC(レフレダ)で職業に応じた任務地へワープしてから採取します", "[Gather: CriticalTravel]");
+                    P.TaskManager.Enqueue(() => Task_TurninMission.RedAlert_AuxesiaTravel(CosmicHelper.CurrentLunarMission), "緊急採取: レフレダ職業選択→ワープ");
+                    return;
+                }
+            }
             if (Svc.Condition[ConditionFlag.Gathering])
             {
                 IceLogging.Debug("Current in a gathering session");
@@ -334,8 +496,8 @@ namespace ICE.Scheduler.Tasks
 
             var zoneId = Player.Territory;
             var missionEntry = CosmicHelper.CurrentMissionInfo;
-            var gatherFile = GatheringRouteLoader.GetRoute(missionEntry.Gather_MapKey);
-            var gatherInfo = gatherFile?.Nodes;
+            // 静的ルート(JSON)を基本に、実際に出現している採取ポイントを併合する(静的ルートが無ければ動的に合成)。
+            var gatherInfo = DynamicRouteLoader.GetRouteOrDynamic(missionEntry.Gather_MapKey, missionEntry.TerritoryId, missionEntry.MapPosition);
 
             // 指定ノードが記録されていれば、ルートをその1点に差し替える(記録した採取ポイントだけを回る)。
             if (TryGetDesignatedRoute(out var designatedRoute))
@@ -492,8 +654,8 @@ namespace ICE.Scheduler.Tasks
 
             var zoneId = Player.Territory;
             var missionEntry = CosmicHelper.CurrentMissionInfo;
-            var gatherFile = GatheringRouteLoader.GetRoute(missionEntry.Gather_MapKey);
-            var gatherInfo = gatherFile?.Nodes;
+            // 静的ルート(JSON)を基本に、実際に出現している採取ポイントを併合する(静的ルートが無ければ動的に合成)。
+            var gatherInfo = DynamicRouteLoader.GetRouteOrDynamic(missionEntry.Gather_MapKey, missionEntry.TerritoryId, missionEntry.MapPosition);
 
             // 指定ノードが記録されていれば、ルートをその1点に差し替える(記録した採取ポイントだけを回る)。
             if (TryGetDesignatedRoute(out var designatedRoute))
@@ -501,22 +663,89 @@ namespace ICE.Scheduler.Tasks
 
             if (gatherInfo == null || gatherInfo.Count == 0)
             {
-                PluginLog.Warning($"No route found for mission {CosmicHelper.CurrentLunarMission}");
-                return true;
+                // ノード0件: まず採集エリア(フラグ)へ移動してノードを読み込ませる。拠点に居るまま採取状態に入り、
+                // ノードが一切読み込まれず0件のまま放棄ループになるのを防ぐ。
+                var flagWorld = Utils.FlagToWorld(missionEntry.TerritoryId, missionEntry.MapPosition);
+                if (flagWorld.HasValue && Player.Available && Player.DistanceTo(flagWorld.Value) > 25f)
+                {
+                    if (EzThrottler.Throttle("ZeroNodeTravel", 2000))
+                        IceLogging.Info($"採取ノード0件・採集エリアまで{Player.DistanceTo(flagWorld.Value):F0}m。採集エリアへ移動してノードを読み込ませます", "[Gather: ZeroNodeTravel]");
+                    Task_NavmeshMove.Enqueue_NavmeshTask(flagWorld.Value, false, 12f);
+                    _zeroNodeSince = DateTime.MinValue;
+                    return true;
+                }
+
+                // 採集エリア付近に居るのに0件が続く → 無限スキャンを避け、一定時間で納品/放棄に決着させる。
+                if (_zeroNodeSince == DateTime.MinValue)
+                {
+                    _zeroNodeSince = DateTime.Now;
+                }
+                else if ((DateTime.Now - _zeroNodeSince).TotalSeconds >= ZeroNodeResolveSeconds)
+                {
+                    var zeroRank = Task_CheckScore.CurrentRank();
+                    if (P.Navmesh.Installed && P.Navmesh.IsRunning())
+                        P.Navmesh.Stop();
+                    if (zeroRank >= MissionRank.Bronze && zeroRank <= MissionRank.Gold)
+                    {
+                        IceLogging.Info($"採取ノードが{ZeroNodeResolveSeconds}秒間0件(枯渇)でランク{zeroRank}に到達しているため、納品に移行します", "[Gather: ZeroNodeResolve]");
+                        SchedulerMain.State = IceState.TurninMission;
+                    }
+                    else
+                    {
+                        IceLogging.Info($"採取ノードが{ZeroNodeResolveSeconds}秒間0件(枯渇)でランク未達のため、ミッションを放棄します", "[Gather: ZeroNodeResolve]");
+                        SchedulerMain.State = IceState.AbandonMission;
+                    }
+                    P.TaskManager.Tasks.Clear();
+                    _zeroNodeSince = DateTime.MinValue;
+                    return true;
+                }
+                if (EzThrottler.Throttle("ZeroNodeWait", 5000))
+                    IceLogging.Info($"採取ノードが見つかりません(mission {CosmicHelper.CurrentLunarMission})。再スキャン中", "[Gather: ZeroNodeResolve]");
+                return false;
             }
+
+            _zeroNodeSince = DateTime.MinValue;
+
+            if (Mission_Settings.nodeCounter >= gatherInfo.Count)
+                Mission_Settings.nodeCounter = 0;
 
             var location = gatherInfo[Mission_Settings.nodeCounter];
 
+            // 実際に出現している(光っている)同一ノードの実位置へ向かう。ルート座標が実位置とズレていても確実に届く。
+            var liveNode = Svc.Objects
+                .Where(o => o.ObjectKind == ObjectKind.GatheringPoint && o.IsTargetable && o.BaseId == location.NodeId)
+                .OrderBy(o => Player.DistanceTo(o.Position))
+                .FirstOrDefault();
+            if (liveNode != null && Vector3.Distance(liveNode.Position, location.Position) > 0.5f)
+                location = CloneNodeAt(location, liveNode.Position);
+
+            // 対象ノードが変わったら到達タイムアウトの計測をリセットする
+            if (_stuckNodeIndex != Mission_Settings.nodeCounter)
+            {
+                _stuckNodeIndex = Mission_Settings.nodeCounter;
+                _stuckNodeSince = DateTime.Now;
+            }
+
             if (!Task_NavmeshMove.Task_GatherMove(location).Value)
             {
+                // 一定時間そのノードに到達できない場合は、発現中のノードへ向け直す(登れない高所ノード等でのジャンプ連発を防ぐ)。
+                if ((DateTime.Now - _stuckNodeSince).TotalSeconds >= NodeSkipSeconds)
+                {
+                    if (P.Navmesh.Installed && P.Navmesh.IsRunning())
+                        P.Navmesh.Stop();
+                    Task_NavmeshMove.ResetGatherMove();
+                    IceLogging.Info($"ノード {Mission_Settings.nodeCounter} に {NodeSkipSeconds}秒以内に到達できません(到達不能ノードの可能性)", "[Gather: NodeSkip]");
+                    ResolveStuckGatherNode(gatherInfo, "ノードへ到達できない");
+                    return false;
+                }
                 UseCordial();
                 return false;
             }
             else
             {
                 Task_NavmeshMove.ResetGatherMove();
+                _stuckNodeIndex = -1;
                 var rank = Task_CheckScore.CurrentRank();
-
 
                 if (rank == MissionRank.Failed)
                 {
@@ -531,6 +760,8 @@ namespace ICE.Scheduler.Tasks
                     P.TaskManager.Insert(() => GatherInteractV2(), "Gathering at the node", Utils.TaskConfig);
                     Mission_Settings.nodeTotal += 1;
                     GreaterReachCount = 0;
+                    _arrivedNodeIndex = -1;           // 採取開始 → 到着タイムアウト計測をリセット
+                    _noLiveNodeSince = DateTime.MinValue; // 採取開始 → 発現ノード無しタイマーをリセット
                     return true;
                 }
                 else
@@ -538,8 +769,23 @@ namespace ICE.Scheduler.Tasks
                     if (UseCordial())
                         return false;
 
+                    // 到着済み(navmesh停止)状態のタイムアウト計測を開始/継続。対象ノードが変わったら計測をやり直す。
+                    if (_arrivedNodeIndex != Mission_Settings.nodeCounter)
+                    {
+                        _arrivedNodeIndex = Mission_Settings.nodeCounter;
+                        _arrivedSince = DateTime.Now;
+                    }
+
                     Utils.TryGetObjectByDataId(location.NodeId, out var node);
-                    if (node != null && !Player.IsJumping)
+                    if (node == null)
+                    {
+                        // 到着地点にノードが無い(未スポーン/枯渇で消滅)。何もしないとこのタスクが完了せず棒立ちになる。
+                        IceLogging.Info($"到着地点にノード {location.NodeId} が存在しません(未スポーン/枯渇)", "[Gathering: OpenGatheringMenu]");
+                        ResolveStuckGatherNode(gatherInfo, "到着地点にノードが存在しない");
+                        return true;
+                    }
+
+                    if (!Player.IsJumping)
                     {
                         if (node.IsTargetable)
                         {
@@ -551,11 +797,20 @@ namespace ICE.Scheduler.Tasks
                         }
                         else
                         {
-                            // Node doesn't exist/isn't targetable. 
+                            // 目の前のノードが枯渇(非targetable)。発現中のノードへ向け直す/無ければ拠点へ戻る。
                             IceLogging.Info($"The current node doesn't exist, continuing onto the next", "[Gathering: OpenGatheringMenu]");
-                            Mission_Settings.nodeTotal += 1;
+                            ResolveStuckGatherNode(gatherInfo, "目の前のノードが枯渇している");
                             return true;
                         }
+                    }
+
+                    // 到着済みなのに一定時間 採取窓が開かない(相互作用範囲外/障害物/高所)。navmesh 停止中は移動の
+                    // スタック検知が効かないため、ここで発現ノードへ向け直す/無ければ拠点へ戻って棒立ちを防ぐ。
+                    if ((DateTime.Now - _arrivedSince).TotalSeconds >= ArrivedInteractTimeoutSeconds)
+                    {
+                        IceLogging.Info($"ノード {Mission_Settings.nodeCounter} に到着後 {ArrivedInteractTimeoutSeconds}秒採取できません(相互作用不成立ノードの可能性)", "[Gathering: ArrivedTimeout]");
+                        ResolveStuckGatherNode(gatherInfo, "到着後に採取窓が開かない");
+                        return true;
                     }
                 }
             }
@@ -587,6 +842,21 @@ namespace ICE.Scheduler.Tasks
                                      "2: If it does have one, try to click on it again\n" +
                                      "3: If that still doesn't work, let me know you're getting this error message.\n" +
                                      $"Expected profileId: {profileId} | Defaulted to the default profile");
+                }
+            }
+
+            // 割当プロファイルに採取スキル(FieldMastery/Yield/Boon/Tidings)が1つも有効化されていない場合は、
+            // スキル全有効の内蔵プロファイルを使う。既定プロファイル0は BonusIntegrityChance 以外すべて無効で、
+            // マスター採取などでスキルを一切使わずに終わってしまうため。ユーザーが1つでも有効化していればそれを尊重する。
+            if (Mission_Settings.Mode != ModeSelect.LevelMode && gatherProfile != null)
+            {
+                bool hasGatherSkill = gatherProfile.GatherBuffs.Buffs.Any(b => b.Value.Enabled
+                    && (b.Key.StartsWith("FieldMastery") || b.Key.StartsWith("Yield") || b.Key.StartsWith("Boon") || b.Key == "Tidings"));
+                if (!hasGatherSkill)
+                {
+                    if (EzThrottler.Throttle("SkillDefaultProfile", 5000))
+                        IceLogging.Info("採取: プロファイルに採取スキルが未有効のため、スキル全有効の既定プロファイルを使用します", "[Gather]");
+                    gatherProfile = LevelProfile;
                 }
             }
 
@@ -713,7 +983,9 @@ namespace ICE.Scheduler.Tasks
             foreach (var buff in Mission_Settings.SkillUseAmount)
             {
                 string action = buff.Key;
-                if (CanUseGatheringAction(action, profileId, missingDur, maxDur, currentDur, boonChance))
+                // 解決済みの gatherProfile を渡す。渡さないと CanUseGatheringAction が元のプロファイルIDを見てしまい、
+                // LevelProfile へ差し替えても通常スキルが発動しない。
+                if (CanUseGatheringAction(action, profileId, missingDur, maxDur, currentDur, boonChance, overrideProfile: gatherProfile))
                 {
                     var actionInfo = GatheringUtil.GathActionDict[action];
                     if (EzThrottler.Throttle($"Using Gathering Action: {action}"))
@@ -734,7 +1006,7 @@ namespace ICE.Scheduler.Tasks
 
             return false;
         }
-        public static bool CanUseGatheringAction(string actionName, int profileId, bool missingDur, int maxDur, int currentDur, int? boonChance = null)
+        public static bool CanUseGatheringAction(string actionName, int profileId, bool missingDur, int maxDur, int currentDur, int? boonChance = null, GatherProfile overrideProfile = null)
         {
             var actionInfo = GatheringUtil.GathActionDict[actionName];
             bool hasStatus = PlayerHelper.HasStatusId(actionInfo.StatusId);
@@ -747,7 +1019,8 @@ namespace ICE.Scheduler.Tasks
                 return hasStatus && currentDur == 1;
             }
 
-            var gatherBuff = GatherProfile(profileId).Buffs[actionName];
+            // overrideProfile 指定時はそれを使う(スキル無しプロファイルを LevelProfile へ差し替えた場合に反映させるため)。
+            var gatherBuff = (overrideProfile?.GatherBuffs ?? GatherProfile(profileId)).Buffs[actionName];
 
             return actionName switch
             {
