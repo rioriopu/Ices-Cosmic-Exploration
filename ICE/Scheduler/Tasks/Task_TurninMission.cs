@@ -132,15 +132,37 @@ namespace ICE.Scheduler.Tasks
         // 納品地点の座標が未登録の惑星(Auxesia 等)向けの緊急ミッション移動。
         // 座標をハードコードせず、レフレダのメニューで「ミッションの職業名を含む選択肢」を選んでワープする。
         // ワープ後は物資集積所(納品オブジェクト)が見えるので true を返し、後続の納品/採取処理に任せる。
+        private static DateTime _auxesiaTravelStart = DateTime.MinValue;
+        private static DateTime _auxesiaNoMatchSince = DateTime.MinValue;
+        private const double AuxesiaTravelTimeoutSeconds = 120.0; // NPC に辿り着けない等で無限に粘らない
+        private const double AuxesiaNoMatchTimeoutSeconds = 8.0;  // 職業名に一致する選択肢が無い時にメニューを閉じるまでの猶予
         public static bool? RedAlert_AuxesiaTravel(uint missionId)
         {
             string tag = "[RedAlert Auxesia]";
             if (!NpcData.TryGetNpc(Player.Territory.RowId, NpcData.NpcType.RedAlert, out var lefleda))
                 return true; // レフレダ未登録 → 何もできないので後続へ
 
+            // ワープのロード中は Player が取れず、距離計算で落ちるので待つ
+            if (!Player.Available)
+                return false;
+
+            if (_auxesiaTravelStart == DateTime.MinValue)
+                _auxesiaTravelStart = DateTime.Now;
+            if ((DateTime.Now - _auxesiaTravelStart).TotalSeconds > AuxesiaTravelTimeoutSeconds)
+            {
+                IceLogging.Warning($"レフレダ経由の任務地移動が {AuxesiaTravelTimeoutSeconds:F0}秒以内に完了しないため打ち切ります", tag);
+                _auxesiaTravelStart = DateTime.MinValue;
+                _auxesiaNoMatchSince = DateTime.MinValue;
+                return true;
+            }
+
             // ワープ後: 納品オブジェクト(物資集積所)が出現していれば到着
             if (Utils.TryGetObjectCollectionPoint() != null)
+            {
+                _auxesiaTravelStart = DateTime.MinValue;
+                _auxesiaNoMatchSince = DateTime.MinValue;
                 return true;
+            }
 
             // レフレダのメニュー(SelectString): ミッションの職業名を含む選択肢を選ぶ
             if (GenericHelpers.TryGetAddonMaster<SelectString>(out var ss) && ss.IsAddonReady)
@@ -158,12 +180,24 @@ namespace ICE.Scheduler.Tasks
 
                 if (pick >= 0)
                 {
+                    _auxesiaNoMatchSince = DateTime.MinValue;
                     if (EzThrottler.Throttle("Auxesia RA select", 500))
                         ss.Entries[pick].Select();
+                    return false;
                 }
-                else if (EzThrottler.Throttle("Auxesia RA nomatch", 2000))
-                {
+
+                // 一致する選択肢が無い(別NPCのメニュー/職業名の表記違い)。しばらく待っても無ければメニューを閉じて後続へ委ねる。
+                if (_auxesiaNoMatchSince == DateTime.MinValue)
+                    _auxesiaNoMatchSince = DateTime.Now;
+                if (EzThrottler.Throttle("Auxesia RA nomatch", 2000))
                     IceLogging.Info($"緊急ミッション mission={missionId} job='{jobName}' に一致する選択肢が見つかりません: [{string.Join(" | ", entries)}]", tag);
+                if ((DateTime.Now - _auxesiaNoMatchSince).TotalSeconds > AuxesiaNoMatchTimeoutSeconds)
+                {
+                    IceLogging.Error($"レフレダのメニューに職業 '{jobName}' の選択肢が無いため、メニューを閉じて通常の納品確認へ進みます", tag);
+                    GenericHandlers.FireCallback("SelectString", true, -1);
+                    _auxesiaTravelStart = DateTime.MinValue;
+                    _auxesiaNoMatchSince = DateTime.MinValue;
+                    return true;
                 }
                 return false;
             }

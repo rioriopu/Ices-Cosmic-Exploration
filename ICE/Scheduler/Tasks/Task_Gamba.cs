@@ -112,9 +112,10 @@ namespace ICE.Scheduler.Tasks
                 C.Save();
         }
         /// <summary>
-        /// アイテムの ItemUICategory から GambaType を推定する。Minion/Orchestrion/Dye/Materia/Housing は一意に判定できる。
-        /// Mount(63=Other で「Identification Key」)と Emote/Outfit/Accessory(61=Miscellany)は名前で補助推定し、不明は Other。
-        /// (ItemUICategory: 81=Minion / 94=Orchestrion Roll / 55=Dye / 58=Materia / 57,65-82=家具 / 63=Other / 61=Miscellany)
+        /// アイテムの種別から GambaType を推定する。
+        /// まず ItemAction の種別(言語非依存: 853=ミニオン / 1322=マウント / 25183=オーケストリオン譜 / 20086=ファッションアクセサリー)で判定し、
+        /// 次に ItemUICategory(81=Minion / 94=Orchestrion Roll / 55=Dye / 58=Materia / 57,65-82=家具 / 63=Other / 61=Miscellany)で判定する。
+        /// 名前による補助推定は英語名で行う(日本語クライアントでも同じ判定になるように)。不明は Other。
         /// </summary>
         public static GambaType GuessGambaType(uint itemId)
         {
@@ -122,8 +123,24 @@ namespace ICE.Scheduler.Tasks
             {
                 if (!Svc.Data.GetExcelSheet<Lumina.Excel.Sheets.Item>().TryGetRow(itemId, out var item))
                     return GambaType.Other;
+
+                // ItemAction の種別値は Action 列(Action シートへの参照)の RowId に入っている
+                int actionType = (int)(item.ItemAction.ValueNullable?.Action.RowId ?? 0);
+                switch (actionType)
+                {
+                    case 853: return GambaType.Minion;
+                    case 1322: return GambaType.Mount;
+                    case 25183: return GambaType.Orchestrion;
+                    case 20086: return GambaType.Accessory;
+                }
+
                 uint cat = item.ItemUICategory.RowId;
-                string name = ExcelItemHelper.GetName(itemId) ?? "";
+                string name = "";
+                var enSheet = Svc.Data.GetExcelSheet<Lumina.Excel.Sheets.Item>(Dalamud.Game.ClientLanguage.English);
+                if (enSheet != null && enSheet.TryGetRow(itemId, out var enItem))
+                    name = enItem.Name.ExtractText() ?? "";
+                if (string.IsNullOrEmpty(name))
+                    name = ExcelItemHelper.GetName(itemId) ?? "";
                 switch (cat)
                 {
                     case 81: return GambaType.Minion;
