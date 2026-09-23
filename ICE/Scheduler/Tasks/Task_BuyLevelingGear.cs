@@ -177,6 +177,8 @@ namespace ICE.Scheduler.Tasks
                 ? $"レベリング装備の購入を開始します: {plan.JobName} {plan.ToBuy.Count} 点 / {plan.TotalGil:N0} ギル（中止: Stop ボタン / /ice stop / Esc）"
                 : $"Buying leveling gear: {plan.JobName} {plan.ToBuy.Count} items / {plan.TotalGil:N0} gil (abort: Stop button / /ice stop / Esc)", "[I.C.E.]");
 
+            P.TaskManager.Enqueue(() => { _returnStart = DateTime.Now; return true; });
+            P.TaskManager.Enqueue(() => ReturnToHub(), "Leveling gear: Stellar Return to the hub", Utils.TaskConfig);
             P.TaskManager.Enqueue(() => Task_Repair.Repair_PathTo(), "Leveling gear: walking to the vendor", Utils.TaskConfig);
 
             // 階層メニュー(Lv帯)→店舗の順にまとめて購入する
@@ -198,6 +200,60 @@ namespace ICE.Scheduler.Tasks
             P.TaskManager.Enqueue(() => { _groupStart = DateTime.Now; return true; });
             P.TaskManager.Enqueue(() => CloseAllMenus(), "Leveling gear: closing menus", Utils.TaskConfig);
             P.TaskManager.Enqueue(() => Finish(), "Leveling gear: finished");
+        }
+
+        private static DateTime _returnStart = DateTime.MinValue;
+        private const double ReturnTimeoutSeconds = 90;
+
+        /// <summary>
+        /// 拠点から離れた場所(採取地など)に居るときはコスモデジョン(Stellar Return)で拠点へ戻る。拠点付近ならそのまま次へ。
+        /// 購入/売却の両方で使う。Stellar Return が完全に無効化されている設定なら徒歩に任せる。
+        /// </summary>
+        public static unsafe bool? ReturnToHub()
+        {
+            string tag = "[Leveling Gear]";
+            if (_returnStart == DateTime.MinValue)
+                _returnStart = DateTime.Now;
+            if (!CosmicMoonRegistry.TryGetHubCenter(Player.Territory.RowId, out var hub))
+                return true; // 拠点座標が無い惑星 → 徒歩に任せる
+            if (C.AvoidStellarReturn && !C.AvoidStellarReturnExceptHub)
+            {
+                IceLogging.Info("Stellar Return が無効化されているため徒歩でベンダーへ向かいます", tag);
+                return true;
+            }
+            if (!Player.Available)
+                return false; // 転移中
+            if (Player.DistanceTo(hub) < C.HubReturn_Distance)
+            {
+                if (!PlayerHelper.IsScreenReady())
+                    return false;
+                _returnStart = DateTime.MinValue;
+                return true;
+            }
+            if ((DateTime.Now - _returnStart).TotalSeconds > ReturnTimeoutSeconds)
+            {
+                IceLogging.Warning($"コスモデジョンで {ReturnTimeoutSeconds:F0} 秒以内に拠点へ戻れなかったため、徒歩でベンダーへ向かいます", tag);
+                _returnStart = DateTime.MinValue;
+                return true;
+            }
+            // COSMO MISSIONS ウィンドウが開いていると発動できないので先に閉じる
+            if (GenericHelpers.TryGetAddonMaster<WKSMission>("WKSMission", out var wksMissionWin) && wksMissionWin.IsAddonReady)
+            {
+                if (EzThrottler.Throttle("LGear close WKSMission", 500))
+                    GenericHandlers.FireCallback("WKSMission", true, -1);
+                return false;
+            }
+            if (Player.Mounted)
+            {
+                if (EzThrottler.Throttle("LGear dismount", 1000)) Utils.Dismount();
+                return false;
+            }
+            if (!Player.IsBusy && EzThrottler.Throttle("LGear stellar return", 3000))
+            {
+                IceLogging.Info($"拠点から {Player.DistanceTo(hub):F0}m 離れているため、コスモデジョンで拠点へ戻ります", tag);
+                ActionManager.Instance()->UseAction(ActionType.GeneralAction, 26);
+            }
+            return false;
         }
 
         /// <summary>緊急停止。タスクを全て破棄し、開いている店舗/メニューを閉じる。Stop ボタン・/ice stop・Esc から呼ばれる。</summary>
