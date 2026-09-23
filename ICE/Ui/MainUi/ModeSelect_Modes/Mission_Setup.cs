@@ -71,9 +71,10 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
             }
 
             ImGui.PushTextWrapPos(ImGui.GetCursorPosX() + 520 * ImGuiHelpers.GlobalScale);
+            int fromLv = plan.StepsUsed.Count > 0 ? plan.StepsUsed[0] : Task_BuyLevelingGear.MinLevel;
             ImGui.TextUnformatted(jp
-                ? $"現在のジョブ【{plan.JobName}】のLv{Task_BuyLevelingGear.MinLevel}～Lv{Task_BuyLevelingGear.MaxLevel}までの装備品をNPC購入します。Lv{Task_BuyLevelingGear.StepsText} の各段階で購入する（丁度のLvが無ければ下のLv）ので、消費ギルは【{plan.TotalGil:N0}ギル】掛かりますが宜しいですか？"
-                : $"Buy Lv{Task_BuyLevelingGear.MinLevel}–Lv{Task_BuyLevelingGear.MaxLevel} gear for your current job [{plan.JobName}] from the NPC. Gear is bought at Lv{Task_BuyLevelingGear.StepsText} (the next lower level if none exists), so this will cost [{plan.TotalGil:N0} gil]. Proceed?");
+                ? $"現在のジョブ【{plan.JobName} Lv{plan.JobLevel}】のLv{fromLv}～Lv{Task_BuyLevelingGear.MaxLevel}までの装備品をNPC購入します。Lv{plan.StepsText} の各段階で購入する（丁度のLvが無ければ下のLv、現在Lvより下の段階は買いません）ので、消費ギルは【{plan.TotalGil:N0}ギル】掛かりますが宜しいですか？"
+                : $"Buy Lv{fromLv}–Lv{Task_BuyLevelingGear.MaxLevel} gear for your current job [{plan.JobName} Lv{plan.JobLevel}] from the NPC. Gear is bought at Lv{plan.StepsText} (the next lower level if none exists; steps below your current level are skipped), so this will cost [{plan.TotalGil:N0} gil]. Proceed?");
             ImGui.TextDisabled(jp
                 ? $"購入 {plan.ToBuy.Count} 点（所持済み {plan.OwnedSkipped} 点は除外） / 所持ギル {plan.PlayerGil:N0}"
                 : $"{plan.ToBuy.Count} items to buy ({plan.OwnedSkipped} already owned) / gil on hand {plan.PlayerGil:N0}");

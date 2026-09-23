@@ -43,6 +43,9 @@ namespace ICE.Scheduler.Tasks
         {
             public uint Job;
             public string JobName = "";
+            public int JobLevel;                 // 計画時点のジョブLv
+            public List<int> StepsUsed = new();  // 実際に使った段階(現在Lv → それより上の段階)
+            public string StepsText => string.Join("→", StepsUsed.Select((s, i) => i == 0 && s == Math.Min(Math.Max(JobLevel, MinLevel), MaxLevel) && s != Steps[0] ? $"{s}(現在)" : s.ToString()));
             public uint NpcId;
             public List<PlanEntry> ToBuy = new();
             public int OwnedSkipped;
@@ -92,9 +95,16 @@ namespace ICE.Scheduler.Tasks
                 return plan;
             }
 
+            // 現在のジョブLvを起点にする: 「今の Lv で装備できる最高の装備」を最初の段階とし、それより上の段階だけを買う。
+            // (Lv47 なら Lv47 以下の最高Lv装備 → 50 → 52 → … → 95。既に超えている段階の装備は買わない)
+            plan.JobLevel = Player.GetLevel((Job)job);
+            int currentStep = Math.Min(Math.Max(plan.JobLevel, MinLevel), MaxLevel);
+            plan.StepsUsed.Add(currentStep);
+            plan.StepsUsed.AddRange(Steps.Where(s => s > currentStep));
+
             // 各段階・各部位で「そのLv以下で最高Lv」の装備を1点。同じアイテムは1度だけ、所持済みは買わない。
             var planned = new HashSet<uint>();
-            foreach (int lv in Steps)
+            foreach (int lv in plan.StepsUsed)
             {
                 foreach (var slot in TargetSlots)
                 {
