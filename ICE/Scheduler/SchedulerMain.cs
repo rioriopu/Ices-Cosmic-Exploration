@@ -19,6 +19,9 @@ namespace ICE.Scheduler
         internal static bool DisablePlugin()
         {
             IceLogging.Debug("Stopping the plugin state", "[Schedular - Disable Plugin]");
+            // レベリング装備の購入中なら、それも中止して開いている店舗/メニューを閉じる(緊急停止)
+            if (Task_BuyLevelingGear.Running)
+                Task_BuyLevelingGear.Abort("stop");
             P.TaskManager.Abort();
             State = IceState.Idle;
             GenericManager.RestorePandoraStates();

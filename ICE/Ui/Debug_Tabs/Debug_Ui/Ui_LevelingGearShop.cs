@@ -63,7 +63,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
 
             ImGui.Text($"{data.NpcName}[{data.NpcId}] shops={data.Shops.Count} items={data.AllItems.Count()} (filtered {items.Count}) resolved {data.ResolvedAt:HH:mm:ss}");
             foreach (var shop in data.Shops)
-                ImGui.BulletText($"[{shop.ShopId}] '{shop.Name}' {shop.Items.Count} items — {shop.Path}");
+                ImGui.BulletText($"[{shop.ShopId}] '{shop.Name}' {shop.Items.Count} items — menu#{shop.MenuIndex} shop#{shop.ShopIndex} — {shop.Path}");
 
             // 部位ごとの空き枠(購入可否判定の材料)
             var slots = new List<GearSlot> { GearSlot.MainHand, GearSlot.OffHand, GearSlot.Head, GearSlot.Body, GearSlot.Hands, GearSlot.Legs, GearSlot.Feet, GearSlot.Ears, GearSlot.Neck, GearSlot.Wrists, GearSlot.Ring };

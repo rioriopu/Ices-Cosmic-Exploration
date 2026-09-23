@@ -292,7 +292,8 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                 ImGui.SameLine(0, 10 * scale);
                 ImGui.SetCursorPosY(ImGui.GetCursorPosY() + yOffset);
 
-                using (ImRaii.Disabled(SchedulerMain.State == IceState.Idle))
+                // 停止ボタンはレベリング装備の購入中(State は Idle のまま)にも押せるようにする(緊急停止)
+                using (ImRaii.Disabled(SchedulerMain.State == IceState.Idle && !Task_BuyLevelingGear.Running))
                 {
                     using (ImRaii.PushColor(ImGuiCol.Button, new Vector4(0.8f, 0.2f, 0.2f, 1.0f)))
                     using (ImRaii.PushColor(ImGuiCol.ButtonHovered, new Vector4(0.9f, 0.3f, 0.3f, 1.0f)))

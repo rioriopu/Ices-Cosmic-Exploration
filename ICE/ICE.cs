@@ -83,7 +83,7 @@ public sealed partial class ICE : IDalamudPlugin
             Open plugin interface
             /ice help - shows all commands
             /ice clear - removes all missions
-            /ice stop - stops ICE
+            /ice stop - stops ICE (also aborts a leveling gear purchase)
             /ice start - Starts ICE
             /ice add | remove | toggle | only 
             /ice flag [id] - Opens the map and marks where the area of gathering is.

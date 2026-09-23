@@ -50,6 +50,8 @@ public static class LevelingGearShop
         public uint ShopId { get; set; }
         public string ShopName { get; set; } = "";   // GilShop 名(NPC メニューの店舗名と一致)
         public string MenuName { get; set; } = "";   // この店舗へ入る階層メニュー(TopicSelect)名。空なら NPC メニュー直下
+        public int MenuIndex { get; set; } = -1;     // NPC メニュー内の位置(ENpcData の並び順)。文言で選べない時の代替
+        public int ShopIndex { get; set; } = -1;     // 階層メニュー内の店舗の位置(TopicSelect.Shop の並び順)。直下の店舗は -1
         [JsonIgnore] public int ArmouryCount { get; set; }   // アーマリーチェスト内の所持数(実行時に更新)
         [JsonIgnore] public bool IsEquipped { get; set; }    // 現在装備中か(実行時に更新)
     }
@@ -59,6 +61,8 @@ public static class LevelingGearShop
         public uint ShopId { get; set; }
         public string Name { get; set; } = "";
         public string MenuName { get; set; } = "";   // 階層メニュー(TopicSelect)名。NPC メニュー直下なら空
+        public int MenuIndex { get; set; } = -1;     // NPC メニュー内の位置(ENpcData の並び順)
+        public int ShopIndex { get; set; } = -1;     // 階層メニュー内の位置(TopicSelect.Shop の並び順)。直下なら -1
         public string Path { get; set; } = "";       // NPC からこのショップへ辿った経路(デバッグ用)
         public List<ShopGearItem> Items { get; set; } = new();
     }
@@ -95,11 +99,14 @@ public static class LevelingGearShop
         var visited = new HashSet<uint>();
         if (Svc.Data.GetExcelSheet<ENpcBase>().TryGetRow(npcId, out var npcBase))
         {
-            // ENpcData は 32 要素すべてを見る(先頭が 0 でも後ろにショップが入っている NPC がある)
+            // ENpcData は 32 要素すべてを見る(先頭が 0 でも後ろにショップが入っている NPC がある)。
+            // 0 以外のハンドラの並び順が NPC に話しかけた時のメニューの並び順になる(位置での選択に使う)。
+            int menuIndex = 0;
             foreach (var handlerRef in npcBase.ENpcData)
             {
                 if (handlerRef.RowId == 0) continue;
-                InspectHandler(data, handlerRef.RowId, "ENpcData", "", visited, 0);
+                InspectHandler(data, handlerRef.RowId, "ENpcData", "", menuIndex, -1, visited, 0);
+                menuIndex++;
             }
             LastMessage = $"{data.NpcName}[{npcId}]: ショップ {data.Shops.Count} 件 / 装備 {data.AllItems.Count()} 件を取得";
         }
@@ -117,7 +124,7 @@ public static class LevelingGearShop
     }
 
     // ハンドラ ID を種別ごとに辿り、GilShop に到達したら品揃えを登録する。循環参照対策で深さ上限あり。
-    private static void InspectHandler(NpcShopData data, uint handler, string path, string menuName, HashSet<uint> visited, int depth)
+    private static void InspectHandler(NpcShopData data, uint handler, string path, string menuName, int menuIndex, int shopIndex, HashSet<uint> visited, int depth)
     {
         if (handler == 0 || depth > 4 || !visited.Add(handler))
             return;
@@ -125,21 +132,26 @@ public static class LevelingGearShop
         switch ((ushort)(handler >> 16))
         {
             case HandlerGilShop:
-                AddGilShop(data, handler, path, menuName);
+                AddGilShop(data, handler, path, menuName, menuIndex, shopIndex);
                 break;
 
             case HandlerTopicSelect:
                 if (Svc.Data.GetExcelSheet<TopicSelect>().TryGetRow(handler, out var topic))
                 {
                     string topicName = topic.Name.ExtractText();
+                    int si = 0; // 階層メニュー内の並び順(0 以外の店舗のみ数える)
                     foreach (var shopRef in topic.Shop)
-                        InspectHandler(data, shopRef.RowId, $"{path} > TopicSelect '{topicName}'", topicName, visited, depth + 1);
+                    {
+                        if (shopRef.RowId == 0) continue;
+                        InspectHandler(data, shopRef.RowId, $"{path} > TopicSelect '{topicName}'", topicName, menuIndex, si, visited, depth + 1);
+                        si++;
+                    }
                 }
                 break;
 
             case HandlerPreHandler:
                 if (Svc.Data.GetExcelSheet<PreHandler>().TryGetRow(handler, out var pre))
-                    InspectHandler(data, pre.Target.RowId, $"{path} > PreHandler", menuName, visited, depth + 1);
+                    InspectHandler(data, pre.Target.RowId, $"{path} > PreHandler", menuName, menuIndex, shopIndex, visited, depth + 1);
                 break;
 
             case HandlerCustomTalk:
@@ -149,20 +161,20 @@ public static class LevelingGearShop
                     // 階層メニューは CustomTalkNestHandlers か Script の引数で GilShop を参照していることがある
                     if (Svc.Data.GetSubrowExcelSheet<CustomTalkNestHandlers>().TryGetRow(handler, out var nest))
                         foreach (var n in nest)
-                            InspectHandler(data, n.NestHandler.RowId, talkPath, menuName, visited, depth + 1);
+                            InspectHandler(data, n.NestHandler.RowId, talkPath, menuName, menuIndex, shopIndex, visited, depth + 1);
                     foreach (var script in talk.Script)
                         if ((ushort)(script.ScriptArg >> 16) is HandlerGilShop or HandlerTopicSelect or HandlerPreHandler)
-                            InspectHandler(data, script.ScriptArg, talkPath, menuName, visited, depth + 1);
+                            InspectHandler(data, script.ScriptArg, talkPath, menuName, menuIndex, shopIndex, visited, depth + 1);
                     if (talk.SpecialLinks.RowId != 0)
-                        InspectHandler(data, talk.SpecialLinks.RowId, talkPath, menuName, visited, depth + 1);
+                        InspectHandler(data, talk.SpecialLinks.RowId, talkPath, menuName, menuIndex, shopIndex, visited, depth + 1);
                 }
                 break;
         }
     }
 
-    private static void AddGilShop(NpcShopData data, uint shopId, string path, string menuName)
+    private static void AddGilShop(NpcShopData data, uint shopId, string path, string menuName, int menuIndex, int shopIndex)
     {
-        var shop = new ShopInfo { ShopId = shopId, Path = path, MenuName = menuName };
+        var shop = new ShopInfo { ShopId = shopId, Path = path, MenuName = menuName, MenuIndex = menuIndex, ShopIndex = shopIndex };
         if (Svc.Data.GetExcelSheet<GilShop>().TryGetRow(shopId, out var gilShop))
             shop.Name = gilShop.Name.ExtractText();
 
@@ -193,6 +205,8 @@ public static class LevelingGearShop
                     ShopId = shopId,
                     ShopName = shop.Name,
                     MenuName = menuName,
+                    MenuIndex = menuIndex,
+                    ShopIndex = shopIndex,
                 });
             }
         }

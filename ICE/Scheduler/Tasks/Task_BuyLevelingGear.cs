@@ -1,4 +1,5 @@
 using Dalamud.Game;
+using Dalamud.Game.ClientState.Keys;
 using ECommons.Automation;
 using ECommons.GameHelpers;
 using FFXIVClientStructs.FFXIV.Client.Game;
@@ -11,9 +12,11 @@ using static ICE.Utilities.LevelingGearShop;
 namespace ICE.Scheduler.Tasks
 {
     /// <summary>
-    /// レベリング装備の自動購入。現在ジョブの Lv10〜95 の装備(主道具/副道具/頭/胴/腕/脚/足)を約5Lv刻みで
+    /// レベリング装備の自動購入。現在ジョブの装備(主道具/副道具/頭/胴/腕/脚/足)を指定の Lv 段階で
     /// 拠点のギル装備ベンダー(ゴッドギス)から買う。所持済みは買わず、アーマリーチェストの空き枠が足りなければ中止する。
     /// 流れ: 計画(BuildPlan) → 確認 → NPC へ移動 → 階層メニュー(Lv帯) → 店舗 → 購入(反映確認) → 次の店舗 … → 最強装備。
+    /// メニューは文言で選び、文言が読めない/一致しない場合はゲームデータ上の並び順(位置)で選ぶ。
+    /// 緊急停止: Stop ボタン / "/ice stop" / Esc キー(購入中のみ) → Abort()。
     /// </summary>
     internal static class Task_BuyLevelingGear
     {
@@ -144,13 +147,20 @@ namespace ICE.Scheduler.Tasks
 
         private static PurchasePlan _plan;
         private static DateTime _groupStart = DateTime.MinValue;
+        private static DateTime _lastProgress = DateTime.MinValue;
         private static uint _verifyItem = 0;
         private static bool _verifyHq = false;
         private static int _verifyBefore = 0;
         private static DateTime _verifyAt = DateTime.MinValue;
         private static int _retry = 0;
+        // メニューの現在位置。-1=不明(閉じて NPC から辿り直す) / 0=NPC の最初のメニュー / 1=階層メニュー内 / 2=店舗が開くのを待つ
+        private static int _menuDepth = -1;
+        private static int _menuCloses = 0;
+        private static string _lastMenuSig = "";
         private const double GroupTimeoutSeconds = 180;
         private const double VerifySeconds = 8;
+        private const double NoProgressAbortSeconds = 120; // 購入が1点も進まないまま経過したら中止
+        private const int MaxMenuCloses = 8;               // メニューを閉じた回数がこれを超えたら中止(同じメニューの反復対策)
 
         public static void Enqueue(PurchasePlan plan)
         {
@@ -160,10 +170,12 @@ namespace ICE.Scheduler.Tasks
             plan.SpentGil = 0;
             plan.Aborted = false;
             foreach (var e in plan.ToBuy) { e.Bought = false; e.Failed = false; }
+            _menuDepth = -1;
+            _lastProgress = DateTime.Now;
 
             IceLogging.ChatInfo(IsJapanese
-                ? $"レベリング装備の購入を開始します: {plan.JobName} {plan.ToBuy.Count} 点 / {plan.TotalGil:N0} ギル"
-                : $"Buying leveling gear: {plan.JobName} {plan.ToBuy.Count} items / {plan.TotalGil:N0} gil", "[I.C.E.]");
+                ? $"レベリング装備の購入を開始します: {plan.JobName} {plan.ToBuy.Count} 点 / {plan.TotalGil:N0} ギル（中止: Stop ボタン / /ice stop / Esc）"
+                : $"Buying leveling gear: {plan.JobName} {plan.ToBuy.Count} items / {plan.TotalGil:N0} gil (abort: Stop button / /ice stop / Esc)", "[I.C.E.]");
 
             P.TaskManager.Enqueue(() => Task_Repair.Repair_PathTo(), "Leveling gear: walking to the vendor", Utils.TaskConfig);
 
@@ -178,12 +190,35 @@ namespace ICE.Scheduler.Tasks
                 var entries = g.ToList();
                 string menu = g.Key.MenuName;
                 string shopName = entries[0].Item.ShopName;
-                P.TaskManager.Enqueue(() => { _groupStart = DateTime.Now; _retry = 0; _verifyItem = 0; return true; }, "Leveling gear: next shop");
-                P.TaskManager.Enqueue(() => BuyGroup(menu, shopName, entries), $"Leveling gear: {menu} / {shopName}", Utils.TaskConfig);
+                int menuIndex = entries[0].Item.MenuIndex;
+                int shopIndex = entries[0].Item.ShopIndex;
+                P.TaskManager.Enqueue(() => { _groupStart = DateTime.Now; _retry = 0; _verifyItem = 0; _menuCloses = 0; _lastMenuSig = ""; return true; }, "Leveling gear: next shop");
+                P.TaskManager.Enqueue(() => BuyGroup(menu, shopName, menuIndex, shopIndex, entries), $"Leveling gear: {menu} / {shopName}", Utils.TaskConfig);
             }
             P.TaskManager.Enqueue(() => { _groupStart = DateTime.Now; return true; });
             P.TaskManager.Enqueue(() => CloseAllMenus(), "Leveling gear: closing menus", Utils.TaskConfig);
             P.TaskManager.Enqueue(() => Finish(), "Leveling gear: finished");
+        }
+
+        /// <summary>緊急停止。タスクを全て破棄し、開いている店舗/メニューを閉じる。Stop ボタン・/ice stop・Esc から呼ばれる。</summary>
+        public static unsafe void Abort(string reason)
+        {
+            if (!Running && _plan == null)
+                return;
+            if (_plan != null) _plan.Aborted = true;
+            Running = false;
+            P.TaskManager.Abort();
+            try
+            {
+                if (GenericHelpers.TryGetAddonMaster<Shop>("Shop", out var shop) && shop.IsAddonReady)
+                    ECommons.Automation.Callback.Fire(shop.Base, true, -1);
+                if (TryGetMenu(out _, out _, out var close))
+                    close();
+            }
+            catch { }
+            IceLogging.ChatInfo(IsJapanese
+                ? $"レベリング装備の購入を中止しました（{reason}）: 購入済み {_plan?.BoughtCount ?? 0} 点 / {_plan?.SpentGil ?? 0:N0} ギル"
+                : $"Leveling gear purchase aborted ({reason}): bought {_plan?.BoughtCount ?? 0} items / {_plan?.SpentGil ?? 0:N0} gil", "[I.C.E.]");
         }
 
         // メニュー名「職人用装備の購入（Lv21～）」などから Lv を取り出して並び順にする
@@ -202,7 +237,8 @@ namespace ICE.Scheduler.Tasks
             for (int i = 0; i < texts.Count; i++)
             {
                 string t = Normalize(texts[i]);
-                if (t == n || t.Contains(n) || n.Contains(t) && t.Length >= 4)
+                if (t.Length == 0) continue;
+                if (t == n || t.Contains(n) || (n.Contains(t) && t.Length >= 4))
                     return i;
             }
             return -1;
@@ -215,7 +251,7 @@ namespace ICE.Scheduler.Tasks
             if (GenericHelpers.TryGetAddonMaster<SelectIconString>("SelectIconString", out var sis) && sis.IsAddonReady)
             {
                 var entries = sis.Entries;
-                texts = entries.Select(e => e.Text).ToList();
+                texts = entries.Select(e => { try { return e.Text ?? ""; } catch { return ""; } }).ToList();
                 select = i => entries[i].Select();
                 close = () => ECommons.Automation.Callback.Fire(sis.Base, true, -1);
                 return true;
@@ -223,7 +259,7 @@ namespace ICE.Scheduler.Tasks
             if (GenericHelpers.TryGetAddonMaster<SelectString>("SelectString", out var ss) && ss.IsAddonReady)
             {
                 var entries = ss.Entries;
-                texts = entries.Select(e => e.Text).ToList();
+                texts = entries.Select(e => { try { return e.Text ?? ""; } catch { return ""; } }).ToList();
                 select = i => entries[i].Select();
                 close = () => ECommons.Automation.Callback.Fire(ss.Base, true, -1);
                 return true;
@@ -235,18 +271,37 @@ namespace ICE.Scheduler.Tasks
             => InventoryManager.Instance()->GetInventoryItemCount(itemId, hq, true, true);
 
         // 1店舗分の購入。毎tick 状況を見て「メニューを辿る/購入する/反映を待つ」を進める。
-        private static unsafe bool? BuyGroup(string menu, string shopName, List<PlanEntry> entries)
+        private static unsafe bool? BuyGroup(string menu, string shopName, int menuIndex, int shopIndex, List<PlanEntry> entries)
         {
             string tag = "[Leveling Gear]";
+            if (_plan == null || _plan.Aborted || !Running)
+                return true;
+
+            // Esc キーで緊急停止(ゲームがメニューを閉じるのと同時に購入も止める)
+            if (Svc.KeyState[VirtualKey.ESCAPE])
+            {
+                Abort("Esc");
+                return true;
+            }
             if (!Player.Available)
                 return false;
-            if (_plan.Aborted)
-                return true;
 
             var next = entries.FirstOrDefault(e => !e.Bought && !e.Failed);
             if (next == null)
                 return true;
 
+            // 進捗の無い状態が続いたら中止(同じメニューを反復するなどの異常対策)
+            if ((DateTime.Now - _lastProgress).TotalSeconds > NoProgressAbortSeconds)
+            {
+                Abort(IsJapanese ? $"{NoProgressAbortSeconds:F0}秒以上購入が進まない" : $"no progress for {NoProgressAbortSeconds:F0}s");
+                return true;
+            }
+            if (_menuCloses > MaxMenuCloses)
+            {
+                IceLogging.Error($"メニューを {_menuCloses} 回閉じても目的の店舗に辿り着けません。最後のメニュー: [{_lastMenuSig}]", tag);
+                Abort(IsJapanese ? "メニューを辿れない" : "could not navigate the vendor menu");
+                return true;
+            }
             if ((DateTime.Now - _groupStart).TotalSeconds > GroupTimeoutSeconds)
             {
                 IceLogging.Error($"{menu} / {shopName} の購入が {GroupTimeoutSeconds:F0} 秒以内に終わらないため、この店舗を飛ばします", tag);
@@ -267,6 +322,7 @@ namespace ICE.Scheduler.Tasks
                     next.Bought = true;
                     _plan.BoughtCount++;
                     _plan.SpentGil += next.Item.Price;
+                    _lastProgress = DateTime.Now;
                     IceLogging.Info($"購入完了: {next.Item.Name} ({next.Item.Price:N0}g) [{_plan.BoughtCount}/{_plan.ToBuy.Count}]", tag);
                     _verifyItem = 0;
                     _retry = 0;
@@ -299,14 +355,17 @@ namespace ICE.Scheduler.Tasks
                 int idx = Array.FindIndex(items, x => x.ItemId == next.Item.ItemId);
                 if (idx < 0)
                 {
-                    // 目的の店舗ではない → 閉じてメニューから辿り直す
+                    // 目的の店舗ではない → 閉じて NPC から辿り直す
                     if (EzThrottler.Throttle("LGear close shop", 1500))
                     {
-                        IceLogging.Debug($"開いている店舗に {next.Item.Name} が無いので閉じます", tag);
+                        IceLogging.Info($"開いている店舗に {next.Item.Name} が無いので閉じて辿り直します(品目 {items.Length} 件)", tag);
                         ECommons.Automation.Callback.Fire(shop.Base, true, -1);
+                        _menuDepth = -1;
+                        _menuCloses++;
                     }
                     return false;
                 }
+                _menuDepth = 2;
                 if (GetGil() < next.Item.Price)
                 {
                     IceLogging.ChatError(IsJapanese
@@ -322,30 +381,67 @@ namespace ICE.Scheduler.Tasks
                     _verifyHq = next.Item.IsHQ;
                     _verifyBefore = CountOwned(_verifyItem, _verifyHq);
                     _verifyAt = DateTime.Now;
-                    IceLogging.Info($"購入: {next.Item.Name} Lv{next.Item.LevelEquip} {next.Item.Price:N0}g", tag);
+                    IceLogging.Info($"購入: {next.Item.Name} Lv{next.Item.LevelEquip} {next.Item.Price:N0}g (index {idx})", tag);
                     items[idx].Select(1);
                 }
                 return false;
             }
 
-            // 選択メニュー: 店舗名 → 階層メニュー名 の順に探す
+            // 選択メニュー
             if (TryGetMenu(out var texts, out var select, out var close))
             {
+                string sig = string.Join(" | ", texts);
+                if (sig != _lastMenuSig)
+                {
+                    _lastMenuSig = sig;
+                    IceLogging.Info($"メニュー(depth={_menuDepth}, {texts.Count}項目): [{sig}]", tag);
+                }
+
+                if (_menuDepth < 0)
+                {
+                    // どの階層か分からない(店舗を閉じた直後など) → 閉じて NPC から辿り直す
+                    if (EzThrottler.Throttle("LGear close menu", 1000)) { close(); _menuCloses++; }
+                    return false;
+                }
+
+                // 文言で選ぶ: 店舗名(階層メニュー内) → 階層メニュー名(最初のメニュー)
                 int i = FindEntry(texts, shopName);
+                int nextDepth = 2;
                 if (i < 0 && !string.IsNullOrEmpty(menu))
+                {
                     i = FindEntry(texts, menu);
+                    nextDepth = 1;
+                }
+                // 文言が読めない/一致しない → ゲームデータ上の並び順(位置)で選ぶ
+                if (i < 0)
+                {
+                    if (_menuDepth == 0 && menuIndex >= 0 && menuIndex < texts.Count)
+                    {
+                        i = menuIndex;
+                        nextDepth = shopIndex >= 0 ? 1 : 2;
+                    }
+                    else if (_menuDepth == 1 && shopIndex >= 0 && shopIndex < texts.Count)
+                    {
+                        i = shopIndex;
+                        nextDepth = 2;
+                    }
+                }
                 if (i >= 0)
                 {
                     if (EzThrottler.Throttle("LGear select", 700))
                     {
-                        IceLogging.Debug($"メニュー選択: {texts[i]}", tag);
+                        IceLogging.Info($"メニュー選択: #{i} '{texts[i]}' (depth {_menuDepth}→{nextDepth})", tag);
                         select(i);
+                        _menuDepth = nextDepth;
                     }
+                    return false;
                 }
-                else if (EzThrottler.Throttle("LGear close menu", 1500))
+                if (EzThrottler.Throttle("LGear close menu", 1500))
                 {
-                    IceLogging.Debug($"目的の項目が無いメニューを閉じます: [{string.Join(" | ", texts)}]", tag);
+                    IceLogging.Info($"目的の項目が無いメニューを閉じます(depth={_menuDepth}): [{sig}]", tag);
                     close();
+                    _menuCloses++;
+                    _menuDepth = -1;
                 }
                 return false;
             }
@@ -356,7 +452,7 @@ namespace ICE.Scheduler.Tasks
                 return false;
             }
 
-            // 何も開いていない → NPC に話しかける
+            // 何も開いていない → NPC に話しかける(最初のメニューから辿る)
             if (NpcData.TryGetNpc(Player.Territory.RowId, NpcData.NpcType.Repair, out var npc))
             {
                 if (Player.DistanceTo(npc.Location_Npc) > 6f)
@@ -370,8 +466,9 @@ namespace ICE.Scheduler.Tasks
                     return false;
                 }
                 if (!GenericHelpers.IsOccupied() && Utils.TryGetObjectByDataId(npc.NpcId, out var obj) && obj != null
-                    && EzThrottler.Throttle("LGear interact", 1000))
+                    && EzThrottler.Throttle("LGear interact", 1200))
                 {
+                    _menuDepth = 0;
                     Utils.TargetgameObject(obj);
                     Utils.InteractWithObject(obj);
                 }
@@ -387,6 +484,8 @@ namespace ICE.Scheduler.Tasks
 
         private static unsafe bool? CloseAllMenus()
         {
+            if (_plan == null || _plan.Aborted || !Running)
+                return true;
             if ((DateTime.Now - _groupStart).TotalSeconds > 10)
                 return true;
             if (GenericHelpers.TryGetAddonMaster<Shop>("Shop", out var shop) && shop.IsAddonReady)
@@ -409,8 +508,14 @@ namespace ICE.Scheduler.Tasks
 
         private static bool? Finish()
         {
+            if (_plan == null)
+                return true;
+            bool wasRunning = Running;
             Running = false;
-            int failed = _plan.ToBuy.Count(e => e.Failed || (!e.Bought && _plan.Aborted));
+            if (!wasRunning || _plan.Aborted)
+                return true;
+
+            int failed = _plan.ToBuy.Count(e => e.Failed || !e.Bought);
             IceLogging.ChatInfo(IsJapanese
                 ? $"レベリング装備の購入が終わりました: {_plan.BoughtCount} 点 / {_plan.SpentGil:N0} ギル" + (failed > 0 ? $"（未購入 {failed} 点）" : "")
                 : $"Leveling gear purchase finished: {_plan.BoughtCount} items / {_plan.SpentGil:N0} gil" + (failed > 0 ? $" ({failed} not bought)" : ""), "[I.C.E.]");
