@@ -1,4 +1,5 @@
 using ECommons.GameHelpers;
+using FFXIVClientStructs.FFXIV.Client.UI.Misc;
 using ICE.Utilities.Cosmic_Helper;
 using System;
 using System.Collections.Generic;
@@ -12,6 +13,15 @@ namespace ICE.Scheduler.Tasks
     internal class Task_RelicTurnin
     {
         public static uint TurninJob = 0;
+        // 納品(強化)のために一時的に切り替えたジョブ。0 = 切り替えていない。
+        private static uint _tempJob = 0;
+
+        /// <summary>Relic Grind モードで、設定に関係なく納品→ジョブ切替→最強装備までを自動で行うか。</summary>
+        public static bool AutoUpgradeActive =>
+            Mission_Settings.Mode == ModeSelect.RelicMode && C.Relic_AutoUpgradeInRelicMode;
+
+        /// <summary>主道具の分析が規定値に達したら納品(強化)に行くか。「Turnin if relic is complete」または Relic Grind の自動強化。</summary>
+        public static bool ShouldTurninRelic => C.TurninRelic || AutoUpgradeActive;
 
         public static void Enqueue()
         {
@@ -32,20 +42,78 @@ namespace ICE.Scheduler.Tasks
             // 実ジョブ(Player.Job)を登録していると、Agendaモードで「選択ジョブ≠現ジョブ」のとき
             // 納品できないツールを延々と納品しようとして進めない無限ループになる。判定と実行を揃える。
             TurninJob = Mission_Settings.SelectedJob != 0 ? Mission_Settings.SelectedJob : (uint)Player.Job;
+            _tempJob = ResolveTempJob(TurninJob);
+            if (_tempJob != 0)
+                IceLogging.Info($"納品(強化)中は一時的にジョブ {(Job)_tempJob} へ切り替えます(納品ジョブ: {(Job)TurninJob})", "[Task_Relic]");
 
             return true;
         }
 
+        private static unsafe bool HasGearset(uint job)
+        {
+            if (job == 0) return false;
+            var gearsets = RaptureGearsetModule.Instance();
+            if (gearsets == null) return false;
+            foreach (ref var gs in gearsets->Entries)
+            {
+                if (!gearsets->IsValidGearset(gs.Id)) continue;
+                if (gs.ClassJob == job) return true;
+            }
+            return false;
+        }
+
+        // 納品(強化)する主道具を装備したままだと強化できないため、一時的に切り替えるジョブを決める。
+        // 設定のジョブ(Relic_BattleJob)にギアセットがあればそれを使い、無ければ納品ジョブ以外でギアセットのある任意のジョブを選ぶ
+        // (戦闘職を優先し、無ければ他のクラフター/ギャザラーでもよい)。切り替えない場合は 0。
+        private static unsafe uint ResolveTempJob(uint turninJob)
+        {
+            bool swap = Char_Info.Relic_SwapJob || AutoUpgradeActive;
+            if (!swap)
+                return 0;
+
+            var configured = Char_Info.Relic_BattleJob;
+            if (configured != 0 && configured != turninJob && HasGearset(configured))
+                return configured;
+
+            var gearsets = RaptureGearsetModule.Instance();
+            if (gearsets == null)
+                return 0;
+
+            uint bestBattle = 0, bestBattleLv = 0;
+            uint bestOther = 0, bestOtherLv = 0;
+            foreach (ref var gs in gearsets->Entries)
+            {
+                if (!gearsets->IsValidGearset(gs.Id)) continue;
+                uint job = gs.ClassJob;
+                if (job == 0 || job == turninJob) continue;
+                uint lv = (uint)Player.GetLevel((Job)job);
+                if (lv == 0) continue;
+
+                bool isCosmicJob = CosmicHelper.CrafterJobList.Contains(job) || CosmicHelper.GatheringJobList.Contains(job);
+                if (!isCosmicJob)
+                {
+                    if (lv > bestBattleLv) { bestBattle = job; bestBattleLv = lv; }
+                }
+                else if (lv > bestOtherLv) { bestOther = job; bestOtherLv = lv; }
+            }
+
+            if (bestBattle != 0) return bestBattle;
+            if (bestOther != 0) return bestOther;
+
+            IceLogging.Warning("納品(強化)用に切り替えられるジョブのギアセットが見つかりません。主道具を装備したままでは強化できないため、納品ジョブ以外のギアセットを1つ作ってください", "[Task_Relic]");
+            return 0;
+        }
+
         public static bool? CheckJobSwap()
         {
-            if (Char_Info.Relic_SwapJob && Char_Info.Relic_BattleJob != 0)
+            if (_tempJob != 0)
             {
-                if (Player.Job != (Job)Char_Info.Relic_BattleJob)
+                if (Player.Job != (Job)_tempJob)
                 {
                     if (EzThrottler.Throttle("Swapping jobs", 1000))
                     {
-                        IceLogging.Verbose($"Telling the game to swap you to jobID: {Char_Info.Relic_BattleJob}");
-                        GearsetHandler.TaskClassChange((Job)Char_Info.Relic_BattleJob);
+                        IceLogging.Verbose($"Telling the game to swap you to jobID: {_tempJob}");
+                        GearsetHandler.TaskClassChange((Job)_tempJob);
                     }
 
                     return false;
@@ -210,16 +278,15 @@ namespace ICE.Scheduler.Tasks
             else if (!Player.IsBusy)
             {
                 IceLogging.Info("No longer busy talking to researchingway, to we're done");
-                if (Char_Info.Relic_SwapJob)
+                if (_tempJob != 0)
                 {
-                    if (C.Relic_Stylist)
-                    {
-                        P.TaskManager.Enqueue(() => StylistCheck(), "Doing a stylist check", Utils.TaskConfig);
-                    }
-                    else
-                    {
-                        P.TaskManager.Enqueue(() => ReturnBackToJob(), "Returning back to the original job", Utils.TaskConfig);
-                    }
+                    // 元のジョブへ戻ってから最強装備を行う。Enqueue だと拠点作業(購入/ガンブル/帰還)の後ろに回り、
+                    // 一時ジョブのまま拠点作業をしてしまうため、この直後に割り込ませる。
+                    P.TaskManager.InsertMulti
+                    (
+                        new(() => ReturnBackToJob(), "Returning back to the original job", Utils.TaskConfig),
+                        new(() => EquipBestGear(), "Equipping best gear after the relic upgrade", Utils.TaskConfig)
+                    );
                 }
                 return true;
             }
@@ -227,6 +294,90 @@ namespace ICE.Scheduler.Tasks
             return false;
 
         }
+        // 納品(強化)後の最強装備。Stylist プラグインがあればそれを使い、無ければゲームの「おすすめ装備」で装備してギアセットを更新する。
+        public static bool? EquipBestGear()
+        {
+            var jobId = TurninJob;
+            bool useStylist = C.Relic_Stylist && Utils.HasPlugin("Stylist");
+
+            if (useStylist)
+            {
+                // Stylist に装備させ、少し待ってからギアセットだけ保存する(おすすめ装備で上書きしない)
+                if (CosmicHelper.CrafterJobList.Contains(jobId))
+                    Task_TurninMission.ExecuteCommand("/stylist crafter");
+                else if (CosmicHelper.GatheringJobList.Contains(jobId))
+                    Task_TurninMission.ExecuteCommand("/stylist gatherer");
+                P.TaskManager.Insert(() => SaveGearsetTask(), "Updating the gearset with the equipped gear", Utils.TaskConfig);
+                P.TaskManager.InsertDelay(1000);
+                return true;
+            }
+
+            P.TaskManager.Insert(() => EquipRecommendedGear(), "Equipping recommended gear", Utils.TaskConfig);
+            return true;
+        }
+
+        private static int _recommendStep = 0;
+        private static long _recommendTick = 0;
+
+        // 現在のギアセット(現在のジョブのもの)を今の装備で更新する。
+        // 更新しないと、強化で主道具が別アイテムになった後に再度そのジョブへ切り替えたとき主道具が外れたままになる。
+        private static unsafe void SaveCurrentGearset()
+        {
+            var gearsets = RaptureGearsetModule.Instance();
+            if (gearsets == null || gearsets->CurrentGearsetIndex < 0)
+                return;
+            var current = gearsets->GetGearset(gearsets->CurrentGearsetIndex);
+            if (current == null || current->ClassJob != (byte)Player.Job)
+                return;
+            gearsets->UpdateGearset(gearsets->CurrentGearsetIndex);
+            IceLogging.Info($"ギアセット {gearsets->CurrentGearsetIndex + 1} を現在の装備で更新しました", "[Task_Relic]");
+        }
+
+        public static bool? SaveGearsetTask()
+        {
+            if (Player.IsBusy || GenericHelpers.IsOccupied())
+                return false;
+            SaveCurrentGearset();
+            return true;
+        }
+
+        // ゲームの「おすすめ装備」(RecommendEquipModule)で現在のジョブの最強装備を着け、ギアセットへ保存する。
+        // Stylist プラグインが無い環境向け。SetupForClassJob → (計算完了待ち) → EquipRecommendedGear → ギアセット保存 の順に進める。
+        public static unsafe bool? EquipRecommendedGear()
+        {
+            if (Player.IsBusy || GenericHelpers.IsOccupied())
+                return false;
+
+            var module = RecommendEquipModule.Instance();
+            long now = Environment.TickCount64;
+
+            switch (_recommendStep)
+            {
+                case 0:
+                    if (module == null) { _recommendStep = 2; _recommendTick = now; return false; }
+                    module->SetupForClassJob((byte)Player.Job);
+                    _recommendStep = 1;
+                    _recommendTick = now;
+                    return false;
+                case 1:
+                    if (module != null && module->IsUpdating) return false;
+                    if (now - _recommendTick < 500) return false;
+                    if (module != null)
+                    {
+                        module->EquipRecommendedGear();
+                        IceLogging.Info("おすすめ装備で最強装備を行いました", "[Task_Relic]");
+                    }
+                    _recommendStep = 2;
+                    _recommendTick = now;
+                    return false;
+                default:
+                    if (now - _recommendTick < 1000) return false;
+                    SaveCurrentGearset();
+                    _recommendStep = 0;
+                    return true;
+            }
+        }
+
         public static bool StylistCheck()
         {
             var jobId = TurninJob;
@@ -263,6 +414,7 @@ namespace ICE.Scheduler.Tasks
                 if (postRelicCounter >= 2)
                 {
                     postRelicCounter = 0;
+                    _tempJob = 0;
                     return true;
                 }
                 else

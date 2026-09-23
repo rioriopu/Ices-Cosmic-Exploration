@@ -83,6 +83,9 @@ namespace ICE.Ui.MainUi.HelpFolder.Tips_Folder
             ImGui.BulletText("Auxesia - Rank VII Max");
             ImGui.TextWrapped("So make sure that you're on the correct planet to accomodate for the exp that you need" +
                 "and to allow for completion your relic.");
+            ImGui.Dummy(new(0, 5));
+            ImGui.TextWrapped("When the tool's analysis reaches the required value, the plugin returns to the hub, swaps to another job, upgrades the tool at Researchingway, swaps back, equips the best gear and resumes (Mission Settings: \"Relic Mode: Auto Upgrade Tool\").");
+            ImGui.TextWrapped("D/C/B rank missions you have never completed are taken first so the next rank keeps unlocking (Mission Settings: \"Relic Mode: Prioritize Incomplete D-B\").");
         }
 
         public static void GoldCompletion()

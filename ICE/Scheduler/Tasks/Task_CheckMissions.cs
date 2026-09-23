@@ -741,6 +741,28 @@ namespace ICE.Scheduler.Tasks
                             if (TryQueueFirstIncomplete(isDRank, "D Rank")) return true;
                         }
 
+                        // D〜B ランクの未達成ミッションが掲示板に出ていれば、経験値効率より優先して受注する。
+                        // 同じ高効率ミッションばかり受けていると、次ランクの解放条件(そのランクのミッションを規定数達成)を
+                        // 満たせず上位ランクを受注できなくなるため。上位ランクほど経験値も多いので、B→C→D の順で選ぶ。
+                        // 対象は Relic Grind の絞り込み(ジョブ/レベル/Only Enabled)を通ったミッションのみ。
+                        if (C.Relic_PrioritizeIncomplete)
+                        {
+                            var incompleteLower = missionList
+                                .Where(x => basicMissionList.Contains(x))
+                                .Select(x => (id: x, info: CosmicHelper.SheetMissionDict[x]))
+                                .Where(t => (t.info.Drank || t.info.CRank || t.info.BRank) && t.info.CompletionStatus == CosmicHelper.Status.None)
+                                .Where(t => t.info.Jobs.All(j => Player.GetLevel((Job)j) >= t.info.Level))
+                                .OrderByDescending(t => t.info.Rank)
+                                .Select(t => t.id)
+                                .FirstOrDefault();
+                            if (incompleteLower != 0)
+                            {
+                                IceLogging.Info($"Relic Grind: 未達成の {(CosmicHelper.SheetMissionDict[incompleteLower].BRank ? "B" : CosmicHelper.SheetMissionDict[incompleteLower].CRank ? "C" : "D")}ランクミッション {incompleteLower} を優先して受注します(ランク解放条件のため)", tag);
+                                LogInfo(incompleteLower);
+                                Insert_GrabMissionTask(incompleteLower);
+                                return true;
+                            }
+                        }
 
                         IceLogging.Verbose($"Relic Mode, Exp Requirements/Results", tag);
                         foreach (var exp in urgency)

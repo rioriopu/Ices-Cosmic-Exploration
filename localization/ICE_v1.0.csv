@@ -399,17 +399,19 @@ If you just want to focus one specific class, set this to false","有効にす�
 "ICE","","","","Critical: Allow All Classes","緊急ミッション: 全クラスを許可"
 "ICE","","","","THIS IS YOUR HEADS UP ON HOW THIS WORKS. If I change this in the future, this tooltip will also change.
 1: This will check for your current CLASS [not menu class, actual current class] for relic turnin.
-2: You must not have the tool eqipped for this to run full auto. 
-	- This is due to the fact that I cba coding this in at this time. (might change my mind in the future *shrugs*)
+2: The tool being upgraded must not be equipped, so the plugin swaps to another job for the turnin.
+	- Uses the job from ""Job Swap Settings"" if it has a gearset, otherwise any other job that has a gearset.
 3: This will take prio over ""Stop @ Relic Turnin"", in the sense that if you have both enabled, it will turnin vs stop. And continue about it's day
 4: If you're on a crafting class, it will return you back to the stop you were crafting post turnin. 
-	- This is optional, you can disable it at your own free will, I just like this so I can just go back to an isolated area of my choosing","動作の説明です。今後変更した場合はこのツールチップも更新します。
+	- This is optional, you can disable it at your own free will, I just like this so I can just go back to an isolated area of my choosing
+5: In Relic Grind mode this all happens automatically (see ""Relic Mode: Auto Upgrade Tool""), even if this box is unchecked.","動作の説明です。今後変更した場合はこのツールチップも更新します。
 1: リレック納品は現在の「実際の」クラス（メニューのクラスではなく）で判定します。
-2: 完全自動で動かすには、ツールを装備していない状態である必要があります。
-	- 現時点でその処理を実装していないためです（将来変わるかもしれません）。
+2: 強化する主道具は装備していてはいけないため、納品の間は別のジョブに切り替えます。
+	- 「ジョブ切替設定」のジョブにギアセットがあればそれを、無ければギアセットのある他の任意のジョブを使います。
 3: これは「リレック納品で停止」より優先されます。両方有効なら停止せず納品して続行します。
 4: クラフタークラスの場合、納品後に製作していた場所へ戻ります。
-	- これは任意で無効にできます。私は好きな場所に戻れるのでこの動作が気に入っています"
+	- これは任意で無効にできます。私は好きな場所に戻れるのでこの動作が気に入っています
+5: リレック周回モードでは、このチェックが外れていてもこの一連の動作を自動で行います（「リレックモード: 主道具を自動強化」参照）。"
 "ICE","","","","Relic Mode: Allow Red Alerts","リレックモード: 緊急ミッションを許可"
 "ICE","","","","Relic Mode: Only Enabled","リレックモード: 有効なミッションのみ"
 "ICE","","","","Open Job Swap Settings","ジョブ切替設定を開く"
@@ -634,3 +636,24 @@ So get a good couple of runs to get a good feel for the timing","平均タイム
 "ICE","","","","Test Apply","適用テスト"
 "ICE","","","","Use after this many steps","この手数の後に使用"
 "ICE","","","","Node Location","ノード位置"
+"ICE","","","","Relic Mode: Auto Upgrade Tool","リレックモード: 主道具を自動強化"
+"ICE","","","","Relic Mode: Prioritize Incomplete D-B","リレックモード: D〜B未達成ミッションを優先"
+"ICE","","","","Auto (any other job)","自動(納品ジョブ以外の任意のジョブ)"
+"ICE","","","","When the tool's analysis reaches the required value: return to the hub, walk to Researchingway,
+swap to another job (the tool must not be equipped), upgrade the tool, swap back to the original job,
+equip the best gear (Stylist if installed, otherwise the game's recommended gear) and resume missions.
+The temporary job comes from ""Job Swap Settings"" if it has a gearset, otherwise any other job with a gearset.","主道具の分析が規定値に達したら: 拠点に戻り、リサーチングウェイまで移動し、
+別のジョブに切り替え（主道具を装備したままでは強化できないため）、主道具を強化し、元のジョブに戻り、
+最強装備を行い（Stylist があればそれを、無ければゲームのおすすめ装備）、ミッションを再開します。
+一時ジョブは「ジョブ切替設定」のジョブにギアセットがあればそれを、無ければギアセットのある他の任意のジョブを使います。"
+"ICE","","","","Take D/C/B rank missions you have never completed before picking by relic exp,
+so the completion count needed to unlock the next rank keeps growing.","リレック経験値で選ぶ前に、一度も達成していない D/C/B ランクのミッションを優先して受注します。
+次のランク解放に必要な達成数を積み上げるためです。"
+"ICE","","","","The job to swap to while the tool is upgraded (the tool must not be equipped).
+""Auto"" picks any other job that has a gearset (battle jobs first). It does not have to be a battle job.
+In Relic Grind mode the swap happens automatically even if the checkbox above is off.","主道具を強化する間に切り替えるジョブです（主道具を装備したままでは強化できません）。
+「自動」はギアセットのある他の任意のジョブを選びます（戦闘職を優先）。戦闘職である必要はありません。
+リレック周回モードでは上のチェックが外れていても自動で切り替えます。"
+"ICE","","","","If Stylist is not installed, the game's recommended gear is equipped instead. The gearset is updated afterwards either way.","Stylist が入っていない場合はゲームのおすすめ装備を装備します。どちらの場合もその後にギアセットを更新します。"
+"ICE","","","","When the tool's analysis reaches the required value, the plugin returns to the hub, swaps to another job, upgrades the tool at Researchingway, swaps back, equips the best gear and resumes (Mission Settings: ""Relic Mode: Auto Upgrade Tool"").","主道具の分析が規定値に達すると、拠点に戻り、別のジョブに切り替え、リサーチングウェイで主道具を強化し、元のジョブに戻って最強装備を行い、再開します（ミッション設定: 「リレックモード: 主道具を自動強化」）。"
+"ICE","","","","D/C/B rank missions you have never completed are taken first so the next rank keeps unlocking (Mission Settings: ""Relic Mode: Prioritize Incomplete D-B"").","一度も達成していない D/C/B ランクのミッションを優先して受注し、次のランクが解放され続けるようにします（ミッション設定: 「リレックモード: D〜B未達成ミッションを優先」）。"

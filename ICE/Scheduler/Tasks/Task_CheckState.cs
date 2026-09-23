@@ -288,7 +288,7 @@ namespace ICE.Scheduler.Tasks
                             if (canTurnin)
                             {
                                 IceLogging.Verbose("We can turn in the relic! (Allegedly) So going to check to see if we need to do so", tag);
-                                if (C.TurninRelic)
+                                if (Task_RelicTurnin.ShouldTurninRelic)
                                 {
                                     IceLogging.Verbose("We have turnin set to true, going to queue up later turning the relic into researchingWay", tag);
                                 }
@@ -609,7 +609,8 @@ namespace ICE.Scheduler.Tasks
             {
                 BuyItems = true;
             }
-            if (C.TurninRelic)
+            // 「Turnin if relic is complete」または Relic Grind モードの自動強化が有効なら、主道具の分析が規定値に達した時点で納品(強化)に行く
+            if (Task_RelicTurnin.ShouldTurninRelic)
             {
                 var jobId = Mission_Settings.SelectedJob;
                 // ジョブ情報が未取得なら既定値(ステージ0=納品不可)で扱い、直接添字の例外を避ける。

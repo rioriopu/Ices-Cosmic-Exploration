@@ -295,11 +295,12 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                     {
                         ImGui.SetTooltip("THIS IS YOUR HEADS UP ON HOW THIS WORKS. If I change this in the future, this tooltip will also change.\n" +
                                          "1: This will check for your current CLASS [not menu class, actual current class] for relic turnin.\n" +
-                                         "2: You must not have the tool eqipped for this to run full auto. \n" +
-                                         "\t- This is due to the fact that I cba coding this in at this time. (might change my mind in the future *shrugs*)\n" +
+                                         "2: The tool being upgraded must not be equipped, so the plugin swaps to another job for the turnin.\n" +
+                                         "\t- Uses the job from \"Job Swap Settings\" if it has a gearset, otherwise any other job that has a gearset.\n" +
                                          "3: This will take prio over \"Stop @ Relic Turnin\", in the sense that if you have both enabled, it will turnin vs stop. And continue about it's day\n" +
                                          "4: If you're on a crafting class, it will return you back to the stop you were crafting post turnin. \n" +
-                                         "\t- This is optional, you can disable it at your own free will, I just like this so I can just go back to an isolated area of my choosing");
+                                         "\t- This is optional, you can disable it at your own free will, I just like this so I can just go back to an isolated area of my choosing\n" +
+                                         "5: In Relic Grind mode this all happens automatically (see \"Relic Mode: Auto Upgrade Tool\"), even if this box is unchecked.");
                     }
 
                     ImGui.Separator();
@@ -316,6 +317,27 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                         C.XPRelicOnlyEnabled = OnlySelected;
                         C.Save();
                     }
+
+                    bool relicAutoUpgrade = C.Relic_AutoUpgradeInRelicMode;
+                    if (ImGui.Checkbox("Relic Mode: Auto Upgrade Tool", ref relicAutoUpgrade))
+                    {
+                        C.Relic_AutoUpgradeInRelicMode = relicAutoUpgrade;
+                        C.Save();
+                    }
+                    ImGuiEx.HelpMarker("When the tool's analysis reaches the required value: return to the hub, walk to Researchingway,\n" +
+                                       "swap to another job (the tool must not be equipped), upgrade the tool, swap back to the original job,\n" +
+                                       "equip the best gear (Stylist if installed, otherwise the game's recommended gear) and resume missions.\n" +
+                                       "The temporary job comes from \"Job Swap Settings\" if it has a gearset, otherwise any other job with a gearset.");
+
+                    bool relicPrioritizeIncomplete = C.Relic_PrioritizeIncomplete;
+                    if (ImGui.Checkbox("Relic Mode: Prioritize Incomplete D-B", ref relicPrioritizeIncomplete))
+                    {
+                        C.Relic_PrioritizeIncomplete = relicPrioritizeIncomplete;
+                        C.Save();
+                    }
+                    ImGuiEx.HelpMarker("Take D/C/B rank missions you have never completed before picking by relic exp,\n" +
+                                       "so the completion count needed to unlock the next rank keeps growing.");
+
                     if (ImGui.Button("Open Job Swap Settings"))
                     {
                         C.SelectedTab = WindowSelection.CharacterSettings;

@@ -966,10 +966,15 @@ namespace ICE.Ui.MainUi.Settings
                     C.Save(); 
                 }
 
-                string currentJobName = BattleJobs.FirstOrDefault(x => x.Value == C.Relic_BattleJob).Key ?? "None";
+                string currentJobName = BattleJobs.FirstOrDefault(x => x.Value == C.Relic_BattleJob).Key ?? "Auto (any other job)";
                 ImGui.SetNextItemWidth(200);
                 if (ImGui.BeginCombo("Battle Job##relicJob", currentJobName))
                 {
+                    if (ImGui.Selectable("Auto (any other job)", C.Relic_BattleJob == 0))
+                    {
+                        C.Relic_BattleJob = 0;
+                        C.Save();
+                    }
                     foreach (var (jobName, jobId) in BattleJobs)
                     {
                         bool sel = C.Relic_BattleJob == jobId;
@@ -984,12 +989,17 @@ namespace ICE.Ui.MainUi.Settings
                     ImGui.EndCombo();
                 }
 
+                ImGuiEx.HelpMarker("The job to swap to while the tool is upgraded (the tool must not be equipped).\n" +
+                                   "\"Auto\" picks any other job that has a gearset (battle jobs first). It does not have to be a battle job.\n" +
+                                   "In Relic Grind mode the swap happens automatically even if the checkbox above is off.");
+
                 bool useStylist = C.Relic_Stylist;
                 if (ImGui.Checkbox("Use Stylist to re-equip tools", ref useStylist))
                 {
                     C.Relic_Stylist = useStylist;
                     C.Save();
                 }
+                ImGuiEx.HelpMarker("If Stylist is not installed, the game's recommended gear is equipped instead. The gearset is updated afterwards either way.");
             }
             else
             {
@@ -1007,10 +1017,15 @@ namespace ICE.Ui.MainUi.Settings
                 OverrideField("Relic_BattleJob", C.Relic_BattleJob, ov.Relic_BattleJob,
                     v => ov.Relic_BattleJob = v,
                     current => {
-                        string currentJobName = BattleJobs.FirstOrDefault(x => x.Value == current).Key ?? "None";
+                        string currentJobName = BattleJobs.FirstOrDefault(x => x.Value == current).Key ?? "Auto (any other job)";
                         ImGui.SetNextItemWidth(200);
                         if (ImGui.BeginCombo("Battle Job##relicJobOv", currentJobName))
                         {
+                            if (ImGui.Selectable("Auto (any other job)", current == 0) && ov.Relic_BattleJob.HasValue)
+                            {
+                                ov.Relic_BattleJob = 0;
+                                C.Save();
+                            }
                             foreach (var (jobName, jobId) in BattleJobs)
                             {
                                 bool sel = current == jobId;
