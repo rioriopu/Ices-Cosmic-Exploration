@@ -552,6 +552,19 @@ namespace ICE.Scheduler.Tasks
             if (CosmicHandler.CanQueryMissionsWithoutUi() || (GenericHelpers.TryGetAddonMaster<WKSMission>("WKSMission", out var missionInfo) && missionInfo.IsAddonReady))
             {
                 var basicMissionList = CosmicHandler.Basic_AvailableMissions();
+                // 掲示板には受注レベル未満/ランク未解放のミッションも(ロック表示で)並ぶ。受けられないものは候補から外し、
+                // ランク判定(highestRank)も「受けられるミッション」で行う。受注に失敗したミッションも一定時間は除外する。
+                var lockedBasic = CosmicHandler.Basic_LockedMissions();
+                var lockedRanks = new HashSet<uint>();
+                foreach (var rank in basicMissionList.Select(x => CosmicHelper.SheetMissionDict.TryGetValue(x, out var s) ? s.Rank : 0u).Distinct())
+                {
+                    var ofRank = basicMissionList.Where(x => CosmicHelper.SheetMissionDict.TryGetValue(x, out var s) && s.Rank == rank).ToList();
+                    if (ofRank.Count > 0 && ofRank.All(x => lockedBasic.Contains(x)))
+                        lockedRanks.Add(rank);
+                }
+                if (lockedBasic.Count > 0 && EzThrottler.Throttle("Locked missions log", 10000))
+                    IceLogging.Info($"掲示板のロック中ミッション(受注不可): [{string.Join(",", lockedBasic)}] ロック中ランク: [{string.Join(",", lockedRanks.Select(RelicFallback.RankName))}]", tag);
+                basicMissionList = basicMissionList.Where(x => !lockedBasic.Contains(x) && !IsUnacceptable(x)).ToList();
                 var specialMissionList = CosmicHandler.Provisional_AvailableMissions();
                 var criticalMissions = CosmicHandler.Critical_AvailableMissions();
                 var masteryMissions = CosmicHandler.Mastery_AvailableMissions();
@@ -561,7 +574,7 @@ namespace ICE.Scheduler.Tasks
 
                 if (CorrectJobTab(job))
                 {
-                    // 掲示板に出ている最高ランク = 解放済みランク。レリックモードの一時レベリングの復帰判定に使う
+                    // 受けられる(ロックされていない)ミッションの最高ランク = 解放済みランク。レリックモードの一時レベリングの復帰判定に使う
                     if (type == MissionTypes.Standard && basicMissionList.Count > 0)
                         RelicFallback.Observe(job, basicMissionList.Max(x => CosmicHelper.SheetMissionDict[x].Rank));
 
@@ -661,10 +674,13 @@ namespace ICE.Scheduler.Tasks
                                 .Where(e => e.Value.Needed > 0 && e.Value.Current < e.Value.Needed)
                                 .Select(e => e.Key)
                                 .ToList();
-                            // 候補 = レリックモードのライブラリに残った通常ミッション(緊急/暫定を除く)。ここに無いものは選ばれない
+                            // 候補 = レリックモードのライブラリに残った通常ミッション(緊急/暫定を除く)のうち、掲示板でロック中のランクや
+                            // 受注に失敗したものを除いたもの。ここに無いものは選ばれない
                             var selectable = MissionLibrary
                                 .Where(kv => kv.Key is MissionKind.D or MissionKind.C or MissionKind.B or MissionKind.A or MissionKind.Ex)
                                 .SelectMany(kv => kv.Value)
+                                .Where(x => !lockedBasic.Contains(x) && !IsUnacceptable(x)
+                                            && !(CosmicHelper.SheetMissionDict.TryGetValue(x, out var sx) && lockedRanks.Contains(sx.Rank)))
                                 .ToList();
                             uint reqRank = 0, reqLevel = 0;
                             string blockedTypes = "", detail = "";
@@ -1166,13 +1182,37 @@ namespace ICE.Scheduler.Tasks
             return false;
         }
         private static int retryCheck = 0;
+        // 受注を試みても受注できなかったミッション(ランク未解放・レベル不足など)。一定時間は候補から外す。
+        private static readonly Dictionary<uint, DateTime> _unacceptable = new();
+        private const double UnacceptableExpireMinutes = 30;
+        private static int _initiateAttempts = 0;
+        private static uint _initiateMissionId = 0;
+        private const int MaxInitiateAttempts = 5;
+
+        internal static bool IsUnacceptable(uint missionId)
+        {
+            if (!_unacceptable.TryGetValue(missionId, out var at))
+                return false;
+            if ((DateTime.Now - at).TotalMinutes < UnacceptableExpireMinutes)
+                return true;
+            _unacceptable.Remove(missionId);
+            return false;
+        }
+
         private static bool? GrabMission(uint missionId, bool reroll = false)
         {
             string tag = "[Check Missions: Grab Mission]";
 
+            if (_initiateMissionId != missionId)
+            {
+                _initiateMissionId = missionId;
+                _initiateAttempts = 0;
+            }
+
             if (CosmicHelper.CurrentLunarMission != 0)
             {
                 retryCheck = 0;
+                _initiateAttempts = 0;
                 Mission_Settings.ResetNodeCounter();
 
                 if (reroll)
@@ -1202,7 +1242,19 @@ namespace ICE.Scheduler.Tasks
                     if (allmissions.Contains(missionId))
                     {
                         if (EzThrottler.Throttle("Selecting Mission", 1000))
+                        {
+                            // 受注を何度試みても受注状態にならない(ロック中など)ミッションは諦めて候補から外す
+                            if (_initiateAttempts >= MaxInitiateAttempts)
+                            {
+                                IceLogging.Warning($"ミッション {missionId} を {MaxInitiateAttempts} 回受注しようとしても受注できませんでした(ランク未解放/レベル不足の可能性)。{UnacceptableExpireMinutes:F0}分間は候補から外して選び直します", tag);
+                                _unacceptable[missionId] = DateTime.Now;
+                                _initiateAttempts = 0;
+                                P.TaskManager.Tasks.Clear();
+                                return true;
+                            }
+                            _initiateAttempts++;
                             InitiateMission(missionId);
+                        }
                     }
                     else
                     {

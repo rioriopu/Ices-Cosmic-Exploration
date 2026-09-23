@@ -129,6 +129,29 @@ namespace ICE.Utilities
 
             return allMissions;
         }
+
+        /// <summary>
+        /// 掲示板(通常タブ)に表示されているが受注できないミッション(ランク未解放・レベル不足などで Locked/ConditionLocked が立っているもの)。
+        /// 掲示板には受注レベル未満の上位ランクも表示されるため、「表示されている」と「受けられる」は別に扱う必要がある。
+        /// </summary>
+        internal unsafe static HashSet<uint> Basic_LockedMissions()
+        {
+            HashSet<uint> locked = new();
+
+            var wks = GetActiveMissionAgent();
+            if (wks is null)
+                return locked;
+
+            StdVector<MissionEntry> basicList = default;
+            if (wks->GetBasicMissions(&basicList))
+            {
+                foreach (var mission in basicList)
+                    if (mission.Flags.HasFlag(AgentWKSMission.MissionFlags.Locked) || mission.Flags.HasFlag(AgentWKSMission.MissionFlags.ConditionLocked))
+                        locked.Add(mission.MissionUnitId);
+            }
+
+            return locked;
+        }
         internal unsafe static List<uint> Provisional_AvailableMissions()
         {
             List<uint> allMissions = new();
