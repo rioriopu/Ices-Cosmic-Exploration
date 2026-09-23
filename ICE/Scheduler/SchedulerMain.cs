@@ -12,6 +12,7 @@ namespace ICE.Scheduler
             State = Start;
             IceLogging.Info($"Setting State to: {State} / Enabling Plugin");
             Mission_Settings.SelectedJob = (uint)Player.Job;
+            RelicFallback.Reset(); // 開始時はレリックモードの一時レベリングを解除(必要なら再判定される)
             IceLogging.Info($"Player starting job upon pressing the start: {Mission_Settings.SelectedJob}");
             GenericManager.StorePandoraStates();
             return true;

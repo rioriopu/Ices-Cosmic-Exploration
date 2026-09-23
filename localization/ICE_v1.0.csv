@@ -669,3 +669,4 @@ Turned on automatically when you press ""Buy Leveling Gear"".","レベリング�
 「レベリング装備を購入」を押すと自動で ON になります。"
 "ICE","","","","Sell Leveling Gear","レベリング装備を売却"
 "ICE","","","","Items to sell","売却予定の装備"
+"ICE","","","","→ Leveling (relic fallback)","→ レベリング中（レリック条件待ち）"

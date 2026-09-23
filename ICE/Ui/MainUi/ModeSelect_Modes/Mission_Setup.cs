@@ -217,6 +217,17 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
 
                 ImGuiEx.IconWithText(modeIcon, $"{modeType} Mode");
 
+                // レリックモードの一時レベリング中はその旨を表示する
+                if (relicMode && RelicFallback.Active)
+                {
+                    ImGui.SameLine(0, 6 * scale);
+                    ImGui.TextColored(new Vector4(1f, 0.85f, 0.3f, 1f), "→ Leveling (relic fallback)");
+                    if (ImGui.IsItemHovered())
+                        ImGui.SetTooltip(Task_BuyLevelingGear.IsJapanese
+                            ? $"コスモデータ{RelicFallback.NeededTypes}は{RelicFallback.RankName(RelicFallback.RequiredRank)}クラスのミッションでしか得られないため、Lv{RelicFallback.RequiredLevel}到達と{RelicFallback.RankName(RelicFallback.RequiredRank)}クラス解放までレベリングモードで動いています"
+                            : $"Analysis {RelicFallback.NeededTypes} only comes from rank {RelicFallback.RankName(RelicFallback.RequiredRank)} missions. Leveling until Lv{RelicFallback.RequiredLevel} and rank {RelicFallback.RankName(RelicFallback.RequiredRank)} is unlocked");
+                }
+
                 ImGui.SameLine(0, 10 * scale);
 
                 // Adjust the Y position to center the button vertically with the text

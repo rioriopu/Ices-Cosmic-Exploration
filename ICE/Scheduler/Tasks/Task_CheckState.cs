@@ -203,8 +203,9 @@ namespace ICE.Scheduler.Tasks
             }
             else
             {
-                Mission_Settings.Mode = currentMode;
                 var jobId = Mission_Settings.SelectedJob;
+                // レリックモードの一時レベリング中なら、条件(レベル/ランク解放)を満たすまで LevelMode で動かす
+                Mission_Settings.Mode = RelicFallback.ApplyAtStart(currentMode, jobId != 0 ? jobId : (uint)Player.Job);
 
                 IceLogging.Info("We have a pre-selected mode enabled. So we're just going to run that down till we're told to stop\n" +
                     $"Selected Mode: {currentMode}\n" +

@@ -561,6 +561,10 @@ namespace ICE.Scheduler.Tasks
 
                 if (CorrectJobTab(job))
                 {
+                    // 掲示板に出ている最高ランク = 解放済みランク。レリックモードの一時レベリングの復帰判定に使う
+                    if (type == MissionTypes.Standard && basicMissionList.Count > 0)
+                        RelicFallback.Observe(job, basicMissionList.Max(x => CosmicHelper.SheetMissionDict[x].Rank));
+
                     if (mode == ModeSelect.LevelMode)
                     {
                         var levelingMission = missionList.FirstOrDefault();
@@ -648,6 +652,26 @@ namespace ICE.Scheduler.Tasks
                         IceLogging.Verbose("Going to check to see if we need to complete a specific mission...", tag);
 
                         var highestRank = basicMissionList.Max(x => CosmicHelper.SheetMissionDict[x].Rank);
+
+                        // 必要なコスモデータの種類が、未解放ランク(またはレベル不足)のミッションでしか得られないなら、
+                        // そのミッションを受けに行こうとせず、条件を満たすまで一時的にレベリングモードへ切り替える。
+                        if (C.SelectedMode == ModeSelect.RelicMode && classInfo.Stage_Current != classInfo.Stage_Next)
+                        {
+                            var neededTypes = classInfo.CurrentExp
+                                .Where(e => e.Value.Needed > 0 && e.Value.Current < e.Value.Needed)
+                                .Select(e => e.Key)
+                                .ToList();
+                            if (neededTypes.Count > 0
+                                && RelicFallback.IsBlocked(job, jobLv, highestRank, neededTypes, out var reqRank, out var reqLevel, out var blockedTypes))
+                            {
+                                IceLogging.Info($"レリックモード: 必要なコスモデータ{blockedTypes}を得られるミッションは{RelicFallback.RankName(reqRank)}クラス(Lv{reqLevel})以上で、現在は Lv{jobLv}/解放ランク{RelicFallback.RankName(highestRank)}。レベリングモードへ切り替えます", tag);
+                                RelicFallback.Begin(job, reqRank, reqLevel, blockedTypes);
+                                Mission_Settings.Mode = ModeSelect.LevelMode;
+                                P.TaskManager.Tasks.Clear();
+                                SchedulerMain.State = IceState.Start;
+                                return true;
+                            }
+                        }
 
                         bool TryQueueFirstIncomplete(Func<uint, bool> rankFilter, string rankLabel)
                         {
