@@ -39,23 +39,23 @@ namespace ICE.Ui
 
         public override void Draw()
         {
-            ImGui.Text("Hi! Welcome to Ice's Cosmic Exploration [Short form, I.C.E.]");
+            ImGui.Text(Loc.T("Hi! Welcome to Ice's Cosmic Exploration [Short form, I.C.E.]"));
             ImGui.Bullet();
-            ImGui.TextWrapped("This plugin is meant to help you with your cosmic exploration needs, " +
-                              "from automating the gathering and crafting process, to the buying of shop items or spending those planetary credits away.");
+            ImGui.TextWrapped(Loc.T("This plugin is meant to help you with your cosmic exploration needs, " +
+                              "from automating the gathering and crafting process, to the buying of shop items or spending those planetary credits away."));
 
             helpSelect_Required.Draw();
 
             ImGui.Separator();
 
-            ImGuiEx.IconWithText(FontAwesomeIcon.Feather, "Gathering Setup");
+            ImGuiEx.IconWithText(FontAwesomeIcon.Feather, Loc.T("Gathering Setup"));
             ImGui.Dummy(new Vector2(0, 5));
 
-            ImGui.Text("If you would like to auto setup gathering to where all missions have their gathering buffs to what I would recommend");
+            ImGui.Text(Loc.T("If you would like to auto setup gathering to where all missions have their gathering buffs to what I would recommend"));
 
             if (!HasGatheringSetup)
             {
-                if (ImGui.Button("Setup Gathering Profiles"))
+                if (ImGui.Button(Loc.T("Setup Gathering Profiles")))
                 {
                     foreach (var profile in C.GatherProfiles)
                     {
@@ -96,7 +96,7 @@ namespace ICE.Ui
             }
             else
             {
-                ImGui.Text("All gathering profile have been updated/automatically applied");
+                ImGui.Text(Loc.T("All gathering profile have been updated/automatically applied"));
             }
         }
     }

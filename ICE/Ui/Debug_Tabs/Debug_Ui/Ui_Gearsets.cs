@@ -38,16 +38,16 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
 
         public static void Draw()
         {
-            if (ImGui.Button("Update Gearsets"))
+            if (ImGui.Button(Loc.T("Update Gearsets")))
             {
                 UpdateGearsets();
             }
 
             if (ImGui.BeginTable("Gearset Viewer", 3, ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.RowBg | ImGuiTableFlags.Borders))
             {
-                ImGui.TableSetupColumn("ID");
-                ImGui.TableSetupColumn("Name");
-                ImGui.TableSetupColumn("JobID");
+                ImGui.TableSetupColumn(Loc.T("ID"));
+                ImGui.TableSetupColumn(Loc.T("Name"));
+                ImGui.TableSetupColumn(Loc.T("JobID"));
 
                 ImGui.TableHeadersRow();
 

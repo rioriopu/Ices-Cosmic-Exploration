@@ -35,7 +35,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
 
             ImGui.Text($"Total: {count}");
             ImGui.SameLine();
-            if (ImGui.Button("Set Save Location"))
+            if (ImGui.Button(Loc.T("Set Save Location")))
             {
                 fileDialogManager.OpenFolderDialog("Select Export Folder", (success, path) =>
                 {
@@ -63,8 +63,8 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
             
             if (ImGui.BeginTable("Gather Route Editor Table", 2, ImGuiTableFlags.BordersInnerV | ImGuiTableFlags.BordersOuter | ImGuiTableFlags.SizingFixedFit, ImGui.GetContentRegionAvail()))
             {
-                ImGui.TableSetupColumn("Route Selector", ImGuiTableColumnFlags.WidthFixed, 200);
-                ImGui.TableSetupColumn("Route Editor", ImGuiTableColumnFlags.WidthStretch);
+                ImGui.TableSetupColumn(Loc.T("Route Selector"), ImGuiTableColumnFlags.WidthFixed, 200);
+                ImGui.TableSetupColumn(Loc.T("Route Editor"), ImGuiTableColumnFlags.WidthStretch);
 
                 ImGui.TableNextRow();
                 ImGui.TableSetColumnIndex(0);
@@ -172,7 +172,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
 
             if (GatheringRouteLoader.LoadedRoutes.TryGetValue(_selectedRoute, out var routeInfo))
             {
-                if (ImGui.Button("Save Route"))
+                if (ImGui.Button(Loc.T("Save Route")))
                 {
                     GatheringRouteLoader.SaveRoute(routeInfo);
                 }
@@ -274,19 +274,19 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
                     ImGui.Text($"Node: {nodeInfo.NodeId}");
                     ImGui.Text($"X: {nodeInfo.Position.X:N2} | Y: {nodeInfo.Position.Y:N2} | Z: {nodeInfo.Position.Z:N2}");
 
-                    if (ImGui.Button("Nav Move To"))
+                    if (ImGui.Button(Loc.T("Nav Move To")))
                     {
                         P.Navmesh.PathfindAndMoveTo(nodeInfo.LandZone, false);
                     }
                     ImGui.SameLine();
-                    if (ImGui.Button("Move To [Fan]"))
+                    if (ImGui.Button(Loc.T("Move To [Fan]")))
                     {
                         Task_NavmeshMove.ResetGatherMove();
                         P.TaskManager.Enqueue(() => Task_NavmeshMove.Task_GatherMove(nodeInfo, stayMounted: true));
                     }
 
                     ImGui.SameLine();
-                    if (ImGui.Button("Move To [Smart]"))
+                    if (ImGui.Button(Loc.T("Move To [Smart]")))
                     {
                         Task_NavmeshMove.ResetGatherMove();
                         var randomPosition = Task_NavmeshMove.Gather_RandomFanPosition(nodeInfo);
@@ -307,7 +307,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
 
                     using (var disabled = ImRaii.Disabled(_isGeneratingFan || !ImGui.IsKeyDown(ImGuiKey.LeftShift)))
                     {
-                        if (ImGui.Button("Generate Fan from Navmesh"))
+                        if (ImGui.Button(Loc.T("Generate Fan from Navmesh")))
                         {
                             _ = GenerateFanForNode(nodeInfo);
                         }
@@ -315,32 +315,32 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
 
 
                     ImGui.SetNextItemWidth(100);
-                    if (ImGui.DragFloat("Fan Start", ref fanStart, 1, 0, 360))
+                    if (ImGui.DragFloat(Loc.T("Fan Start"), ref fanStart, 1, 0, 360))
                     {
                         nodeInfo.RadiusStart = fanStart;
                     }
                     ImGui.SameLine();
                     ImGui.SetNextItemWidth(100);
-                    if (ImGui.DragFloat("Fan End", ref fanEnd, 1, 0, 360))
+                    if (ImGui.DragFloat(Loc.T("Fan End"), ref fanEnd, 1, 0, 360))
                     {
                         nodeInfo.RadiusEnd = fanEnd;
                     }
 
                     ImGui.SetNextItemWidth(100);
-                    if (ImGui.DragFloat("Min Distance", ref fanMin, 1, 1, 4))
+                    if (ImGui.DragFloat(Loc.T("Min Distance"), ref fanMin, 1, 1, 4))
                     {
                         nodeInfo.MinDistance = fanMin;
                     }
 
                     ImGui.SameLine();
                     ImGui.SetNextItemWidth(100);
-                    if (ImGui.DragFloat("Max Distance", ref fanMax, 1, 1, 4))
+                    if (ImGui.DragFloat(Loc.T("Max Distance"), ref fanMax, 1, 1, 4))
                     {
                         nodeInfo.MaxDistance = fanMax;
                     }
 
                     ImGui.SetNextItemWidth(100);
-                    if (ImGui.DragFloat("Fan Height", ref height, 0.1f, 0, 3))
+                    if (ImGui.DragFloat(Loc.T("Fan Height"), ref height, 0.1f, 0, 3))
                     {
                         nodeInfo.FanHeight = height;
                     }
@@ -371,8 +371,8 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
             }
             else
             {
-                ImGui.Text("No route file exist. Do you want to create one?");
-                if (ImGui.Button("Create files"))
+                ImGui.Text(Loc.T("No route file exist. Do you want to create one?"));
+                if (ImGui.Button(Loc.T("Create files")))
                 {
                     GatheringRouteLoader.CreateMissingStubs();
                 }

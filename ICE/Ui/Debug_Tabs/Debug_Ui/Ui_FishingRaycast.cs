@@ -281,7 +281,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
 
             if (_raycastSimple == null)
             {
-                ImGui.TextColored(new Vector4(1, 0, 0, 1), "Raycast not initialized!");
+                ImGui.TextColored(new Vector4(1, 0, 0, 1), Loc.T("Raycast not initialized!"));
                 return;
             }
 

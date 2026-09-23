@@ -29,11 +29,11 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
 
                     if (ImGui.BeginTable("NPC Info Debugger", 5, ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.RowBg | ImGuiTableFlags.Borders))
                     {
-                        ImGui.TableSetupColumn("Name");
-                        ImGui.TableSetupColumn("Position");
-                        ImGui.TableSetupColumn("MoveTo Spot");
-                        ImGui.TableSetupColumn("Move To");
-                        ImGui.TableSetupColumn("Set To Current");
+                        ImGui.TableSetupColumn(Loc.T("Name"));
+                        ImGui.TableSetupColumn(Loc.T("Position"));
+                        ImGui.TableSetupColumn(Loc.T("MoveTo Spot"));
+                        ImGui.TableSetupColumn(Loc.T("Move To"));
+                        ImGui.TableSetupColumn(Loc.T("Set To Current"));
 
                         foreach (var npcEntry in moonNpcs.Values)
                         {

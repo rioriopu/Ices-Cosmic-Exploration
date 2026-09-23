@@ -670,3 +670,88 @@ Turned on automatically when you press ""Buy Leveling Gear"".","レベリング�
 "ICE","","","","Sell Leveling Gear","レベリング装備を売却"
 "ICE","","","","Items to sell","売却予定の装備"
 "ICE","","","","→ Leveling (relic fallback)","→ レベリング中（レリック条件待ち）"
+"ICE","","","","Manual","手動"
+"ICE","","","","Delete","削除"
+"ICE","","","","Import","インポート"
+"ICE","","","","ExpBar","経験値バー"
+"ICE","","","","Filters which planets appear in the
+mission list and the overlay.","ミッション一覧とオーバーレイに表示する
+惑星を絞り込みます。"
+"ICE","","","","Scan Open Wheel","開いているホイールをスキャン"
+"ICE","","","","Recategorize","再分類"
+"ICE","","","","Will only work while using ICE and not manual mode
+Will also pause pandora cordial usage while on the moon","ICE 使用中のみ動作します(手動モードでは無効)
+月にいる間は Pandora のコーディアル使用も一時停止します"
+"ICE","","","","Set to -1 to allow for infinite uses 
+Set to 1-> X to set maximum amount of uses per mission","-1 にすると無制限に使用します
+1 以上にするとミッションごとの最大使用回数になります"
+"ICE","","","","PLEASE NOTE:
+This will wipe out all your current profiles, and apply what I would suggest for each one.
+For most of you this would be fine, this is really only here if you don't know what to apply for each one.If you're okay with this, hold left shift and apply","ご注意:
+現在のプロファイルをすべて消去し、作者おすすめの設定を各プロファイルに適用します。
+ほとんどの方はこれで問題ありませんが、どの設定にすればよいか分からない場合のための機能です。よければ左 Shift を押しながら適用してください"
+"ICE","","","","UI Language","UI 言語"
+"ICE","","","","UI Language##uiLang","UI 言語##uiLang"
+"ICE","","","","Reload dictionary","辞書を再読み込み"
+"ICE","","","","Translations come from the CSV dictionary bundled with the plugin (localization\ICE_v1.0.csv).
+To override or add entries, put a CSV with the same columns in <plugin config folder>\localization\.","翻訳はプラグイン同梱の CSV 辞書(localization\ICE_v1.0.csv)から読み込みます。
+上書きや追加をしたい場合は、同じ列構成の CSV を <プラグイン設定フォルダ>\localization\ に置いてください。"
+"ICE","","","","Anything below 0 to keep all logs
+Above 0 to keep a set limit","0 未満ならログをすべて保持します
+0 より大きい値ならその件数までログを保持します"
+"ICE","","","","Input below a list of commands that you would like to run after a run has been completed. 
+This is kind of my way of letting you somewhat script/set up a sequence of other things that you would like to do that might not be included in the plugin itself. 
+If you want something more complex, just make an SND script at that point. And have this run that script post lol.","実行完了後に実行したいコマンドを下に入力してください。
+プラグイン自体には含まれていない一連の処理を、簡易的にスクリプト化して設定するための機能です。
+もっと複雑なことをしたい場合は SND スクリプトを作り、ここからそのスクリプトを実行するようにしてください。"
+"ICE","","","","Warning! This is a safety feature to avoid joining random parties!
+If you you uncheck this, YOU WILL JOIN random party invites.
+You have been warned. Disable at your own risk.","警告! これは見知らぬパーティへの参加を防ぐための安全機能です!
+チェックを外すと、届いたパーティ勧誘に自動で参加してしまいます。
+警告はしました。無効化は自己責任でお願いします。"
+"ICE","","","","This is here for safety! If you want to decrease the delay between missions be my guest.
+Safety is around... 250? If you're having animation locks you can absolutely increase it higher
+Or if you're feeling daredevil. Lower it. I'm not your dad (will tell dad jokes though.","安全のための設定です。ミッション間の待機を短くしたければご自由にどうぞ。
+安全圏はおよそ 250 前後です。アニメーションロックが起きるなら、もっと大きくしても構いません
+度胸があるなら下げても構いません。自己責任でお願いします。"
+"ICE","","","","This is here for safety! If you want to decrease the delay before turnin be my guest.
+Safety is around... 2500? If you're having animation locks you can absolutely increase it higher
+Or if you're feeling daredevil. Lower it. I'm not your dad (will tell dad jokes though.","安全のための設定です。納品前の待機を短くしたければご自由にどうぞ。
+安全圏はおよそ 2500 前後です。アニメーションロックが起きるなら、もっと大きくしても構いません
+度胸があるなら下げても構いません。自己責任でお願いします。"
+"ICE","","","","Keep: Will buy up to that many items to make sure that you have in your inventory. This count doesn't go down between runs.
+Useful for things like cordials where you want to always have a certain amount on hand","Keep(保持): 所持数がその数になるまで購入します。この数は実行をまたいでも減りません。
+コーディアルなど、常に一定数を手元に置いておきたいものに便利です"
+"ICE","","","","Buy: Will buy X amount of those items, as it buys it from the vendor, the number will decrease until it hits 0.
+Good for one off buys, or something that you only need a particular amount of","Buy(購入): 指定した数だけ購入します。店で買うたびに数が減り、0 になると止まります。
+一度きりの購入や、特定の数だけ必要なものに向いています"
+"ICE","","","","Keep Buying: Once the other 2 have been met (Keep/Buy), it will constantly buy this item if it has the credits to do so.
+This can only be set to 1 item, and gererally used for things you want to just spend your credits on","Keep Buying(買い続ける): 上の 2 つ(Keep/Buy)を満たしたあと、クレジットがある限りこのアイテムを買い続けます。
+1 アイテムにしか設定できず、余ったクレジットをつぎ込みたいものに使います"
+"ICE","","","","Always navigate to the closest targetable node instead of following the fixed route order.
+Useful for timed EX+ missions where speed matters.","固定のルート順ではなく、常に最も近いターゲット可能なノードへ移動します。
+速さが重要な時間制限付き EX+ ミッションで有効です。"
+"ICE","","","","When enabled, the pathfinder will not use Stellar Return to travel to gathering nodes.
+This applies to both Hub Return and Hub + Aethernet travel methods.","有効にすると、採集ノードへの移動にコスモデジョン(Stellar Return)を使いません。
+「拠点へ帰還」と「拠点＋エーテライト」の両方の移動方式に適用されます。"
+"ICE","","","","When stuck during navmesh movement for the configured delay:
+- Jump: attempts to jump over the obstacle
+- Retarget: stops and re-pathfinds to the destination (re-randomizes if enabled)","ナビメッシュ移動中に設定した時間スタックしたとき:
+- Jump: ジャンプで障害物を越えようとします
+- Retarget: 停止して目的地への経路を引き直します(ランダム化が有効なら再ランダム化)"
+"ICE","","","","♥ Ko-fi (Buy me an ice coffee)","♥ Ko-fi (作者にアイスコーヒーをおごる)"
+"ICE","","","","No path files found.","パスファイルが見つかりません。"
+"ICE","","","","New Path Name","新しいパス名"
+"ICE","","","","Create New Path","新しいパスを作成"
+"ICE","","","","Path File","パスファイル"
+"ICE","","","","Test Route","ルートをテスト"
+"ICE","","","","Add New Waypoint:","ウェイポイントを追加:"
+"ICE","","","","Add Current POS","現在位置を追加"
+"ICE","","","","Set X","X を設定"
+"ICE","","","","Set Y","Y を設定"
+"ICE","","","","Set Z","Z を設定"
+"ICE","","","","Add Waypoint","ウェイポイントを追加"
+"ICE","","","","Save Path File","パスファイルを保存"
+"ICE","","","","Item Details","アイテム詳細"
+"ICE","","","","Dropdown Detail","設定項目"
+"ICE","","","","Dropdown Selection","選択"

@@ -57,7 +57,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Hud
                         }
                         ImGui.Text($"{cost}");
                         ImGui.SameLine();
-                        if (ImGui.Button("Buy Item"))
+                        if (ImGui.Button(Loc.T("Buy Item")))
                         {
                             entry.Select();
                         }
@@ -72,8 +72,8 @@ namespace ICE.Ui.Debug_Tabs.Debug_Hud
                 var currencyIcon = sheet.GetRow(shopExchange.CurrencyId).Icon;
                 Svc.Texture.TryGetFromGameIcon((int)currencyIcon, out var texture);
                 ImGui.Text($"{shopExchange.CurrencyAmount}");
-                ImGui.InputInt("Tab #", ref Tab);
-                if (ImGui.Button("Copy Item List"))
+                ImGui.InputInt(Loc.T("Tab #"), ref Tab);
+                if (ImGui.Button(Loc.T("Copy Item List")))
                 {
                     var sb = new StringBuilder();
                     for (int i = 0; i < shopExchange.NumEntries; i++)
@@ -126,13 +126,13 @@ namespace ICE.Ui.Debug_Tabs.Debug_Hud
                         ImGui.Text($"{entry.CostAmount}");
 
                         ImGui.TableNextColumn();
-                        if (ImGui.Button("Buy 1 Item"))
+                        if (ImGui.Button(Loc.T("Buy 1 Item")))
                         {
                             entry.Select();
                         }
 
                         ImGui.TableNextColumn();
-                        if (ImGui.Button("Buy Max"))
+                        if (ImGui.Button(Loc.T("Buy Max")))
                         {
                             if (EzThrottler.Throttle("Buying from shop throttle"))
                             {
@@ -159,7 +159,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Hud
                 ImGui.AlignTextToFramePadding();
                 ImGui.Text($"{amount}");
 
-                if (ImGui.Button("Copy Item List"))
+                if (ImGui.Button(Loc.T("Copy Item List")))
                 {
                     var sb = new StringBuilder();
                     for (int i = 0; i < Shop.NumEntries; i++)
@@ -208,13 +208,13 @@ namespace ICE.Ui.Debug_Tabs.Debug_Hud
                         ImGui.Text($"{entry.CostAmount}");
 
                         ImGui.TableNextColumn();
-                        if (ImGui.Button("Buy 1 Item"))
+                        if (ImGui.Button(Loc.T("Buy 1 Item")))
                         {
                             entry.Select();
                         }
 
                         ImGui.TableNextColumn();
-                        if (ImGui.Button("Buy Max"))
+                        if (ImGui.Button(Loc.T("Buy Max")))
                         {
                             if (EzThrottler.Throttle("Buying from shop throttle"))
                             {
@@ -230,7 +230,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Hud
             }
             else
             {
-                ImGui.Text("Waiting for a shop exchange window to be open");
+                ImGui.Text(Loc.T("Waiting for a shop exchange window to be open"));
             }
         }
     }

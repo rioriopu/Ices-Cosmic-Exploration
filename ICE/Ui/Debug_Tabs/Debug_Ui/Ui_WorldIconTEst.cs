@@ -10,7 +10,7 @@ internal class Ui_WorldIconTEst
 
     public static void DrawControls()
     {
-        if (ImGui.Button("Set marker to current position"))
+        if (ImGui.Button(Loc.T("Set marker to current position")))
             _markerPos = Svc.Objects.LocalPlayer?.Position ?? Vector3.Zero;
     }
 

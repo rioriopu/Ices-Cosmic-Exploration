@@ -17,29 +17,29 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
             ImGui.Text($"Current task running: {currentTask}");
             ImGui.Text($"Current State: {SchedulerMain.State}");
             ImGui.Text($"Task Count: {P.TaskManager.Tasks.Count}");
-            if (ImGui.Button("Set State to Idle"))
+            if (ImGui.Button(Loc.T("Set State to Idle")))
             {
                 SchedulerMain.State = IceState.Idle; 
             }
 
-            if (ImGui.Button("Stop Task"))
+            if (ImGui.Button(Loc.T("Stop Task")))
             {
                 P.TaskManager.Tasks.Clear();
                 P.TaskManager.Abort();
             }
 
             ImGui.SetNextItemWidth(100);
-            ImGui.InputUInt("Mission", ref mission);
+            ImGui.InputUInt(Loc.T("Mission"), ref mission);
 
-            if (ImGui.Button("Abandon Mission"))
+            if (ImGui.Button(Loc.T("Abandon Mission")))
             {
                 Task_AbandonMission.Enqueue();
             }
-            if (ImGui.Button("Path to repair NPC"))
+            if (ImGui.Button(Loc.T("Path to repair NPC")))
             {
                 P.TaskManager.Enqueue(() => Task_Repair.Repair_PathTo(), "Pathing to repair NPC");
             }
-            if (ImGui.Button("Test Repair Function"))
+            if (ImGui.Button(Loc.T("Test Repair Function")))
             {
                 Task_Repair.Enqueue();
             }
@@ -47,11 +47,11 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
 
             ImGui.SetNextItemWidth(250);
             ImGui.InputFloat3("Destination", ref pathToArea);
-            if (ImGui.Button("Set Area"))
+            if (ImGui.Button(Loc.T("Set Area")))
             {
                 pathToArea = ECommons.GameHelpers.Player.Position;
             }
-            if (ImGui.Button("Create waypoint list"))
+            if (ImGui.Button(Loc.T("Create waypoint list")))
             {
                 Vector3 currentPos = ECommons.GameHelpers.Player.Position;
 
@@ -61,24 +61,24 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
                     pathTo = await FindTask(currentPos);
                 });
             }
-            if (ImGui.Button("Test Crafting"))
+            if (ImGui.Button(Loc.T("Test Crafting")))
             {
                 Task_Craft.Enqueue();
             }
-            if (ImGui.Button("Test Gather Targeting"))
+            if (ImGui.Button(Loc.T("Test Gather Targeting")))
             {
                 Task_Gather.Enqueue();
             }
-            if (ImGui.Button("Buy Items from shop"))
+            if (ImGui.Button(Loc.T("Buy Items from shop")))
             {
                 Task_BuyCosmoItems.Enqueue();
             }
 
-            if (ImGui.Button("Test Drone Buy Item"))
+            if (ImGui.Button(Loc.T("Test Drone Buy Item")))
             {
                 Task_ArtifactSearch.EnqueueBuy();
             }
-            if (ImGui.Button("Test Drone Pathing"))
+            if (ImGui.Button(Loc.T("Test Drone Pathing")))
             {
                 P.TaskManager.Enqueue(() => Task_ArtifactSearch.CheckBoxStatus());
             }

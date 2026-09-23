@@ -22,7 +22,7 @@ namespace ICE.Ui.MainUi.Settings
 
             if (ImGui.BeginTabBar("CharacterSettingsTabs"))
             {
-                if (ImGui.BeginTabItem("Global"))
+                if (ImGui.BeginTabItem(Loc.T("Global")))
                 {
                     if (ImGui.BeginChild("Global Character Settings"))
                     {
@@ -149,24 +149,24 @@ namespace ICE.Ui.MainUi.Settings
         // -------------------------------------------------------------------------
         private static void RepairSettings(CharacterOverride? ov)
         {
-            ImGuiEx.IconWithText(FontAwesomeIcon.Hammer, "Repair Settings");
+            ImGuiEx.IconWithText(FontAwesomeIcon.Hammer, Loc.T("Repair Settings"));
             ImGui.Dummy(new Vector2(0, 5));
 
             if (ov == null)
             {
                 // ── Global ──────────────────────────────────────────────────────
                 bool repairAtVendor = C.RepairAtVendor;
-                if (ImGui.Checkbox("Repair at Vendor", ref repairAtVendor))
+                if (ImGui.Checkbox(Loc.T("Repair at Vendor"), ref repairAtVendor))
                 { C.RepairAtVendor = repairAtVendor; C.Save(); }
 
                 using (ImRaii.Disabled(repairAtVendor))
                 {
                     bool selfRepairGather = C.SelfRepairGather;
-                    if (ImGui.Checkbox("Self Repair Gather", ref selfRepairGather))
+                    if (ImGui.Checkbox(Loc.T("Self Repair Gather"), ref selfRepairGather))
                     { C.SelfRepairGather = selfRepairGather; C.Save(); }
 
                     bool selfRepairCrafter = C.SelfRepairCrafter;
-                    if (ImGui.Checkbox("Self Repair Crafter", ref selfRepairCrafter))
+                    if (ImGui.Checkbox(Loc.T("Self Repair Crafter"), ref selfRepairCrafter))
                     { C.SelfRepairCrafter = selfRepairCrafter; C.Save(); }
                 }
 
@@ -179,16 +179,16 @@ namespace ICE.Ui.MainUi.Settings
                 }
 
                 bool repairAll = C.RepairAllGear;
-                if (ImGui.Checkbox("Repair all gear in bag", ref repairAll))
+                if (ImGui.Checkbox(Loc.T("Repair all gear in bag"), ref repairAll))
                 { C.RepairAllGear = repairAll; C.Save(); }
 
                 bool stopDarkMatter = C.Stop_DarkMatter;
-                if (ImGui.Checkbox("Stop when below x dark matter", ref stopDarkMatter))
+                if (ImGui.Checkbox(Loc.T("Stop when below x dark matter"), ref stopDarkMatter))
                 { C.Stop_DarkMatter = stopDarkMatter; C.Save(); }
 
                 int minDM = C.Minimum_DarkMatter;
                 ImGui.SetNextItemWidth(200);
-                if (ImGui.InputInt("Minimum Grade 8 Dark Matter", ref minDM, 1, 10))
+                if (ImGui.InputInt(Loc.T("Minimum Grade 8 Dark Matter"), ref minDM, 1, 10))
                 { C.Minimum_DarkMatter = minDM; C.SaveDebounced(); }
             }
             else
@@ -198,7 +198,7 @@ namespace ICE.Ui.MainUi.Settings
                     v => ov.RepairAtVendor = v,
                     current => {
                         bool v = current;
-                        if (ImGui.Checkbox("Repair at Vendor", ref v) && ov.RepairAtVendor.HasValue)
+                        if (ImGui.Checkbox(Loc.T("Repair at Vendor"), ref v) && ov.RepairAtVendor.HasValue)
                         { ov.RepairAtVendor = v; C.Save(); }
                     });
 
@@ -209,7 +209,7 @@ namespace ICE.Ui.MainUi.Settings
                         v => ov.SelfRepairGather = v,
                         current => {
                             bool v = current;
-                            if (ImGui.Checkbox("Self Repair Gather", ref v) && ov.SelfRepairGather.HasValue)
+                            if (ImGui.Checkbox(Loc.T("Self Repair Gather"), ref v) && ov.SelfRepairGather.HasValue)
                             { ov.SelfRepairGather = v; C.Save(); }
                         });
 
@@ -217,7 +217,7 @@ namespace ICE.Ui.MainUi.Settings
                         v => ov.SelfRepairCrafter = v,
                         current => {
                             bool v = current;
-                            if (ImGui.Checkbox("Self Repair Crafter", ref v) && ov.SelfRepairCrafter.HasValue)
+                            if (ImGui.Checkbox(Loc.T("Self Repair Crafter"), ref v) && ov.SelfRepairCrafter.HasValue)
                             { ov.SelfRepairCrafter = v; C.Save(); }
                         });
                 }
@@ -235,7 +235,7 @@ namespace ICE.Ui.MainUi.Settings
                     v => ov.RepairAllGear = v,
                     current => {
                         bool v = current;
-                        if (ImGui.Checkbox("Repair all gear in bag", ref v) && ov.RepairAllGear.HasValue)
+                        if (ImGui.Checkbox(Loc.T("Repair all gear in bag"), ref v) && ov.RepairAllGear.HasValue)
                         { ov.RepairAllGear = v; C.Save(); }
                     });
 
@@ -243,17 +243,17 @@ namespace ICE.Ui.MainUi.Settings
                 using (ImRaii.Disabled(true))
                 {
                     bool stopDM = C.Stop_DarkMatter;
-                    ImGui.Checkbox("Stop when below x dark matter (Global)", ref stopDM);
+                    ImGui.Checkbox(Loc.T("Stop when below x dark matter (Global)"), ref stopDM);
                 }
                 if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
-                    ImGui.SetTooltip("This setting is global and shared across all characters.\nEdit it on the Global tab.");
+                    ImGui.SetTooltip(Loc.T("This setting is global and shared across all characters.\nEdit it on the Global tab."));
 
                 OverrideField("Minimum_DarkMatter", C.Minimum_DarkMatter, ov.Minimum_DarkMatter,
                     v => ov.Minimum_DarkMatter = v,
                     current => {
                         int v = current;
                         ImGui.SetNextItemWidth(200);
-                        if (ImGui.InputInt("Minimum Grade 8 Dark Matter", ref v, 1, 10) && ov.Minimum_DarkMatter.HasValue)
+                        if (ImGui.InputInt(Loc.T("Minimum Grade 8 Dark Matter"), ref v, 1, 10) && ov.Minimum_DarkMatter.HasValue)
                         { ov.Minimum_DarkMatter = v; C.SaveDebounced(); }
                     });
             }
@@ -267,7 +267,7 @@ namespace ICE.Ui.MainUi.Settings
         // -------------------------------------------------------------------------
         private static void ArtisanSettingsV2(CharacterOverride? ov)
         {
-            ImGuiEx.IconWithText(FontAwesomeIcon.Wrench, "Global Artisan Settings");
+            ImGuiEx.IconWithText(FontAwesomeIcon.Wrench, Loc.T("Global Artisan Settings"));
             ImGui.Dummy(new Vector2(0, 5));
 
             // Resolve which artisan objects we're actually editing
@@ -295,13 +295,13 @@ namespace ICE.Ui.MainUi.Settings
                 bool hasStandardOverride = ov.Artisan_GlobalStandard != null;
                 bool hasExpertOverride = ov.Artisan_GlobalExpert != null;
 
-                if (ImGui.Checkbox("Override Standard Artisan settings##ovStd", ref hasStandardOverride))
+                if (ImGui.Checkbox(Loc.T("Override Standard Artisan settings##ovStd"), ref hasStandardOverride))
                 {
                     ov.Artisan_GlobalStandard = hasStandardOverride ? CloneRef(C.Artisan_GlobalStandard) : null;
                     C.Save();
                 }
                 ImGui.SameLine();
-                if (ImGui.Checkbox("Override Expert Artisan settings##ovExp", ref hasExpertOverride))
+                if (ImGui.Checkbox(Loc.T("Override Expert Artisan settings##ovExp"), ref hasExpertOverride))
                 {
                     ov.Artisan_GlobalExpert = hasExpertOverride ? CloneRef(C.Artisan_GlobalExpert) : null;
                     C.Save();
@@ -389,9 +389,9 @@ namespace ICE.Ui.MainUi.Settings
                 if (ImGui.BeginTable("ArtisanSettings", 3,
                     ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg))
                 {
-                    ImGui.TableSetupColumn("");
-                    ImGui.TableSetupColumn("Standard Craft Settings");
-                    ImGui.TableSetupColumn("Expert Craft Settings");
+                    ImGui.TableSetupColumn(Loc.T(""));
+                    ImGui.TableSetupColumn(Loc.T("Standard Craft Settings"));
+                    ImGui.TableSetupColumn(Loc.T("Expert Craft Settings"));
                     ImGui.TableHeadersRow();
 
                     bool stdDisabled = ov != null && ov.Artisan_GlobalStandard == null;
@@ -410,7 +410,7 @@ namespace ICE.Ui.MainUi.Settings
                     ImGui.TableNextRow();
                     ImGui.TableSetColumnIndex(0);
                     ImGui.AlignTextToFramePadding();
-                    ImGui.Text("Solver Type");
+                    ImGui.Text(Loc.T("Solver Type"));
 
                     ImGui.TableNextColumn();
                     using (ImRaii.Disabled(stdDisabled))
@@ -461,7 +461,7 @@ namespace ICE.Ui.MainUi.Settings
                         ImGui.TableNextRow();
                         ImGui.TableSetColumnIndex(0);
                         ImGui.AlignTextToFramePadding();
-                        ImGui.Text("Food");
+                        ImGui.Text(Loc.T("Food"));
 
                         ImGui.TableNextColumn();
                         using (ImRaii.Disabled(stdDisabled))
@@ -469,7 +469,7 @@ namespace ICE.Ui.MainUi.Settings
                             ImGui.SetNextItemWidth(std_ComboWidth);
                             if (ImGui.BeginCombo("##StandardFood", std_FoodLabel))
                             {
-                                if (ImGui.Selectable("Default", craft_Standard.FoodId == 0))
+                                if (ImGui.Selectable(Loc.T("Default"), craft_Standard.FoodId == 0))
                                 { 
                                     craft_Standard.FoodId = 0; 
                                     craft_Standard.FoodHQ = false; 
@@ -504,7 +504,7 @@ namespace ICE.Ui.MainUi.Settings
                             ImGui.SetNextItemWidth(exp_ComboWidth);
                             if (ImGui.BeginCombo("##ExpertFood", exp_FoodLabel))
                             {
-                                if (ImGui.Selectable("Default", craft_Expert.FoodId == 0))
+                                if (ImGui.Selectable(Loc.T("Default"), craft_Expert.FoodId == 0))
                                 { 
                                     craft_Expert.FoodId = 0; 
                                     craft_Expert.FoodHQ = false; 
@@ -538,7 +538,7 @@ namespace ICE.Ui.MainUi.Settings
                         ImGui.TableNextRow();
                         ImGui.TableSetColumnIndex(0);
                         ImGui.AlignTextToFramePadding();
-                        ImGui.Text("Potions");
+                        ImGui.Text(Loc.T("Potions"));
 
                         ImGui.TableNextColumn();
                         using (ImRaii.Disabled(stdDisabled))
@@ -546,7 +546,7 @@ namespace ICE.Ui.MainUi.Settings
                             ImGui.SetNextItemWidth(std_ComboWidth);
                             if (ImGui.BeginCombo("##StandardPotion", std_PotionLabel))
                             {
-                                if (ImGui.Selectable("Default", craft_Standard.PotionId == 0))
+                                if (ImGui.Selectable(Loc.T("Default"), craft_Standard.PotionId == 0))
                                 { 
                                     craft_Standard.PotionId = 0; 
                                     craft_Standard.PotionHQ = false; 
@@ -581,7 +581,7 @@ namespace ICE.Ui.MainUi.Settings
                             ImGui.SetNextItemWidth(exp_ComboWidth);
                             if (ImGui.BeginCombo("##ExpertPotion", exp_PotionLabel))
                             {
-                                if (ImGui.Selectable("Default", craft_Expert.PotionId == 0))
+                                if (ImGui.Selectable(Loc.T("Default"), craft_Expert.PotionId == 0))
                                 { 
                                     craft_Expert.PotionId = 0; 
                                     craft_Expert.PotionHQ = false; 
@@ -615,7 +615,7 @@ namespace ICE.Ui.MainUi.Settings
                         ImGui.TableNextRow();
                         ImGui.TableSetColumnIndex(0);
                         ImGui.AlignTextToFramePadding();
-                        ImGui.Text("Manual");
+                        ImGui.Text(Loc.T("Manual"));
 
                         ImGui.TableNextColumn();
                         using (ImRaii.Disabled(stdDisabled))
@@ -623,7 +623,7 @@ namespace ICE.Ui.MainUi.Settings
                             ImGui.SetNextItemWidth(std_ComboWidth);
                             if (ImGui.BeginCombo("##StandardManual", std_ManualLabel))
                             {
-                                if (ImGui.Selectable("Default", craft_Standard.ManualId == 0))
+                                if (ImGui.Selectable(Loc.T("Default"), craft_Standard.ManualId == 0))
                                 { 
                                     craft_Standard.ManualId = 0; 
                                     SaveArtisan(); 
@@ -654,7 +654,7 @@ namespace ICE.Ui.MainUi.Settings
                             ImGui.SetNextItemWidth(exp_ComboWidth);
                             if (ImGui.BeginCombo("##ExpertManual", exp_ManualLabel))
                             {
-                                if (ImGui.Selectable("Default", craft_Expert.ManualId == 0))
+                                if (ImGui.Selectable(Loc.T("Default"), craft_Expert.ManualId == 0))
                                 { 
                                     craft_Expert.ManualId = 0; 
                                     SaveArtisan(); 
@@ -684,7 +684,7 @@ namespace ICE.Ui.MainUi.Settings
                         ImGui.TableNextRow();
                         ImGui.TableSetColumnIndex(0);
                         ImGui.AlignTextToFramePadding();
-                        ImGui.Text("Squadron Manual");
+                        ImGui.Text(Loc.T("Squadron Manual"));
 
                         ImGui.TableNextColumn();
                         using (ImRaii.Disabled(stdDisabled))
@@ -692,7 +692,7 @@ namespace ICE.Ui.MainUi.Settings
                             ImGui.SetNextItemWidth(std_ComboWidth);
                             if (ImGui.BeginCombo("##StandardSquadManual", std_SquadLabel))
                             {
-                                if (ImGui.Selectable("Default", craft_Standard.SquadronManual == 0))
+                                if (ImGui.Selectable(Loc.T("Default"), craft_Standard.SquadronManual == 0))
                                 { 
                                     craft_Standard.SquadronManual = 0; 
                                     SaveArtisan(); 
@@ -723,7 +723,7 @@ namespace ICE.Ui.MainUi.Settings
                             ImGui.SetNextItemWidth(exp_ComboWidth);
                             if (ImGui.BeginCombo("##ExpertSquadManual", exp_SquadLabel))
                             {
-                                if (ImGui.Selectable("Default", craft_Expert.SquadronManual == 0))
+                                if (ImGui.Selectable(Loc.T("Default"), craft_Expert.SquadronManual == 0))
                                 { 
                                     craft_Expert.SquadronManual = 0; 
                                     SaveArtisan(); 
@@ -768,7 +768,7 @@ namespace ICE.Ui.MainUi.Settings
 
         private static unsafe void MountSelection(CharacterOverride? ov)
         {
-            ImGuiEx.IconWithText(FontAwesomeIcon.Feather, "Mount Settings");
+            ImGuiEx.IconWithText(FontAwesomeIcon.Feather, Loc.T("Mount Settings"));
             ImGui.Dummy(new Vector2(0, 5));
 
             // Resolve effective values for display
@@ -782,7 +782,7 @@ namespace ICE.Ui.MainUi.Settings
             // Mount picker button
             if (ov == null)
             {
-                if (ImGui.Button("Select Mounting Option"))
+                if (ImGui.Button(Loc.T("Select Mounting Option")))
                     OpenMountPopup();
                 ImGui.SameLine();
                 ImGui.AlignTextToFramePadding();
@@ -805,7 +805,7 @@ namespace ICE.Ui.MainUi.Settings
 
                 using (ImRaii.Disabled(!hasMountOverride))
                 {
-                    if (ImGui.Button("Select Mounting Option##charMount"))
+                    if (ImGui.Button(Loc.T("Select Mounting Option##charMount")))
                         OpenMountPopup();
                     ImGui.SameLine();
                     ImGui.AlignTextToFramePadding();
@@ -816,7 +816,7 @@ namespace ICE.Ui.MainUi.Settings
             // Shared popup — writes to ov if present, else to C directly
             if (ImGui.BeginPopup("Mount Options"))
             {
-                ImGui.InputText("Search", ref _mountSearchText, 100);
+                ImGui.InputText(Loc.T("Search"), ref _mountSearchText, 100);
 
                 var filtered = _availableMounts
                     .Where(kvp => string.IsNullOrEmpty(_mountSearchText) ||
@@ -841,12 +841,12 @@ namespace ICE.Ui.MainUi.Settings
                 }
 
                 ImGui.Separator();
-                if (ImGui.Button("Previous") && _mountDisplayOffset > 0)
+                if (ImGui.Button(Loc.T("Previous")) && _mountDisplayOffset > 0)
                     _mountDisplayOffset = Math.Max(0, _mountDisplayOffset - _mountItemsPerPage);
                 ImGui.SameLine();
                 ImGui.Text($"{_mountDisplayOffset + 1}-{Math.Min(_mountDisplayOffset + _mountItemsPerPage, total)} of {total}");
                 ImGui.SameLine();
-                if (ImGui.Button("Next") && _mountDisplayOffset < maxOffset)
+                if (ImGui.Button(Loc.T("Next")) && _mountDisplayOffset < maxOffset)
                     _mountDisplayOffset = Math.Min(maxOffset, _mountDisplayOffset + _mountItemsPerPage);
 
                 ImGui.EndPopup();
@@ -856,67 +856,67 @@ namespace ICE.Ui.MainUi.Settings
             if (ov == null)
             {
                 bool mountOutside = C.UseMountOutsideMission;
-                if (ImGui.Checkbox("Use mount outside mission", ref mountOutside))
+                if (ImGui.Checkbox(Loc.T("Use mount outside mission"), ref mountOutside))
                 { C.UseMountOutsideMission = mountOutside; C.Save(); }
 
                 bool mountInMission = C.UseMountInMission;
-                if (ImGui.Checkbox("Use mount in mission", ref mountInMission))
+                if (ImGui.Checkbox(Loc.T("Use mount in mission"), ref mountInMission))
                 { C.UseMountInMission = mountInMission; C.Save(); }
 
                 float minRange = C.MountRadius;
                 ImGui.SetNextItemWidth(100);
-                if (ImGui.DragFloat("Minimum Mounting Range", ref minRange, 1))
+                if (ImGui.DragFloat(Loc.T("Minimum Mounting Range"), ref minRange, 1))
                 { C.MountRadius = minRange; C.Save(); }
                 ImGui.SameLine();
-                ImGui.Checkbox("Visualize radius", ref _visualizeRadius);
+                ImGui.Checkbox(Loc.T("Visualize radius"), ref _visualizeRadius);
 
                 float dismount = C.DismountRadius;
                 ImGui.SetNextItemWidth(100);
-                if (ImGui.DragFloat("Dismount Target Range", ref dismount, 1))
+                if (ImGui.DragFloat(Loc.T("Dismount Target Range"), ref dismount, 1))
                 { C.DismountRadius = dismount; C.Save(); }
                 ImGui.SameLine();
-                ImGui.Checkbox("Visualize Dismount Radius", ref _visualizeDismountRadius);
+                ImGui.Checkbox(Loc.T("Visualize Dismount Radius"), ref _visualizeDismountRadius);
             }
             else
             {
                 // These four are global-only — always read/write C regardless of character tab.
                 // Show them as editable but with a tooltip clarifying they affect all characters.
                 bool mountOutside = C.UseMountOutsideMission;
-                if (ImGui.Checkbox("Use mount outside mission##global", ref mountOutside))
+                if (ImGui.Checkbox(Loc.T("Use mount outside mission##global"), ref mountOutside))
                 { 
                     C.UseMountOutsideMission = mountOutside; 
                     C.Save(); 
                 }
-                if (ImGui.IsItemHovered()) ImGui.SetTooltip("Global setting — applies to all characters.");
+                if (ImGui.IsItemHovered()) ImGui.SetTooltip(Loc.T("Global setting — applies to all characters."));
 
                 bool mountInMission = C.UseMountInMission;
-                if (ImGui.Checkbox("Use mount in mission##global", ref mountInMission))
+                if (ImGui.Checkbox(Loc.T("Use mount in mission##global"), ref mountInMission))
                 { C.UseMountInMission = mountInMission; C.Save(); }
-                if (ImGui.IsItemHovered()) ImGui.SetTooltip("Global setting — applies to all characters.");
+                if (ImGui.IsItemHovered()) ImGui.SetTooltip(Loc.T("Global setting — applies to all characters."));
 
                 float minRange = C.MountRadius;
                 ImGui.SetNextItemWidth(100);
-                if (ImGui.DragFloat("Minimum Mounting Range##global", ref minRange, 1))
+                if (ImGui.DragFloat(Loc.T("Minimum Mounting Range##global"), ref minRange, 1))
                 { 
                     C.MountRadius = minRange; 
                     C.Save(); 
                 }
                 if (ImGui.IsItemHovered()) 
-                    ImGui.SetTooltip("Global setting — applies to all characters.");
+                    ImGui.SetTooltip(Loc.T("Global setting — applies to all characters."));
                 ImGui.SameLine();
-                ImGui.Checkbox("Visualize radius", ref _visualizeRadius);
+                ImGui.Checkbox(Loc.T("Visualize radius"), ref _visualizeRadius);
 
                 float dismount = C.DismountRadius;
                 ImGui.SetNextItemWidth(100);
-                if (ImGui.DragFloat("Dismount Target Range##global", ref dismount, 1))
+                if (ImGui.DragFloat(Loc.T("Dismount Target Range##global"), ref dismount, 1))
                 { 
                     C.DismountRadius = dismount; 
                     C.Save(); 
                 }
                 if (ImGui.IsItemHovered()) 
-                    ImGui.SetTooltip("Global setting — applies to all characters.");
+                    ImGui.SetTooltip(Loc.T("Global setting — applies to all characters."));
                 ImGui.SameLine();
-                ImGui.Checkbox("Visualize Dismount Radius", ref _visualizeDismountRadius);
+                ImGui.Checkbox(Loc.T("Visualize Dismount Radius"), ref _visualizeDismountRadius);
             }
 
             // Pictomancy visualisation (always uses resolved values)
@@ -955,12 +955,12 @@ namespace ICE.Ui.MainUi.Settings
         // -------------------------------------------------------------------------
         private static void RelicJobSwap(CharacterOverride? ov)
         {
-            ImGuiEx.IconWithText(FontAwesomeIcon.Toolbox, "Class Swap");
+            ImGuiEx.IconWithText(FontAwesomeIcon.Toolbox, Loc.T("Class Swap"));
             ImGui.Dummy(new(0, 5));
             if (ov == null)
             {
                 bool swapJobs = C.Relic_SwapJob;
-                if (ImGui.Checkbox("Swap jobs when turning in relic", ref swapJobs))
+                if (ImGui.Checkbox(Loc.T("Swap jobs when turning in relic"), ref swapJobs))
                 { 
                     C.Relic_SwapJob = swapJobs; 
                     C.Save(); 
@@ -968,9 +968,9 @@ namespace ICE.Ui.MainUi.Settings
 
                 string currentJobName = BattleJobs.FirstOrDefault(x => x.Value == C.Relic_BattleJob).Key ?? "Auto (any other job)";
                 ImGui.SetNextItemWidth(200);
-                if (ImGui.BeginCombo("Battle Job##relicJob", currentJobName))
+                if (ImGui.BeginCombo(Loc.T("Battle Job##relicJob"), currentJobName))
                 {
-                    if (ImGui.Selectable("Auto (any other job)", C.Relic_BattleJob == 0))
+                    if (ImGui.Selectable(Loc.T("Auto (any other job)"), C.Relic_BattleJob == 0))
                     {
                         C.Relic_BattleJob = 0;
                         C.Save();
@@ -989,17 +989,17 @@ namespace ICE.Ui.MainUi.Settings
                     ImGui.EndCombo();
                 }
 
-                ImGuiEx.HelpMarker("The job to swap to while the tool is upgraded (the tool must not be equipped).\n" +
+                ImGuiEx.HelpMarker(Loc.T("The job to swap to while the tool is upgraded (the tool must not be equipped).\n" +
                                    "\"Auto\" picks any other job that has a gearset (battle jobs first). It does not have to be a battle job.\n" +
-                                   "In Relic Grind mode the swap happens automatically even if the checkbox above is off.");
+                                   "In Relic Grind mode the swap happens automatically even if the checkbox above is off."));
 
                 bool useStylist = C.Relic_Stylist;
-                if (ImGui.Checkbox("Use Stylist to re-equip tools", ref useStylist))
+                if (ImGui.Checkbox(Loc.T("Use Stylist to re-equip tools"), ref useStylist))
                 {
                     C.Relic_Stylist = useStylist;
                     C.Save();
                 }
-                ImGuiEx.HelpMarker("If Stylist is not installed, the game's recommended gear is equipped instead. The gearset is updated afterwards either way.");
+                ImGuiEx.HelpMarker(Loc.T("If Stylist is not installed, the game's recommended gear is equipped instead. The gearset is updated afterwards either way."));
             }
             else
             {
@@ -1007,7 +1007,7 @@ namespace ICE.Ui.MainUi.Settings
                     v => ov.Relic_SwapJob = v,
                     current => {
                         bool v = current;
-                        if (ImGui.Checkbox("Swap jobs when turning in relic", ref v) && ov.Relic_SwapJob.HasValue)
+                        if (ImGui.Checkbox(Loc.T("Swap jobs when turning in relic"), ref v) && ov.Relic_SwapJob.HasValue)
                         { 
                             ov.Relic_SwapJob = v; 
                             C.Save(); 
@@ -1019,9 +1019,9 @@ namespace ICE.Ui.MainUi.Settings
                     current => {
                         string currentJobName = BattleJobs.FirstOrDefault(x => x.Value == current).Key ?? "Auto (any other job)";
                         ImGui.SetNextItemWidth(200);
-                        if (ImGui.BeginCombo("Battle Job##relicJobOv", currentJobName))
+                        if (ImGui.BeginCombo(Loc.T("Battle Job##relicJobOv"), currentJobName))
                         {
-                            if (ImGui.Selectable("Auto (any other job)", current == 0) && ov.Relic_BattleJob.HasValue)
+                            if (ImGui.Selectable(Loc.T("Auto (any other job)"), current == 0) && ov.Relic_BattleJob.HasValue)
                             {
                                 ov.Relic_BattleJob = 0;
                                 C.Save();
@@ -1045,7 +1045,7 @@ namespace ICE.Ui.MainUi.Settings
                     current =>
                     {
                         bool v = current;
-                        if (ImGui.Checkbox("Use Stylist to re-equip tools", ref v) && ov.Relic_Stylist.HasValue)
+                        if (ImGui.Checkbox(Loc.T("Use Stylist to re-equip tools"), ref v) && ov.Relic_Stylist.HasValue)
                         {
                             ov.Relic_Stylist = v;
                             C.Save();

@@ -14,12 +14,12 @@ namespace ICE.Ui.Debug_Tabs.Debug_Tables
 
             if (ImGui.BeginTable("Fishing Info", 6, ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.Borders))
             {
-                ImGui.TableSetupColumn("MissionID");
-                ImGui.TableSetupColumn("Mission Name");
-                ImGui.TableSetupColumn("Attribute");
-                ImGui.TableSetupColumn("Specific");
-                ImGui.TableSetupColumn("Total Req");
-                ImGui.TableSetupColumn("Variety Req", ImGuiTableColumnFlags.WidthStretch);
+                ImGui.TableSetupColumn(Loc.T("MissionID"));
+                ImGui.TableSetupColumn(Loc.T("Mission Name"));
+                ImGui.TableSetupColumn(Loc.T("Attribute"));
+                ImGui.TableSetupColumn(Loc.T("Specific"));
+                ImGui.TableSetupColumn(Loc.T("Total Req"));
+                ImGui.TableSetupColumn(Loc.T("Variety Req"), ImGuiTableColumnFlags.WidthStretch);
 
                 ImGui.TableHeadersRow();
 
@@ -69,7 +69,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Tables
                     }
                     else
                     {
-                        ImGui.Text("-");
+                        ImGui.Text(Loc.T("-"));
                     }
 
                     ImGui.TableNextColumn();

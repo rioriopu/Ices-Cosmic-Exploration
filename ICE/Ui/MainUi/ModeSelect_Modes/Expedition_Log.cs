@@ -59,8 +59,8 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
         {
             if (ImGui.BeginTable("Class Selection Table", 2, ImGuiTableFlags.SizingFixedFit))
             {
-                ImGui.TableSetupColumn("Icon");
-                ImGui.TableSetupColumn("Name");
+                ImGui.TableSetupColumn(Loc.T("Icon"));
+                ImGui.TableSetupColumn(Loc.T("Name"));
 
                 foreach (var jobInfo in CosmicHelper.ClassInfoDict.OrderBy(x => x.Key))
                 {
@@ -85,7 +85,7 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                 ImGui.Image(allClassTexture.Handle, new Vector2(20, 20));
 
                 ImGui.TableNextColumn();
-                if (ImGui.Selectable("All Classes", SelectedJob == 0, ImGuiSelectableFlags.SpanAllColumns))
+                if (ImGui.Selectable(Loc.T("All Classes"), SelectedJob == 0, ImGuiSelectableFlags.SpanAllColumns))
                 {
                     SelectedJob = 0;
                     ResetCompletionTable();
@@ -318,12 +318,12 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
 
                 if (ImGui.BeginTable("Class Progress: All", 7, ImGuiTableFlags.RowBg | ImGuiTableFlags.Borders | ImGuiTableFlags.SizingFixedFit))
                 {
-                    ImGui.TableSetupColumn("Job");
-                    ImGui.TableSetupColumn("Relic");
+                    ImGui.TableSetupColumn(Loc.T("Job"));
+                    ImGui.TableSetupColumn(Loc.T("Relic"));
                     ImGui.TableSetupColumn("##Relic_XPBar");
-                    ImGui.TableSetupColumn("Score");
+                    ImGui.TableSetupColumn(Loc.T("Score"));
                     ImGui.TableSetupColumn("##Score_XPBar");
-                    ImGui.TableSetupColumn("Mastery");
+                    ImGui.TableSetupColumn(Loc.T("Mastery"));
                     ImGui.TableSetupColumn("##Mastery_XPBar");
 
                     ImGui.TableHeadersRow();
@@ -409,8 +409,8 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                 var jobStatus = expInfo[SelectedJob];
                 if (ImGui.BeginTable("Specific Class Details", 2, ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.Borders))
                 {
-                    ImGui.TableSetupColumn("Info");
-                    ImGui.TableSetupColumn("ExpBar");
+                    ImGui.TableSetupColumn(Loc.T("Info"));
+                    ImGui.TableSetupColumn(Loc.T("ExpBar"));
 
                     ImGui.TableNextRow();
                     ImGui.TableSetColumnIndex(0);

@@ -35,6 +35,8 @@ public partial class Config
     // レベリング中(Leveling モードのミッション後/レベリング装備の購入後)に最強装備を自動で行う。
     // Stylist があればそれを、無ければゲームの「おすすめ装備」を使う。「レベリング装備を購入」ボタンで自動的に ON になる。
     public bool LevelingGear_AutoEquipBest { get; set; } = true;
+    // UI の表示言語(Auto=クライアント言語に従う)。日本語なら同梱の CSV 辞書でプラグイン自身が翻訳する
+    public global::ICE.Localization.UiLanguage UiLanguage { get; set; } = global::ICE.Localization.UiLanguage.Auto;
     public float HubReturn_Distance { get; set; } = 75f;
     public bool UseRedAlertNpc { get; set; } = false;
     public bool HideRewardWindow { get; set; } = true;

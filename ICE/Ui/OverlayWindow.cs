@@ -24,7 +24,7 @@ namespace ICE.Ui
             TitleBarButtons.Add(
                 new()
                 {
-                    ShowTooltip = () => ImGui.SetTooltip("Overlay Settings"),
+                    ShowTooltip = () => ImGui.SetTooltip(Loc.T("Overlay Settings")),
                     Icon = FontAwesomeIcon.Cog,
                     IconOffset = new(1, 1),
                     Click = _ => ImGui.OpenPopup("OverlaySettingsPopup")
@@ -66,8 +66,8 @@ namespace ICE.Ui
             {
                 ImGui.TableSetupColumn("##Planets");
                 ImGui.TableSetupColumn("##Icons");
-                ImGui.TableSetupColumn("Current");
-                ImGui.TableSetupColumn("Next");
+                ImGui.TableSetupColumn(Loc.T("Current"));
+                ImGui.TableSetupColumn(Loc.T("Next"));
 
                 ImGui.TableHeadersRow();
 
@@ -111,7 +111,7 @@ namespace ICE.Ui
             if (ImGui.IsItemHovered())
             {
                 ImGui.BeginTooltip();
-                ImGui.Text("Open ICE");
+                ImGui.Text(Loc.T("Open ICE"));
                 ImGui.EndTooltip();
             }
             ImGui.SameLine();
@@ -122,7 +122,7 @@ namespace ICE.Ui
             if (ImGui.IsItemHovered())
             {
                 ImGui.BeginTooltip();
-                ImGui.Text("Change mode");
+                ImGui.Text(Loc.T("Change mode"));
                 ImGui.EndTooltip();
             }
             DrawModeSelectPopup("Overlay Mode Select");
@@ -220,7 +220,7 @@ namespace ICE.Ui
             }
             else
             {
-                ImGui.Text("No mission");
+                ImGui.Text(Loc.T("No mission"));
             }
 #if DEBUG
             if (C.ShowDebugGatherInfo)
@@ -322,9 +322,9 @@ namespace ICE.Ui
                         ImGui.Separator();
                         if (ImGui.BeginTable($"Enabled Mission Table", 3, ImGuiTableFlags.RowBg | ImGuiTableFlags.Borders | ImGuiTableFlags.SizingFixedFit))
                         {
-                            ImGui.TableSetupColumn("Icon");
-                            ImGui.TableSetupColumn("Mission");
-                            ImGui.TableSetupColumn("Name");
+                            ImGui.TableSetupColumn(Loc.T("Icon"));
+                            ImGui.TableSetupColumn(Loc.T("Mission"));
+                            ImGui.TableSetupColumn(Loc.T("Name"));
                             foreach (var mission in enabledWeathers)
                             {
                                 var sheetInfo = CosmicHelper.SheetMissionDict[mission];
@@ -660,7 +660,7 @@ namespace ICE.Ui
             {
                 var currentJobId = (uint)Player.Job;
                 var flags = C.Overlay_RelicXpExpanded ? ImGuiTreeNodeFlags.DefaultOpen : ImGuiTreeNodeFlags.None;
-                var open = ImGui.CollapsingHeader("Relic Tool XP", flags);
+                var open = ImGui.CollapsingHeader(Loc.T("Relic Tool XP"), flags);
                 if (open != C.Overlay_RelicXpExpanded)
                 {
                     C.Overlay_RelicXpExpanded = open;
@@ -669,7 +669,7 @@ namespace ICE.Ui
                 if (open)
                 {
                     bool stopWhen = C.StopAtRelicLv;
-                    if (ImGui.Checkbox("Stop At Relic Lv.", ref stopWhen))
+                    if (ImGui.Checkbox(Loc.T("Stop At Relic Lv."), ref stopWhen))
                     {
                         C.StopAtRelicLv = stopWhen;
                         C.Save();

@@ -29,7 +29,7 @@ namespace ICE.Ui
                 MinimumSize = new Vector2(500, 500),
                 MaximumSize = new Vector2(4000, 4000),
             };
-            TitleBarButtons.Add(new() { ShowTooltip = () => ImGui.SetTooltip("♥ Ko-fi (Buy me an ice coffee)"), Icon = FontAwesomeIcon.Heart, IconOffset = new(1, 1), Click = _ => GenericHelpers.ShellStart("https://ko-fi.com/ice643269") });
+            TitleBarButtons.Add(new() { ShowTooltip = () => ImGui.SetTooltip(Loc.T("♥ Ko-fi (Buy me an ice coffee)")), Icon = FontAwesomeIcon.Heart, IconOffset = new(1, 1), Click = _ => GenericHelpers.ShellStart("https://ko-fi.com/ice643269") });
 
             P.windowSystem.AddWindow(this);
 
@@ -95,7 +95,7 @@ namespace ICE.Ui
             }
             else
             {
-                ImGui.Text("Hehe");
+                ImGui.Text(Loc.T("Hehe"));
             }
         }
 
@@ -107,35 +107,35 @@ namespace ICE.Ui
             bool goldMode = C.SelectedMode == ModeSelect.MissionGoldMode;
             bool agendaMode = C.SelectedMode == ModeSelect.AgendaMode;
 
-            ImGui.Text("Select Mode");
+            ImGui.Text(Loc.T("Select Mode"));
             ImGui.Separator();
 
-            if (ImGui.RadioButton("Standard", standard))
+            if (ImGui.RadioButton(Loc.T("Standard"), standard))
             {
                 C.SelectedMode = ModeSelect.Standard;
                 C.Save();
             }
             ImGuiEx.HelpMarker(HelpInfoText(ModeSelect.Standard));
-            if (ImGui.RadioButton("Relic Grind", relicMode))
+            if (ImGui.RadioButton(Loc.T("Relic Grind"), relicMode))
             {
                 C.SelectedMode = ModeSelect.RelicMode;
                 C.Save();
             }
             ImGuiEx.HelpMarker(HelpInfoText(ModeSelect.RelicMode));
 
-            if (ImGui.RadioButton("Leveling Grind", xpLeveling))
+            if (ImGui.RadioButton(Loc.T("Leveling Grind"), xpLeveling))
             {
                 C.SelectedMode = ModeSelect.LevelMode;
                 C.Save();
             }
             ImGuiEx.HelpMarker(HelpInfoText(ModeSelect.LevelMode));
-            if (ImGui.RadioButton("Gold Completion Grind", goldMode))
+            if (ImGui.RadioButton(Loc.T("Gold Completion Grind"), goldMode))
             {
                 C.SelectedMode = ModeSelect.MissionGoldMode;
                 C.Save();
             }
             ImGuiEx.HelpMarker(HelpInfoText(ModeSelect.MissionGoldMode));
-            if (ImGui.RadioButton("Agenda Mode", agendaMode))
+            if (ImGui.RadioButton(Loc.T("Agenda Mode"), agendaMode))
             {
                 C.SelectedMode = ModeSelect.AgendaMode;
                 C.Save();

@@ -18,13 +18,13 @@ namespace ICE.Ui.MainUi.Settings
             var enableMountBuy = C.PlanetMount_Enable;
             var mountBuyAmount = C.PlanetMount_Amount;
 
-            if (ImGui.Checkbox("Buy Booklets", ref enableBooklet))
+            if (ImGui.Checkbox(Loc.T("Buy Booklets"), ref enableBooklet))
             {
                 C.BookletBuy_Enable = enableBooklet;
                 C.SaveDebounced();
             }
             ImGui.SetNextItemWidth(200);
-            if (ImGui.InputInt("Buy Booklets @", ref bookletAmount))
+            if (ImGui.InputInt(Loc.T("Buy Booklets @"), ref bookletAmount))
             {
                 if (bookletAmount > 99)
                 {
@@ -33,13 +33,13 @@ namespace ICE.Ui.MainUi.Settings
                 }
             }
 
-            if (ImGui.Checkbox("Buy Mounts", ref enableMountBuy))
+            if (ImGui.Checkbox(Loc.T("Buy Mounts"), ref enableMountBuy))
             {
                 C.PlanetMount_Enable = enableMountBuy;
                 C.SaveDebounced();
             }
             ImGui.SetNextItemWidth(200);
-            if (ImGui.InputInt("Buy Mount @", ref mountBuyAmount))
+            if (ImGui.InputInt(Loc.T("Buy Mount @"), ref mountBuyAmount))
             {
                 if (mountBuyAmount > 59)
                 {
@@ -50,11 +50,11 @@ namespace ICE.Ui.MainUi.Settings
 
             if (ImGui.BeginTable("Mount Token Info", 5, ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.Borders))
             {
-                ImGui.TableSetupColumn("Planet");
-                ImGui.TableSetupColumn("Tokens");
-                ImGui.TableSetupColumn("Booklets");
-                ImGui.TableSetupColumn("Mount");
-                ImGui.TableSetupColumn("Unlocked");
+                ImGui.TableSetupColumn(Loc.T("Planet"));
+                ImGui.TableSetupColumn(Loc.T("Tokens"));
+                ImGui.TableSetupColumn(Loc.T("Booklets"));
+                ImGui.TableSetupColumn(Loc.T("Mount"));
+                ImGui.TableSetupColumn(Loc.T("Unlocked"));
 
                 ImGui.TableHeadersRow();
 

@@ -13,7 +13,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Tables
         public static unsafe void Draw()
         {
             ImGui.SetNextItemWidth(250);
-            ImGui.InputText("Search by Name", ref MissionSearchText, 100);
+            ImGui.InputText(Loc.T("Search by Name"), ref MissionSearchText, 100);
 
             ImGuiTableFlags tableFlags = ImGuiTableFlags.RowBg |
                             ImGuiTableFlags.Borders |
@@ -24,15 +24,15 @@ namespace ICE.Ui.Debug_Tabs.Debug_Tables
 
             if (ImGui.BeginTable("Mission_GatheringInfo", 10, tableFlags))
             {
-                ImGui.TableSetupColumn("Key");
-                ImGui.TableSetupColumn("Mission Name");
+                ImGui.TableSetupColumn(Loc.T("Key"));
+                ImGui.TableSetupColumn(Loc.T("Mission Name"));
                 for (int i = 1; i < 4; i++)
                 {
                     ImGui.TableSetupColumn($"Gather Item [{i}]");
                     ImGui.TableSetupColumn($"Amount [{i}]");
                 }
-                ImGui.TableSetupColumn("Mission Radius");
-                ImGui.TableSetupColumn("Critical Location");
+                ImGui.TableSetupColumn(Loc.T("Mission Radius"));
+                ImGui.TableSetupColumn(Loc.T("Critical Location"));
                 ImGui.TableHeadersRow();
 
                 foreach (var entry in CosmicHelper.SheetMissionDict.Where(x => x.Value.Jobs.Intersect(CosmicHelper.GatheringJobList).Any()))

@@ -18,47 +18,47 @@ namespace ICE.Ui.Debug_Tabs.Debug_Hud
         {
             if (GenericHelpers.TryGetAddonMaster<WKSMission>("WKSMission", out var x) && x.IsAddonReady)
             {
-                ImGui.Text("List of Visible Missions");
+                ImGui.Text(Loc.T("List of Visible Missions"));
                 ImGui.Text($"Selected Mission Name: {x.SelectedMissionName}");
                 ImGui.Text($"Selected Mission ID: {x.SelectedMissionId}");
                 ImGui.Text($"{AgentWKSMissionEx.selectedTab()}");
 
-                if (ImGui.Button("Help"))
+                if (ImGui.Button(Loc.T("Help")))
                 {
                     x.Help();
                 }
                 ImGui.SameLine();
 
-                if (ImGui.Button("Mission Selection"))
+                if (ImGui.Button(Loc.T("Mission Selection")))
                 {
                     x.MissionSelection();
                 }
                 ImGui.SameLine();
 
-                if (ImGui.Button("Mission Log"))
+                if (ImGui.Button(Loc.T("Mission Log")))
                 {
                     x.MissionLog();
                 }
                 ImGui.SameLine();
 
-                if (ImGui.Button("Basic Missions"))
+                if (ImGui.Button(Loc.T("Basic Missions")))
                 {
                     x.BasicMissions();
                 }
                 ImGui.SameLine();
 
-                if (ImGui.Button("Provisional Missions"))
+                if (ImGui.Button(Loc.T("Provisional Missions")))
                 {
                     x.ProvisionalMissions();
                 }
                 ImGui.SameLine();
 
-                if (ImGui.Button("Critical Missions"))
+                if (ImGui.Button(Loc.T("Critical Missions")))
                 {
                     x.CriticalMissions();
                 }
 
-                if (ImGui.Button("Test Mission List"))
+                if (ImGui.Button(Loc.T("Test Mission List")))
                 {
                     Mission_Settings.SelectedJob = (uint)Player.Job;
                     Mission_Settings.Mode = C.SelectedMode;
@@ -66,7 +66,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Hud
                 }
 
                 bool EnableDummyXp = C.UseDummyXp;
-                if (ImGui.Checkbox("Enable Dummy XP", ref EnableDummyXp))
+                if (ImGui.Checkbox(Loc.T("Enable Dummy XP"), ref EnableDummyXp))
                 {
                     C.UseDummyXp = EnableDummyXp;
                     C.Save();
@@ -90,18 +90,18 @@ namespace ICE.Ui.Debug_Tabs.Debug_Hud
 
                 bool IgnoreManual = C.XPRelicIgnoreManual;
                 bool onlyEnabled = C.XPRelicOnlyEnabled;
-                if (ImGui.Checkbox("Ignore Manual Mode", ref IgnoreManual))
+                if (ImGui.Checkbox(Loc.T("Ignore Manual Mode"), ref IgnoreManual))
                 {
                     C.XPRelicIgnoreManual = IgnoreManual;
                     C.Save();
                 }
-                if (ImGui.Checkbox("Only Enabled Missions", ref onlyEnabled))
+                if (ImGui.Checkbox(Loc.T("Only Enabled Missions"), ref onlyEnabled))
                 {
                     C.XPRelicOnlyEnabled = onlyEnabled;
                     C.Save();
                 }
 
-                if (ImGui.Button("Update Dummy XP"))
+                if (ImGui.Button(Loc.T("Update Dummy XP")))
                 {
                     foreach (var kind in XpKinds)
                     {
@@ -128,14 +128,14 @@ namespace ICE.Ui.Debug_Tabs.Debug_Hud
                     int neededXP = xp.NeededXP;
 
                     ImGui.SetNextItemWidth(100);
-                    if (ImGui.InputInt("Current XP", ref currentXP))
+                    if (ImGui.InputInt(Loc.T("Current XP"), ref currentXP))
                     {
                         xp.CurrentXP = currentXP;
                         C.Save();
                     }
 
                     ImGui.SetNextItemWidth(100);
-                    if (ImGui.InputInt("Needed XP", ref neededXP))
+                    if (ImGui.InputInt(Loc.T("Needed XP"), ref neededXP))
                     {
                         xp.NeededXP = neededXP;
                         C.Save();
@@ -163,7 +163,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Hud
                 }
 
                 ImGui.Text($"Best Relic Mission: {BestMission} | {MissionName}");
-                if (ImGui.Button("Update Best Mission"))
+                if (ImGui.Button(Loc.T("Update Best Mission")))
                 {
                     BestMission = (int)RelicMissionFinder();
                     if (BestMission < 1)
@@ -178,7 +178,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Hud
             }
             else
             {
-                ImGui.Text("Waiting for \"WKSMission\" to be visible");
+                ImGui.Text(Loc.T("Waiting for \"WKSMission\" to be visible"));
             }
         }
 

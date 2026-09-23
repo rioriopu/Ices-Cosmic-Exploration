@@ -10,21 +10,21 @@ namespace ICE.Ui.MainUi.Settings
         {
             if (ImGui.BeginTabBar("Mission Priority Settings"))
             {
-                if (ImGui.BeginTabItem("Mission Priority Order"))
+                if (ImGui.BeginTabItem(Loc.T("Mission Priority Order")))
                 {
                     MissionTypeOrderUi();
 
                     ImGui.EndTabItem();
                 }
 
-                if (ImGui.BeginTabItem("Provisional: Type Order"))
+                if (ImGui.BeginTabItem(Loc.T("Provisional: Type Order")))
                 {
                     TypePriorityUi();
 
                     ImGui.EndTabItem();
                 }
 
-                if (ImGui.BeginTabItem("Provisional: Job Order"))
+                if (ImGui.BeginTabItem(Loc.T("Provisional: Job Order")))
                 {
                     JobPriorityUi();
 
@@ -49,9 +49,9 @@ namespace ICE.Ui.MainUi.Settings
 
             if (ImGui.BeginTable("Type Priority Table", 3, ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.RowBg | ImGuiTableFlags.Borders))
             {
-                ImGui.TableSetupColumn("ReOrder");
-                ImGui.TableSetupColumn("Icon");
-                ImGui.TableSetupColumn("Type");
+                ImGui.TableSetupColumn(Loc.T("ReOrder"));
+                ImGui.TableSetupColumn(Loc.T("Icon"));
+                ImGui.TableSetupColumn(Loc.T("Type"));
 
                 ImGui.TableHeadersRow();
 
@@ -103,7 +103,7 @@ namespace ICE.Ui.MainUi.Settings
 
         private static void MissionTypeOrderUi()
         {
-            ImGui.Text("Mission Search Priority");
+            ImGui.Text(Loc.T("Mission Search Priority"));
             ImGui_Ice.IconWithTooltip(
                 FontAwesomeIcon.InfoCircle, 
                 "Order you would like to do the actions. It will work from the top down.\n" +
@@ -119,9 +119,9 @@ namespace ICE.Ui.MainUi.Settings
 
             if (ImGui.BeginTable("Mission Type Table", 3, ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.RowBg | ImGuiTableFlags.Borders))
             {
-                ImGui.TableSetupColumn("ReOrder");
-                ImGui.TableSetupColumn("Icon");
-                ImGui.TableSetupColumn("Type");
+                ImGui.TableSetupColumn(Loc.T("ReOrder"));
+                ImGui.TableSetupColumn(Loc.T("Icon"));
+                ImGui.TableSetupColumn(Loc.T("Type"));
 
                 ImGui.TableHeadersRow();
 
@@ -181,7 +181,7 @@ namespace ICE.Ui.MainUi.Settings
 
         private static void JobPriorityUi()
         {
-            ImGui.Text("Provisional Job Priority");
+            ImGui.Text(Loc.T("Provisional Job Priority"));
             ImGui_Ice.IconWithTooltip(FontAwesomeIcon.InfoCircle,
                 "Order you would like to do the provisional mission in, if multiple are selected and the option to do multiple classes is enabled");
 
@@ -202,9 +202,9 @@ namespace ICE.Ui.MainUi.Settings
 
             if (ImGui.BeginTable("Job Priority Order", 3, ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.RowBg | ImGuiTableFlags.Borders))
             {
-                ImGui.TableSetupColumn("ReOrder");
-                ImGui.TableSetupColumn("Icon");
-                ImGui.TableSetupColumn("Type");
+                ImGui.TableSetupColumn(Loc.T("ReOrder"));
+                ImGui.TableSetupColumn(Loc.T("Icon"));
+                ImGui.TableSetupColumn(Loc.T("Type"));
 
                 ImGui.TableHeadersRow();
 

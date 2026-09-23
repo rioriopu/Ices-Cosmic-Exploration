@@ -12,17 +12,17 @@ namespace ICE.Ui.Debug_Tabs.Debug_Tables
         public static void Draw()
         {
             // Search filter input
-            ImGui.Text("Search missions:");
+            ImGui.Text(Loc.T("Search missions:"));
             ImGui.SetNextItemWidth(200);
             ImGui.InputText("##searchFilter", ref searchFilter, 256);
 
-            if (ImGui.Button("Update all mission text"))
+            if (ImGui.Button(Loc.T("Update all mission text")))
             {
                 UpdateText();
             }
 
             ImGui.SameLine();
-            if (ImGui.Button("Clear"))
+            if (ImGui.Button(Loc.T("Clear")))
             {
                 searchFilter = "";
             }

@@ -23,7 +23,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
             }
             else
             {
-                ImGui.Text("Select string not visible");
+                ImGui.Text(Loc.T("Select string not visible"));
             }
         }
     }

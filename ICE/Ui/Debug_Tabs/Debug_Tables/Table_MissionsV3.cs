@@ -25,7 +25,7 @@ internal class Table_MissionsV3
         if (ImGui.BeginChild("###MissionTableV3", size, false))
         {
             var showRedAlert = C.MissionFilter.HasFlag(MissionFilter.RedAlert);
-            if (ImGui.Checkbox("Red Alert", ref showRedAlert))
+            if (ImGui.Checkbox(Loc.T("Red Alert"), ref showRedAlert))
             {
                 C.MissionFilter = showRedAlert
                     ? C.MissionFilter | MissionFilter.RedAlert

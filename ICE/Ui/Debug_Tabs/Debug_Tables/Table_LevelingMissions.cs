@@ -10,8 +10,8 @@ namespace ICE.Ui.Debug_Tabs.Debug_Tables
         {
             if (ImGui.BeginTable("Leveling Table", 14, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingStretchSame))
             {
-                ImGui.TableSetupColumn("Planet");
-                ImGui.TableSetupColumn("Lv");
+                ImGui.TableSetupColumn(Loc.T("Planet"));
+                ImGui.TableSetupColumn(Loc.T("Lv"));
                 for (int i = 1; i < 12; i++)
                 {
                     ImGui.TableSetupColumn($"##icon_{i}", ImGuiTableColumnFlags.WidthStretch);
@@ -21,11 +21,11 @@ namespace ICE.Ui.Debug_Tabs.Debug_Tables
 
                 // Column 0 — "Planet" with proper header styling
                 ImGui.TableSetColumnIndex(0);
-                ImGui.TableHeader("Planet");
+                ImGui.TableHeader(Loc.T("Planet"));
 
                 // Column 1 — "Lv"
                 ImGui.TableNextColumn();
-                ImGui.TableHeader("Lv");
+                ImGui.TableHeader(Loc.T("Lv"));
 
                 // Icon columns
                 for (uint i = 8; i < 19; i++)
@@ -85,7 +85,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Tables
                     if (mission.id != 0)
                         ImGui.Text($"{mission.id}");
                     else
-                        ImGui.TextDisabled("-");
+                        ImGui.TextDisabled(Loc.T("-"));
                 }
             }
         }

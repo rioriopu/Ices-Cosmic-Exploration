@@ -20,7 +20,7 @@ namespace ICE.Ui.MainUi.Settings
 
         public static void Draw()
         {
-            ImGui.Checkbox("Stop after current mission", ref Mission_Settings.StopAfterCurrent);
+            ImGui.Checkbox(Loc.T("Stop after current mission"), ref Mission_Settings.StopAfterCurrent);
 
             #region CosmoCredits
 
@@ -125,7 +125,7 @@ namespace ICE.Ui.MainUi.Settings
             #region Relic Level
 
             bool stopWhen = C.StopAtRelicLv;
-            if (ImGui.Checkbox("Stop At Relic Lv.", ref stopWhen))
+            if (ImGui.Checkbox(Loc.T("Stop At Relic Lv."), ref stopWhen))
             {
                 C.StopAtRelicLv = stopWhen;
                 C.Save();
@@ -144,7 +144,7 @@ namespace ICE.Ui.MainUi.Settings
             #region Mastery Score
 
             bool stopMastery = C.StopWhenMasteryComplete;
-            if (ImGui.Checkbox("Stop When Mastery Complete", ref stopMastery))
+            if (ImGui.Checkbox(Loc.T("Stop When Mastery Complete"), ref stopMastery))
             {
                 C.StopWhenMasteryComplete = stopMastery;
                 C.SaveDebounced();
@@ -164,21 +164,21 @@ namespace ICE.Ui.MainUi.Settings
             #region Standard Missions Golded
 
             bool standardGoldStop = C.StopOnceStandardMissionsGolded;
-            if (ImGui.Checkbox("Stop when all standard missions are golded", ref standardGoldStop))
+            if (ImGui.Checkbox(Loc.T("Stop when all standard missions are golded"), ref standardGoldStop))
             {
                 C.StopOnceStandardMissionsGolded = standardGoldStop;
                 C.Save();
             }
             ImGuiEx.HelpMarker(
-                "Stops when every non-provisional, non-critical mission for your selected job on the current moon is gold.\n" +
-                "Timed, weather, sequence, and red alert missions are not counted.");
+                Loc.T("Stops when every non-provisional, non-critical mission for your selected job on the current moon is gold.\n" +
+                "Timed, weather, sequence, and red alert missions are not counted."));
 
             #endregion
 
             #region Sound Alert
 
             bool playSoundAlert = C.PlaySoundAlert;
-            if (ImGui.Checkbox("Play Sound Alert on Stop", ref playSoundAlert))
+            if (ImGui.Checkbox(Loc.T("Play Sound Alert on Stop"), ref playSoundAlert))
             {
                 C.PlaySoundAlert = playSoundAlert;
                 C.Save();
@@ -186,14 +186,14 @@ namespace ICE.Ui.MainUi.Settings
             if (playSoundAlert)
             {
                 var soundVolume = C.SoundVolume;
-                ImGui.Text("Sound Volume");
+                ImGui.Text(Loc.T("Sound Volume"));
                 ImGui.SetNextItemWidth(200);
                 if (ImGui.SliderFloat("##Sound Volume", ref soundVolume, 0f, 1f, "%.2f"))
                 {
                     C.SoundVolume = soundVolume;
                     C.SaveDebounced();
                 }
-                if (ImGui.Button("Test Sound Alert"))
+                if (ImGui.Button(Loc.T("Test Sound Alert")))
                 {
                     _ = SoundPlayer.PlaySoundAsync();
                 }

@@ -209,8 +209,8 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
                 var pos = Player.Position;
                 WorldPos = pos;
             }
-            ImGui.DragFloat("Height", ref Height, 0.1f, 0, 10);
-            ImGui.DragFloat("Scale", ref Scale);
+            ImGui.DragFloat(Loc.T("Height"), ref Height, 0.1f, 0, 10);
+            ImGui.DragFloat(Loc.T("Scale"), ref Scale);
 
             if (WorldPos != Vector3.Zero)
             {
@@ -244,28 +244,28 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
 
             ImGui.Text($"{WKSManager.Instance()->State.CurrentMission.MissionUnitRowId}");
 
-            if (ImGui.Button("Test Drone Buy"))
+            if (ImGui.Button(Loc.T("Test Drone Buy")))
             {
                 Task_ArtifactSearch.EnqueueBuy();
             }
 
-            if (ImGui.Button("Find Mission"))
+            if (ImGui.Button(Loc.T("Find Mission")))
             {
                 // TaskMissionFind.Enqueue();
             }
-            if (ImGui.Button("Clear Task"))
+            if (ImGui.Button(Loc.T("Clear Task")))
             {
                 P.TaskManager.Abort();
             }
-            if (ImGui.Button("Artisan Craft"))
+            if (ImGui.Button(Loc.T("Artisan Craft")))
             {
                 P.Artisan.CraftItem(36176, 1);
             }
-            if (ImGui.Button("RecipeNote"))
+            if (ImGui.Button(Loc.T("RecipeNote")))
             {
                 AddonHelper.OpenRecipeNote();
             }
-            if (ImGui.TreeNode("All Current objects"))
+            if (ImGui.TreeNode(Loc.T("All Current objects")))
             {
                 if (Player.Available)
                 {
@@ -288,7 +288,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
             float gameObjectDistance = 0;
             if (gameObject is not null)
                 gameObjectDistance = Player.DistanceTo(gameObject);
-            if (ImGui.Button("Click Nearest EventObject"))
+            if (ImGui.Button(Loc.T("Click Nearest EventObject")))
             {
                 Utils.TargetgameObjectTask(gameObject);
                 Utils.InteractWithObject(gameObject);
@@ -300,7 +300,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
             float collectionPointDistance = 0;
             if (collectionPoint is not null)
                 collectionPointDistance = Player.DistanceTo(collectionPoint);
-            if (ImGui.Button("Click Nearest Collection Point"))
+            if (ImGui.Button(Loc.T("Click Nearest Collection Point")))
             {
                 Utils.TargetgameObjectTask(collectionPoint);
                 Utils.InteractWithObject(collectionPoint);
@@ -308,7 +308,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
             ImGui.SameLine();
             ImGui.Text($"Distance to nearest: {collectionPointDistance}");
 
-            if (ImGui.Button("Print GatheringPoint Info"))
+            if (ImGui.Button(Loc.T("Print GatheringPoint Info")))
             {
                 var gatheringPoint = Player.Object?.TargetObject;
                 if (gatheringPoint is not null)
@@ -335,25 +335,25 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
                 }
             }
 
-            if (ImGui.Button("Switch class to CRP"))
+            if (ImGui.Button(Loc.T("Switch class to CRP")))
             {
                 GearsetHandler.TaskClassChange(Job.CRP);
             }
-            if (ImGui.Button("Switch class to MIN"))
+            if (ImGui.Button(Loc.T("Switch class to MIN")))
             {
                 GearsetHandler.TaskClassChange(Job.MIN);
             }
-            if (ImGui.Button("Relic Turnin"))
+            if (ImGui.Button(Loc.T("Relic Turnin")))
             {
                 Task_RelicTurnin.Enqueue();
             }
 
-            if (ImGui.CollapsingHeader("Square custom font"))
+            if (ImGui.CollapsingHeader(Loc.T("Square custom font")))
             {
                 DrawIconSelector();
             }
 
-            if (ImGui.CollapsingHeader("Font Test"))
+            if (ImGui.CollapsingHeader(Loc.T("Font Test")))
             {
                 for (int i = 0xE000; i <= 0xE0FF; i++)
                 {
@@ -378,7 +378,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
                 DrawExportWindow();
             }
 
-            if (ImGui.CollapsingHeader("View All SE Custom Fonts (That's known"))
+            if (ImGui.CollapsingHeader(Loc.T("View All SE Custom Fonts (That's known")))
             {
                 foreach (var fontIcon in Icons)
                 {
@@ -386,7 +386,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
                 }
             }
             ImGui.Text($"Mission Timer: {AddonHelper.GetNodeText("WKSMissionInfomation", 24)}");
-            if (ImGui.Button("Move Item"))
+            if (ImGui.Button(Loc.T("Move Item")))
             {
                 MoveItem();
             }
@@ -394,14 +394,14 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
 
         private static void DrawIconSelector()
         {
-            if (ImGui.Button("Export Selected to Dictionary"))
+            if (ImGui.Button(Loc.T("Export Selected to Dictionary")))
             {
                 ExportSelectedIcons();
                 showExportWindow = true;
             }
 
             ImGui.SameLine();
-            if (ImGui.Button("Clear All Selections"))
+            if (ImGui.Button(Loc.T("Clear All Selections")))
             {
                 selectedIcons.Clear();
                 iconNames.Clear();
@@ -454,11 +454,11 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
                         iconNames[i] = name;
                     }
                     ImGui.SameLine();
-                    ImGui.TextDisabled("(optional custom name)");
+                    ImGui.TextDisabled(Loc.T("(optional custom name)"));
                 }
                 else
                 {
-                    ImGui.TextDisabled("(select to add optional name)");
+                    ImGui.TextDisabled(Loc.T("(select to add optional name)"));
                 }
             }
 
@@ -497,7 +497,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
         {
             ImGui.Begin("Exported Icon Dictionary", ref showExportWindow);
 
-            if (ImGui.Button("Copy to Clipboard"))
+            if (ImGui.Button(Loc.T("Copy to Clipboard")))
             {
                 ImGui.SetClipboardText(exportedCode);
                 Svc.Chat.Print("Dictionary code copied to clipboard!");

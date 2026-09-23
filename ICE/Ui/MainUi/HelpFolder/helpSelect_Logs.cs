@@ -20,12 +20,12 @@ namespace ICE.Ui.MainUi.HelpFolder
                 if (!headerChild.Success) return; // Ensures that it was loaded properly before continuing.
                 if (ImGui.BeginTabBar("Ice Log Tabs"))
                 {
-                    if (ImGui.BeginTabItem("Main Logs"))
+                    if (ImGui.BeginTabItem(Loc.T("Main Logs")))
                     {
                         LogHelperViewer();
                         ImGui.EndTabItem();
                     }
-                    if (ImGui.BeginTabItem("Destination Logs"))
+                    if (ImGui.BeginTabItem(Loc.T("Destination Logs")))
                     {
                         DestinationLogViewer();
                         ImGui.EndTabItem();
@@ -38,7 +38,7 @@ namespace ICE.Ui.MainUi.HelpFolder
 
         public static void Draw_Debug()
         {
-            if (ImGui.Button("Copy logs to clipboard"))
+            if (ImGui.Button(Loc.T("Copy logs to clipboard")))
             {
                 LogSystem.CopyToClipboard();
             }
@@ -52,7 +52,7 @@ namespace ICE.Ui.MainUi.HelpFolder
             ImGui.InputTextWithHint("##LogSearch", "Search logs...", ref searchFilter, 256);
 
             ImGui.SameLine();
-            if (ImGui.Button("Copy Logs"))
+            if (ImGui.Button(Loc.T("Copy Logs")))
             {
                 LogSystem.CopyToClipboard();
             }
@@ -66,11 +66,11 @@ namespace ICE.Ui.MainUi.HelpFolder
 
             if (ImGui.BeginTable("LogTable", 5, flags))
             {
-                ImGui.TableSetupColumn("Time");
-                ImGui.TableSetupColumn("Count");
-                ImGui.TableSetupColumn("Level");
-                ImGui.TableSetupColumn("Category");
-                ImGui.TableSetupColumn("Message", ImGuiTableColumnFlags.WidthStretch);
+                ImGui.TableSetupColumn(Loc.T("Time"));
+                ImGui.TableSetupColumn(Loc.T("Count"));
+                ImGui.TableSetupColumn(Loc.T("Level"));
+                ImGui.TableSetupColumn(Loc.T("Category"));
+                ImGui.TableSetupColumn(Loc.T("Message"), ImGuiTableColumnFlags.WidthStretch);
                 ImGui.TableHeadersRow();
 
                 // Filter logs based on search input
@@ -95,7 +95,7 @@ namespace ICE.Ui.MainUi.HelpFolder
                     {
                         ImGui.Text($"{log.Timestamp:HH:mm:ss}");
                         ImGui.SameLine();
-                        ImGui.TextDisabled("-");
+                        ImGui.TextDisabled(Loc.T("-"));
                         ImGui.SameLine();
                         ImGui.Text($"{log.LastOccurrence:HH:mm:ss}");
                     }
@@ -112,7 +112,7 @@ namespace ICE.Ui.MainUi.HelpFolder
                     }
                     else
                     {
-                        ImGui.TextDisabled("1");
+                        ImGui.TextDisabled(Loc.T("1"));
                     }
 
                     ImGui.TableNextColumn();
@@ -146,10 +146,10 @@ namespace ICE.Ui.MainUi.HelpFolder
 
             if (ImGui.BeginTable("Destination Log Viewer", 5, flags))
             {
-                ImGui.TableSetupColumn("Timestamp");
-                ImGui.TableSetupColumn("Start");
-                ImGui.TableSetupColumn("Destination");
-                ImGui.TableSetupColumn("Distance");
+                ImGui.TableSetupColumn(Loc.T("Timestamp"));
+                ImGui.TableSetupColumn(Loc.T("Start"));
+                ImGui.TableSetupColumn(Loc.T("Destination"));
+                ImGui.TableSetupColumn(Loc.T("Distance"));
 
                 ImGui.TableHeadersRow();
 
@@ -175,7 +175,7 @@ namespace ICE.Ui.MainUi.HelpFolder
                     Table_VertCenterText($"{log.Distance}");
 
                     ImGui.TableNextColumn();
-                    if (ImGui.Button("Copy Info"))
+                    if (ImGui.Button(Loc.T("Copy Info")))
                     {
                         var clipboardText = new StringBuilder();
                         clipboardText.AppendLine($"Start: X: {log.PlayerStart.X:N2}, Y: {log.PlayerStart.Y:N2}, Z: {log.PlayerStart.Z:N2}");

@@ -26,7 +26,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
 
             ImGui.Text($"Current pos: {currentPos.X:N2} | {currentPos.Y:N2} | {currentPos.Z:N2}");
 
-            if (ImGui.Button("Add Position"))
+            if (ImGui.Button(Loc.T("Add Position")))
             {
                 finalPath.Add(currentPos);
             }

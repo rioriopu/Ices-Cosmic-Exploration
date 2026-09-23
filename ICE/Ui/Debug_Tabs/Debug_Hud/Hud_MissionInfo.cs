@@ -35,7 +35,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Hud
                     ImGui.TableNextRow();
 
                     ImGui.TableSetColumnIndex(0);
-                    ImGui.Text("Current Mission:");
+                    ImGui.Text(Loc.T("Current Mission:"));
                     ImGui.TableNextColumn();
                     ImGui.Text($"{missionId}");
 
@@ -43,7 +43,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Hud
                     {
                         ImGui.TableNextColumn();
                         ImGui.TableSetColumnIndex(0);
-                        ImGui.Text("Current Score:");
+                        ImGui.Text(Loc.T("Current Score:"));
                         ImGui.TableNextColumn();
 
                         ImGui.Text($"{CosmicHandler.GetScore()}");
@@ -58,7 +58,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Hud
 
                         ImGui.TableNextRow();
                         ImGui.TableSetColumnIndex(0);
-                        ImGui.Text("Is Mission Timed out");
+                        ImGui.Text(Loc.T("Is Mission Timed out"));
 
                         ImGui.TableNextColumn();
                         ImGui.Text($"{CosmicHandler.IsMissionTimedOut()}");
@@ -67,7 +67,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Hud
                     {
                         ImGui.TableNextRow();
                         ImGui.TableSetColumnIndex(0);
-                        ImGui.Text("Critical Value:");
+                        ImGui.Text(Loc.T("Critical Value:"));
 
                         ImGui.TableNextColumn();
                         ImGui.Text($"{x.CriticalScore}");
@@ -77,7 +77,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Hud
                     {
                         ImGui.TableNextRow();
                         ImGui.TableSetColumnIndex(0);
-                        ImGui.Text("Current Bait");
+                        ImGui.Text(Loc.T("Current Bait"));
 
                         ImGui.TableNextColumn();
                         ImGui.Text($"{CosmicHelper.CurrentBait()
@@ -85,7 +85,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Hud
                     }
                     ImGui.TableNextRow();
                     ImGui.TableSetColumnIndex(0);
-                    ImGui.Text("Collected Individual");
+                    ImGui.Text(Loc.T("Collected Individual"));
                     ImGui.TableNextColumn();
                     ImGui.Text($"{CosmicHelper.CurrentIndividual()}");
 
@@ -96,35 +96,35 @@ namespace ICE.Ui.Debug_Tabs.Debug_Hud
                     ImGui.Text($"{CosmicHelper.CurrentTotal()}");
                     ImGui.TableNextRow();
                     ImGui.TableSetColumnIndex(0);
-                    if (ImGui.Button("Cosmo Pouch"))
+                    if (ImGui.Button(Loc.T("Cosmo Pouch")))
                     {
                         x.CosmoPouch();
                     }
 
                     ImGui.TableNextRow();
                     ImGui.TableSetColumnIndex(0);
-                    if (ImGui.Button("Cosmo Crafting Log"))
+                    if (ImGui.Button(Loc.T("Cosmo Crafting Log")))
                     {
                         x.CosmoCraftingLog();
                     }
 
                     ImGui.TableNextRow();
                     ImGui.TableSetColumnIndex(0);
-                    if (ImGui.Button("Steller Reduction"))
+                    if (ImGui.Button(Loc.T("Steller Reduction")))
                     {
                         x.StellerReduction();
                     }
 
                     ImGui.TableNextRow();
                     ImGui.TableSetColumnIndex(0);
-                    if (ImGui.Button("Report"))
+                    if (ImGui.Button(Loc.T("Report")))
                     {
                         x.Report();
                     }
 
                     ImGui.TableNextRow();
                     ImGui.TableSetColumnIndex(0);
-                    if (ImGui.Button("Abandon"))
+                    if (ImGui.Button(Loc.T("Abandon")))
                     {
                         x.Abandon();
                     }
@@ -137,7 +137,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Hud
 
                     ImGui.TableNextRow();
                     ImGui.TableSetColumnIndex(0);
-                    ImGui.Text("Score 1");
+                    ImGui.Text(Loc.T("Score 1"));
                     ImGui.TableNextColumn();
                     ImGui.Text($"{scores.Length}");
 
@@ -155,7 +155,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Hud
 
                     ImGui.TableNextRow();
                     ImGui.TableSetColumnIndex(0);
-                    ImGui.Text("Bait:");
+                    ImGui.Text(Loc.T("Bait:"));
                     ImGui.TableNextColumn();
                     ImGui.Text($"{currentlyEquippped}");
                     */
@@ -166,7 +166,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Hud
             }
             else
             {
-                ImGui.Text("Waiting for \"WKSMissionInfomation\" to be visible");
+                ImGui.Text(Loc.T("Waiting for \"WKSMissionInfomation\" to be visible"));
             }
         }
     }

@@ -11,7 +11,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Hud
         private static int BuyAmount = 1;
         public static void Draw()
         {
-            if (ImGui.Button("Merge Items"))
+            if (ImGui.Button(Loc.T("Merge Items")))
             {
                 if (EzThrottler.Throttle("Merge Throttle"))
                     Task_BuyCosmoItems.MergeItems();
@@ -20,17 +20,17 @@ namespace ICE.Ui.Debug_Tabs.Debug_Hud
             if (GenericHelpers.TryGetAddonMaster<ShopExchangeItem>(out var shopExchange) && shopExchange.IsAddonReady)
             {
                 ImGui.SameLine();
-                if (ImGui.Button("Queue Exchange Buy"))
+                if (ImGui.Button(Loc.T("Queue Exchange Buy")))
                 {
                     if (!P.TaskManager.IsBusy)
                         P.TaskManager.Enqueue(() => Task_BuyCosmoItems.BuyPlanetBoolets(), Utils.TaskConfig);
                 }
                 if (ImGui.BeginTable("Shop Exchange Items", 4, ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.Borders))
                 {
-                    ImGui.TableSetupColumn("Item");
-                    ImGui.TableSetupColumn("Have");
-                    ImGui.TableSetupColumn("Required Items");
-                    ImGui.TableSetupColumn("Buy Amount");
+                    ImGui.TableSetupColumn(Loc.T("Item"));
+                    ImGui.TableSetupColumn(Loc.T("Have"));
+                    ImGui.TableSetupColumn(Loc.T("Required Items"));
+                    ImGui.TableSetupColumn(Loc.T("Buy Amount"));
 
                     ImGui.TableHeadersRow();
 

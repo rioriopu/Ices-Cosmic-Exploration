@@ -29,7 +29,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Tables
 
         public static void Draw()
         {
-            if (ImGui.Button("Copy Selected"))
+            if (ImGui.Button(Loc.T("Copy Selected")))
             {
                 var ordered = MissionList.OrderBy(x => x);
                 var c = string.Join(", ", ordered);
@@ -38,16 +38,16 @@ namespace ICE.Ui.Debug_Tabs.Debug_Tables
             }
 
             ImGui.SameLine();
-            if (ImGui.Button("Clear"))
+            if (ImGui.Button(Loc.T("Clear")))
             {
                 MissionList.Clear();
             }
 
             ImGui.SetNextItemWidth(200);
-            ImGui.SliderInt("Filter##JobFilter", ref sliderIndex, 0, 11, jobLabels[sliderIndex]);
+            ImGui.SliderInt(Loc.T("Filter##JobFilter"), ref sliderIndex, 0, 11, jobLabels[sliderIndex]);
 
             ImGui.Text($"1, 2, 3, 4, 5");
-            ImGui.Text("2, 3, 5, 6, 7");
+            ImGui.Text(Loc.T("2, 3, 5, 6, 7"));
 
             using (var missionTable = ImRaii.Child("Mission Selection Window", new Vector2(0, 0)))
             {
@@ -56,11 +56,11 @@ namespace ICE.Ui.Debug_Tabs.Debug_Tables
 
                 if (ImGui.BeginTable("Quick Mission Add", 5, ImGuiTableFlags.RowBg | ImGuiTableFlags.Borders | ImGuiTableFlags.SizingFixedFit))
                 {
-                    ImGui.TableSetupColumn("ID");
-                    ImGui.TableSetupColumn("Job");
-                    ImGui.TableSetupColumn("Added");
-                    ImGui.TableSetupColumn("Level");
-                    ImGui.TableSetupColumn("Name");
+                    ImGui.TableSetupColumn(Loc.T("ID"));
+                    ImGui.TableSetupColumn(Loc.T("Job"));
+                    ImGui.TableSetupColumn(Loc.T("Added"));
+                    ImGui.TableSetupColumn(Loc.T("Level"));
+                    ImGui.TableSetupColumn(Loc.T("Name"));
 
                     ImGui.TableHeadersRow();
 

@@ -10,10 +10,10 @@ namespace ICE.Ui.Debug_Tabs.Debug_Tables
 
             if (ImGui.BeginTable($"WKSMission Time Sheet", 4, ImGuiTableFlags.SizingFixedFit))
             {
-                ImGui.TableSetupColumn("Key");
-                ImGui.TableSetupColumn("Weather Required");
-                ImGui.TableSetupColumn("Start Hour");
-                ImGui.TableSetupColumn("End Hour");
+                ImGui.TableSetupColumn(Loc.T("Key"));
+                ImGui.TableSetupColumn(Loc.T("Weather Required"));
+                ImGui.TableSetupColumn(Loc.T("Start Hour"));
+                ImGui.TableSetupColumn(Loc.T("End Hour"));
 
                 ImGui.TableHeadersRow();
 

@@ -57,7 +57,7 @@ namespace ICE.Ui.MainUi
                     if (ImGui.IsItemHovered())
                     {
                         ImGui.BeginTooltip();
-                        ImGui.Text("Filters which planets appear in the\nmission list and the overlay.");
+                        ImGui.Text(Loc.T("Filters which planets appear in the\nmission list and the overlay."));
                         ImGui.EndTooltip();
                     }
                     ImGui.Dummy(new(0, 3));
@@ -168,7 +168,7 @@ namespace ICE.Ui.MainUi
                  // ImGui_Ice.DrawSelectable_Icon(FontAwesomeIcon.HandHoldingHand, "Plugin Tips", WindowSelection.Plugin_Tips);
                     ImGui_Ice.DrawSelectable_Icon(FontAwesomeIcon.QuestionCircle, "Plugin Requirements", WindowSelection.Plugin_Install);
                     ImGui_Ice.DrawSelectable_Icon(FontAwesomeIcon.Book, "Plugin Logs", WindowSelection.Plugin_Logs);
-                    if (ImGuiEx.IconButtonWithText(FontAwesomeIcon.Toolbox, "Refresh Class info", size: new(ImGui.GetContentRegionAvail().X, 30)))
+                    if (ImGuiEx.IconButtonWithText(FontAwesomeIcon.Toolbox, Loc.T("Refresh Class info"), size: new(ImGui.GetContentRegionAvail().X, 30)))
                     {
                         CosmicHelper.Task_UpdateRelicMissionInfo();
                     }

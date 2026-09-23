@@ -10,7 +10,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Hud
     {
         public static void Draw()
         {
-            if (ImGui.Button("Update Shop"))
+            if (ImGui.Button(Loc.T("Update Shop")))
             {
                 UpdateShop();
             }

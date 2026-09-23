@@ -24,33 +24,33 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
 
             ImGui.Text($"Territory: {Player.Territory.RowId} | Vendor NPC (NpcData Repair): {vendor}");
             ImGui.SetNextItemWidth(160);
-            ImGui.InputInt("NPC Id##lgs_npc", ref _npcIdInput);
+            ImGui.InputInt(Loc.T("NPC Id##lgs_npc"), ref _npcIdInput);
             ImGui.SameLine();
-            if (ImGui.Button("Resolve from sheets"))
+            if (ImGui.Button(Loc.T("Resolve from sheets")))
                 Resolve((uint)_npcIdInput, force: true);
             ImGui.SameLine();
-            if (ImGui.Button("Capture open shop"))
+            if (ImGui.Button(Loc.T("Capture open shop")))
             {
                 var d = Resolve((uint)_npcIdInput);
                 if (CaptureOpenShop(d) < 0)
                     IceLogging.Info("ショップが開いていません(ゴッドギスに話しかけて購入画面を開いてから押してください)", "[LevelingGearShop]");
             }
             ImGui.SameLine();
-            if (ImGui.Button("Refresh ownership") && TryGetCached((uint)_npcIdInput, out var cached))
+            if (ImGui.Button(Loc.T("Refresh ownership")) && TryGetCached((uint)_npcIdInput, out var cached))
                 UpdateOwnership(cached);
             ImGui.SameLine();
-            if (ImGui.Button("Export JSON") && TryGetCached((uint)_npcIdInput, out var toExport))
+            if (ImGui.Button(Loc.T("Export JSON")) && TryGetCached((uint)_npcIdInput, out var toExport))
                 ExportJson(toExport);
 
-            ImGui.Checkbox("Only current job", ref _onlyCurrentJob);
+            ImGui.Checkbox(Loc.T("Only current job"), ref _onlyCurrentJob);
             ImGui.SameLine();
-            ImGui.Checkbox("Only not owned", ref _onlyMissing);
+            ImGui.Checkbox(Loc.T("Only not owned"), ref _onlyMissing);
             if (!string.IsNullOrEmpty(LastMessage))
                 ImGui.TextDisabled(LastMessage);
 
             if (!TryGetCached((uint)_npcIdInput, out var data))
             {
-                ImGui.TextWrapped("「Resolve from sheets」でゲームデータから品揃えを取得します。NPC に話しかける必要はありません。");
+                ImGui.TextWrapped(Loc.T("「Resolve from sheets」でゲームデータから品揃えを取得します。NPC に話しかける必要はありません。"));
                 return;
             }
 
@@ -72,16 +72,16 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
             using var table = ImRaii.Table("LevelingGearShopTable", 10, ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.RowBg | ImGuiTableFlags.Borders | ImGuiTableFlags.ScrollY);
             if (!table.Success) return;
             ImGui.TableSetupScrollFreeze(0, 1);
-            ImGui.TableSetupColumn("Bracket");
-            ImGui.TableSetupColumn("Shop");
-            ImGui.TableSetupColumn("Item");
-            ImGui.TableSetupColumn("Lv");
-            ImGui.TableSetupColumn("iLv");
-            ImGui.TableSetupColumn("Slot");
-            ImGui.TableSetupColumn("Jobs");
-            ImGui.TableSetupColumn("Price");
-            ImGui.TableSetupColumn("Armoury");
-            ImGui.TableSetupColumn("Equipped");
+            ImGui.TableSetupColumn(Loc.T("Bracket"));
+            ImGui.TableSetupColumn(Loc.T("Shop"));
+            ImGui.TableSetupColumn(Loc.T("Item"));
+            ImGui.TableSetupColumn(Loc.T("Lv"));
+            ImGui.TableSetupColumn(Loc.T("iLv"));
+            ImGui.TableSetupColumn(Loc.T("Slot"));
+            ImGui.TableSetupColumn(Loc.T("Jobs"));
+            ImGui.TableSetupColumn(Loc.T("Price"));
+            ImGui.TableSetupColumn(Loc.T("Armoury"));
+            ImGui.TableSetupColumn(Loc.T("Equipped"));
             ImGui.TableHeadersRow();
 
             foreach (var item in items)

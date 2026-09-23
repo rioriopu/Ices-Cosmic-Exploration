@@ -61,6 +61,9 @@ public sealed partial class ICE : IDalamudPlugin
         EzConfig.Migrate<Config>();
         config = EzConfig.Init<Config>();
 
+        // プラグイン内蔵の日本語化(CSV 辞書)。ウィンドウを作る前に読み込む
+        GenericHelpers.Safe(() => global::ICE.Localization.Loc.Initialize());
+
         //IPC's that are used
         Lifestream = new();
         Navmesh = new();

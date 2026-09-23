@@ -64,7 +64,7 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
             if (!string.IsNullOrEmpty(plan.Error))
             {
                 ImGui.TextColored(new Vector4(1f, 0.4f, 0.4f, 1f), plan.Error);
-                if (ImGui.Button("No"))
+                if (ImGui.Button(Loc.T("No")))
                     ImGui.CloseCurrentPopup();
                 return;
             }
@@ -79,7 +79,7 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                 : $"Target: {category}' leveling gear (Lv10–95 sold by the vendor, NQ items in the Armoury Chest only; HQ is never sold) / about {plan.TotalGil:N0} gil");
             ImGui.PopTextWrapPos();
 
-            if (plan.Items.Count > 0 && ImGui.CollapsingHeader("Items to sell"))
+            if (plan.Items.Count > 0 && ImGui.CollapsingHeader(Loc.T("Items to sell")))
             {
                 using var list = ImRaii.Child("##lgear_sell_list", new Vector2(520 * ImGuiHelpers.GlobalScale, 200 * ImGuiHelpers.GlobalScale), true);
                 if (list.Success)
@@ -87,7 +87,7 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                         ImGui.TextUnformatted($"{LevelingGearShop.SlotNameJp(e.GearSlot)}  {e.Name} (Lv{e.LevelEquip})  {e.Price:N0}g");
             }
 
-            if (ImGui.Button("Yes", new Vector2(120 * ImGuiHelpers.GlobalScale, 0)))
+            if (ImGui.Button(Loc.T("Yes"), new Vector2(120 * ImGuiHelpers.GlobalScale, 0)))
             {
                 if (plan.Items.Count == 0)
                     IceLogging.ChatInfo(jp ? "売却するレベリング装備はありません" : "No leveling gear to sell", "[I.C.E.]");
@@ -96,7 +96,7 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                 ImGui.CloseCurrentPopup();
             }
             ImGui.SameLine();
-            if (ImGui.Button("No", new Vector2(120 * ImGuiHelpers.GlobalScale, 0)))
+            if (ImGui.Button(Loc.T("No"), new Vector2(120 * ImGuiHelpers.GlobalScale, 0)))
                 ImGui.CloseCurrentPopup();
         }
 
@@ -114,7 +114,7 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
             if (!string.IsNullOrEmpty(plan.Error))
             {
                 ImGui.TextColored(new Vector4(1f, 0.4f, 0.4f, 1f), plan.Error);
-                if (ImGui.Button("No"))
+                if (ImGui.Button(Loc.T("No")))
                     ImGui.CloseCurrentPopup();
                 return;
             }
@@ -143,7 +143,7 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
             }
             ImGui.PopTextWrapPos();
 
-            if (plan.ToBuy.Count > 0 && ImGui.CollapsingHeader("Items to buy"))
+            if (plan.ToBuy.Count > 0 && ImGui.CollapsingHeader(Loc.T("Items to buy")))
             {
                 using var list = ImRaii.Child("##lgear_list", new Vector2(520 * ImGuiHelpers.GlobalScale, 200 * ImGuiHelpers.GlobalScale), true);
                 if (list.Success)
@@ -151,7 +151,7 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                         ImGui.TextUnformatted($"Lv{e.StepLevel,2}  {LevelingGearShop.SlotNameJp(e.Item.Slot)}  {e.Item.Name} (Lv{e.Item.LevelEquip})  {e.Item.Price:N0}g");
             }
 
-            if (ImGui.Button("Yes", new Vector2(120 * ImGuiHelpers.GlobalScale, 0)))
+            if (ImGui.Button(Loc.T("Yes"), new Vector2(120 * ImGuiHelpers.GlobalScale, 0)))
             {
                 if (plan.Shortage.Count > 0)
                     IceLogging.ChatInfo(jp ? "アーマリーチェストに空き枠が足りないため、購入を中止しました" : "Purchase cancelled: not enough free Armoury Chest slots", "[I.C.E.]");
@@ -164,7 +164,7 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                 ImGui.CloseCurrentPopup();
             }
             ImGui.SameLine();
-            if (ImGui.Button("No", new Vector2(120 * ImGuiHelpers.GlobalScale, 0)))
+            if (ImGui.Button(Loc.T("No"), new Vector2(120 * ImGuiHelpers.GlobalScale, 0)))
                 ImGui.CloseCurrentPopup();
         }
 
@@ -221,7 +221,7 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                 if (relicMode && RelicFallback.Active)
                 {
                     ImGui.SameLine(0, 6 * scale);
-                    ImGui.TextColored(new Vector4(1f, 0.85f, 0.3f, 1f), "→ Leveling (relic fallback)");
+                    ImGui.TextColored(new Vector4(1f, 0.85f, 0.3f, 1f), Loc.T("→ Leveling (relic fallback)"));
                     if (ImGui.IsItemHovered())
                         ImGui.SetTooltip(Task_BuyLevelingGear.IsJapanese
                             ? $"コスモデータ{RelicFallback.NeededTypes}は{RelicFallback.RankName(RelicFallback.RequiredRank)}クラスのミッションでしか得られないため、Lv{RelicFallback.RequiredLevel}到達と{RelicFallback.RankName(RelicFallback.RequiredRank)}クラス解放までレベリングモードで動いています"
@@ -236,7 +236,7 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                 float yOffset = (textHeight - buttonHeight) / 2f;
                 ImGui.SetCursorPosY(ImGui.GetCursorPosY() + yOffset);
 
-                if (ImGuiEx.IconButtonWithText(FontAwesomeIcon.Play, "Mode Selection"))
+                if (ImGuiEx.IconButtonWithText(FontAwesomeIcon.Play, Loc.T("Mode Selection")))
                 {
                     ImGui.OpenPopup("Mode Select | Select Mode Window");
                 }
@@ -265,7 +265,7 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                     {
                         ImGui.BeginTooltip();
 
-                        ImGui.Text("It appears that you have on of the following enabled");
+                        ImGui.Text(Loc.T("It appears that you have on of the following enabled"));
                         if (C.StopOnceHitCosmicScore)
                             ImGui.BulletText($"Stop at Cosmic Score [{C.CosmicScoreCap:N0}]");
                         if (C.StopWhenLevel)
@@ -277,9 +277,9 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                         if (C.StopOnceRelicFinished)
                             ImGui.BulletText($"Stop once relic completed");
                         if (C.StopOnceStandardMissionsGolded)
-                            ImGui.BulletText("Stop when all standard missions are golded");
+                            ImGui.BulletText(Loc.T("Stop when all standard missions are golded"));
 
-                        ImGui.Text("So if you stop and you're unsure why... this might be why");
+                        ImGui.Text(Loc.T("So if you stop and you're unsure why... this might be why"));
 
                         ImGui.EndTooltip();
                     }
@@ -296,7 +296,7 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                 // Leveling on a hub requires QuickLevelList entries; gathering still needs route YAML per territory
                 using (ImRaii.Disabled(SchedulerMain.State != IceState.Idle || !usingSupportedJob || unsupportedMoon))
                 {
-                    if (ImGui.Button("Start", new Vector2(150 * scale, 0)))
+                    if (ImGui.Button(Loc.T("Start"), new Vector2(150 * scale, 0)))
                     {
                         SchedulerMain.EnablePlugin();
                     }
@@ -310,8 +310,8 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                     if (ImGui.IsItemHovered())
                     {
                         ImGui.BeginTooltip();
-                        ImGui.Text("Hey! You need to update artisan to use this mode, please update to at minimum:");
-                        ImGui.Text("4.0.4.29");
+                        ImGui.Text(Loc.T("Hey! You need to update artisan to use this mode, please update to at minimum:"));
+                        ImGui.Text(Loc.T("4.0.4.29"));
                         ImGui.EndTooltip();
                     }
                 }
@@ -359,7 +359,7 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                     using (ImRaii.PushColor(ImGuiCol.ButtonHovered, new Vector4(0.9f, 0.3f, 0.3f, 1.0f)))
                     using (ImRaii.PushColor(ImGuiCol.ButtonActive, new Vector4(0.7f, 0.1f, 0.1f, 1.0f)))
                     {
-                        if (ImGui.Button("Stop", new Vector2(150 * scale, 0)))
+                        if (ImGui.Button(Loc.T("Stop"), new Vector2(150 * scale, 0)))
                         {
                             SchedulerMain.DisablePlugin();
                         }
@@ -369,7 +369,7 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                 ImGui.SameLine(0, 10 * scale);
                 ImGui.SetCursorPosY(ImGui.GetCursorPosY() + yOffset);
 
-                if (ImGui.Button("Mission Settings"))
+                if (ImGui.Button(Loc.T("Mission Settings")))
                 {
                     ImGui.OpenPopup("Mission Settings: Popup");
                 }
@@ -377,17 +377,17 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                 {
                     // TODO: Mission Settings
                     bool grindAllProvisionals = C.GrindAllProvisionals;
-                    if (ImGui.Checkbox("Provisional: Allow All Classes", ref grindAllProvisionals))
+                    if (ImGui.Checkbox(Loc.T("Provisional: Allow All Classes"), ref grindAllProvisionals))
                     {
                         C.GrindAllProvisionals = grindAllProvisionals;
                         C.Save();
                     }
-                    ImGuiEx.HelpMarker("Enabling this will show you all weather/timed/sequence missions that you can grind,\n" +
+                    ImGuiEx.HelpMarker(Loc.T("Enabling this will show you all weather/timed/sequence missions that you can grind,\n" +
                                        "ON TOP OF doing the normal missions for whichever class you start on.\n" +
-                                       "If you just want to focus one specific class, set this to false");
+                                       "If you just want to focus one specific class, set this to false"));
 
                     bool allowCriticalsAllClass = C.GrindOffClassRedAlert;
-                    if (ImGui.Checkbox("Critical: Allow All Classes", ref allowCriticalsAllClass))
+                    if (ImGui.Checkbox(Loc.T("Critical: Allow All Classes"), ref allowCriticalsAllClass))
                     {
                         C.GrindOffClassRedAlert = allowCriticalsAllClass;
                         C.Save();
@@ -396,7 +396,7 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                         $"(So if you're on crp, but a bsm red alert pops up)");
 
                     bool removeGold = C.RemoveAfterGold;
-                    if (ImGui.Checkbox("Remove Mission Upon Gold Completion", ref removeGold))
+                    if (ImGui.Checkbox(Loc.T("Remove Mission Upon Gold Completion"), ref removeGold))
                     {
                         C.RemoveAfterGold = removeGold;
                         C.Save();
@@ -404,14 +404,14 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                     using (ImRaii.Disabled(!removeGold))
                     {
                         bool keepARanks = C.KeepARanks;
-                        if (ImGui.Checkbox("Keep \"A Rank\" missions and below", ref keepARanks))
+                        if (ImGui.Checkbox(Loc.T("Keep \"A Rank\" missions and below"), ref keepARanks))
                         {
                             C.KeepARanks = keepARanks;
                             C.Save();
                         }
                     }
 
-                    ImGui.Checkbox("Stop after current mission", ref Mission_Settings.StopAfterCurrent);
+                    ImGui.Checkbox(Loc.T("Stop after current mission"), ref Mission_Settings.StopAfterCurrent);
                     bool relicTurnin = C.TurninRelic;
                     if (ImGui.Checkbox($"Turnin if relic is complete##RelicTurnin_GeneralSetting", ref relicTurnin))
                     {
@@ -419,71 +419,71 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                         C.Save();
                     }
                     ImGui.SameLine();
-                    ImGui.TextDisabled("?");
+                    ImGui.TextDisabled(Loc.T("?"));
                     if (ImGui.IsItemHovered())
                     {
-                        ImGui.SetTooltip("THIS IS YOUR HEADS UP ON HOW THIS WORKS. If I change this in the future, this tooltip will also change.\n" +
+                        ImGui.SetTooltip(Loc.T("THIS IS YOUR HEADS UP ON HOW THIS WORKS. If I change this in the future, this tooltip will also change.\n" +
                                          "1: This will check for your current CLASS [not menu class, actual current class] for relic turnin.\n" +
                                          "2: The tool being upgraded must not be equipped, so the plugin swaps to another job for the turnin.\n" +
                                          "\t- Uses the job from \"Job Swap Settings\" if it has a gearset, otherwise any other job that has a gearset.\n" +
                                          "3: This will take prio over \"Stop @ Relic Turnin\", in the sense that if you have both enabled, it will turnin vs stop. And continue about it's day\n" +
                                          "4: If you're on a crafting class, it will return you back to the stop you were crafting post turnin. \n" +
                                          "\t- This is optional, you can disable it at your own free will, I just like this so I can just go back to an isolated area of my choosing\n" +
-                                         "5: In Relic Grind mode this all happens automatically (see \"Relic Mode: Auto Upgrade Tool\"), even if this box is unchecked.");
+                                         "5: In Relic Grind mode this all happens automatically (see \"Relic Mode: Auto Upgrade Tool\"), even if this box is unchecked."));
                     }
 
                     ImGui.Separator();
                     bool relic_AllowRedAlert = C.Relic_IncludeCriticals;
-                    if (ImGui.Checkbox("Relic Mode: Allow Red Alerts", ref relic_AllowRedAlert))
+                    if (ImGui.Checkbox(Loc.T("Relic Mode: Allow Red Alerts"), ref relic_AllowRedAlert))
                     {
                         C.Relic_IncludeCriticals = relic_AllowRedAlert;
                         C.Save();
                     }
 
                     bool OnlySelected = C.XPRelicOnlyEnabled;
-                    if (ImGui.Checkbox("Relic Mode: Only Enabled", ref OnlySelected))
+                    if (ImGui.Checkbox(Loc.T("Relic Mode: Only Enabled"), ref OnlySelected))
                     {
                         C.XPRelicOnlyEnabled = OnlySelected;
                         C.Save();
                     }
 
                     bool relicAutoUpgrade = C.Relic_AutoUpgradeInRelicMode;
-                    if (ImGui.Checkbox("Relic Mode: Auto Upgrade Tool", ref relicAutoUpgrade))
+                    if (ImGui.Checkbox(Loc.T("Relic Mode: Auto Upgrade Tool"), ref relicAutoUpgrade))
                     {
                         C.Relic_AutoUpgradeInRelicMode = relicAutoUpgrade;
                         C.Save();
                     }
-                    ImGuiEx.HelpMarker("When the tool's analysis reaches the required value: return to the hub, walk to Researchingway,\n" +
+                    ImGuiEx.HelpMarker(Loc.T("When the tool's analysis reaches the required value: return to the hub, walk to Researchingway,\n" +
                                        "swap to another job (the tool must not be equipped), upgrade the tool, swap back to the original job,\n" +
                                        "equip the best gear (Stylist if installed, otherwise the game's recommended gear) and resume missions.\n" +
-                                       "The temporary job comes from \"Job Swap Settings\" if it has a gearset, otherwise any other job with a gearset.");
+                                       "The temporary job comes from \"Job Swap Settings\" if it has a gearset, otherwise any other job with a gearset."));
 
                     bool relicPrioritizeIncomplete = C.Relic_PrioritizeIncomplete;
-                    if (ImGui.Checkbox("Relic Mode: Prioritize Incomplete D-B", ref relicPrioritizeIncomplete))
+                    if (ImGui.Checkbox(Loc.T("Relic Mode: Prioritize Incomplete D-B"), ref relicPrioritizeIncomplete))
                     {
                         C.Relic_PrioritizeIncomplete = relicPrioritizeIncomplete;
                         C.Save();
                     }
-                    ImGuiEx.HelpMarker("Take D/C/B rank missions you have never completed before picking by relic exp,\n" +
-                                       "so the completion count needed to unlock the next rank keeps growing.");
+                    ImGuiEx.HelpMarker(Loc.T("Take D/C/B rank missions you have never completed before picking by relic exp,\n" +
+                                       "so the completion count needed to unlock the next rank keeps growing."));
 
                     ImGui.Separator();
                     bool autoEquipBest = C.LevelingGear_AutoEquipBest;
-                    if (ImGui.Checkbox("Leveling: Auto Equip Best Gear", ref autoEquipBest))
+                    if (ImGui.Checkbox(Loc.T("Leveling: Auto Equip Best Gear"), ref autoEquipBest))
                     {
                         C.LevelingGear_AutoEquipBest = autoEquipBest;
                         C.Save();
                     }
-                    ImGuiEx.HelpMarker("After each leveling mission and after buying leveling gear, equip the best gear\n" +
+                    ImGuiEx.HelpMarker(Loc.T("After each leveling mission and after buying leveling gear, equip the best gear\n" +
                                        "(Stylist if installed, otherwise the game's recommended gear) and update the gearset.\n" +
-                                       "Turned on automatically when you press \"Buy Leveling Gear\".");
+                                       "Turned on automatically when you press \"Buy Leveling Gear\"."));
 
-                    if (ImGui.Button("Open Job Swap Settings"))
+                    if (ImGui.Button(Loc.T("Open Job Swap Settings")))
                     {
                         C.SelectedTab = WindowSelection.CharacterSettings;
                     }
 
-                    if (ImGui.Button("Save Current Mission Preset"))
+                    if (ImGui.Button(Loc.T("Save Current Mission Preset")))
                     {
                         ImGui.OpenPopup("Preset Save Editor");
                     }
@@ -493,7 +493,7 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                         ImGui.InputText($"Playlist Name", ref newListName);
                         using (ImRaii.Disabled(string.IsNullOrEmpty(newListName)))
                         {
-                            if (ImGui.Button("Save New List"))
+                            if (ImGui.Button(Loc.T("Save New List")))
                             {
                                 List<uint> new_Playlist = new();
                                 foreach (var mission in C.MissionConfig.Where(x => x.Value.Enabled))
@@ -518,7 +518,7 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
 
                     if (C.Mission_Playlist.Count > 0)
                     {
-                        if (ImGui.Button("View All Presets"))
+                        if (ImGui.Button(Loc.T("View All Presets")))
                         {
                             ImGui.OpenPopup("Preset: List Viewer");
                         }
@@ -529,8 +529,8 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
 
                             if (ImGui.BeginTable($"Preset: TableViewer", 3, ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.RowBg | ImGuiTableFlags.Borders))
                             {
-                                ImGui.TableSetupColumn("Name");
-                                ImGui.TableSetupColumn("Amount Enabled");
+                                ImGui.TableSetupColumn(Loc.T("Name"));
+                                ImGui.TableSetupColumn(Loc.T("Amount Enabled"));
 
                                 ImGui.TableHeadersRow();
 
@@ -570,7 +570,7 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                                     }
                                     if (ImGui.IsItemHovered())
                                     {
-                                        ImGui.SetTooltip("Import Missions");
+                                        ImGui.SetTooltip(Loc.T("Import Missions"));
                                     }
 
                                     ImGui.TableNextColumn();
@@ -585,7 +585,7 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                                     }
                                     if (ImGui.IsItemHovered())
                                     {
-                                        ImGui.SetTooltip("Remove from list");
+                                        ImGui.SetTooltip(Loc.T("Remove from list"));
                                     }
                                 }
 
@@ -605,7 +605,7 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                 ImGui.SetCursorPosY(ImGui.GetCursorPosY() + yOffset);
                 using (ImRaii.Disabled(SchedulerMain.State != IceState.Idle || Task_BuyLevelingGear.Running || !usingSupportedJob))
                 {
-                    if (ImGui.Button("Buy Leveling Gear"))
+                    if (ImGui.Button(Loc.T("Buy Leveling Gear")))
                     {
                         // ボタンを押したら最強装備の自動化を ON にする(購入後にすぐ着替えられるように)
                         C.LevelingGear_AutoEquipBest = true;
@@ -615,7 +615,7 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                     }
                 }
                 if (ImGui.IsItemHovered() && Task_BuyLevelingGear.Running)
-                    ImGui.SetTooltip("Purchase in progress");
+                    ImGui.SetTooltip(Loc.T("Purchase in progress"));
                 if (ImGui.BeginPopup("Buy Leveling Gear: Confirm"))
                 {
                     DrawBuyLevelingGearPopup();
@@ -627,7 +627,7 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                 ImGui.SetCursorPosY(ImGui.GetCursorPosY() + yOffset);
                 using (ImRaii.Disabled(SchedulerMain.State != IceState.Idle || Task_BuyLevelingGear.Running || Task_SellLevelingGear.Running || !usingSupportedJob))
                 {
-                    if (ImGui.Button("Sell Leveling Gear"))
+                    if (ImGui.Button(Loc.T("Sell Leveling Gear")))
                     {
                         Task_SellLevelingGear.BuildPlan(currentJobId);
                         ImGui.OpenPopup("Sell Leveling Gear: Confirm");
@@ -652,15 +652,15 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                     if (!missionButtons.Success)
                         return;
 
-                    ImGui_Ice.DrawRankButton("Red Alert", MissionFilter.RedAlert, MissionTable);
-                    ImGui_Ice.DrawRankButton("Sequence", MissionFilter.Sequence, MissionTable);
-                    ImGui_Ice.DrawRankButton("Weather", MissionFilter.Weather, MissionTable);
-                    ImGui_Ice.DrawRankButton("Timed", MissionFilter.Timed, MissionTable);
-                    ImGui_Ice.DrawRankButton("Master", MissionFilter.Master, MissionTable);
-                    ImGui_Ice.DrawRankButton("A Rank", MissionFilter.ARank, MissionTable);
-                    ImGui_Ice.DrawRankButton("B Rank", MissionFilter.BRank, MissionTable);
-                    ImGui_Ice.DrawRankButton("C Rank", MissionFilter.CRank, MissionTable);
-                    ImGui_Ice.DrawRankButton("D Rank", MissionFilter.DRank, MissionTable);
+                    ImGui_Ice.DrawRankButton(Loc.T("Red Alert"), MissionFilter.RedAlert, MissionTable);
+                    ImGui_Ice.DrawRankButton(Loc.T("Sequence"), MissionFilter.Sequence, MissionTable);
+                    ImGui_Ice.DrawRankButton(Loc.T("Weather"), MissionFilter.Weather, MissionTable);
+                    ImGui_Ice.DrawRankButton(Loc.T("Timed"), MissionFilter.Timed, MissionTable);
+                    ImGui_Ice.DrawRankButton(Loc.T("Master"), MissionFilter.Master, MissionTable);
+                    ImGui_Ice.DrawRankButton(Loc.T("A Rank"), MissionFilter.ARank, MissionTable);
+                    ImGui_Ice.DrawRankButton(Loc.T("B Rank"), MissionFilter.BRank, MissionTable);
+                    ImGui_Ice.DrawRankButton(Loc.T("C Rank"), MissionFilter.CRank, MissionTable);
+                    ImGui_Ice.DrawRankButton(Loc.T("D Rank"), MissionFilter.DRank, MissionTable);
 
                     ImGui_Ice.EndCategoryButtonRow();
                 }

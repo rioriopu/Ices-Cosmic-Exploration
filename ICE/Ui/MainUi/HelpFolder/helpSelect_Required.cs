@@ -13,27 +13,27 @@ namespace ICE.Ui.MainUi.HelpFolder
     {
         public static void Draw()
         {
-            ImGui.TextWrapped("These are a list of the following plugins that are required for the plugin to function. If you don't have these installed, it will not function properly");
+            ImGui.TextWrapped(Loc.T("These are a list of the following plugins that are required for the plugin to function. If you don't have these installed, it will not function properly"));
 
             ImGui.Separator();
-            ImGuiEx.IconWithText(FontAwesomeIcon.Hammer, "Crafting");
+            ImGuiEx.IconWithText(FontAwesomeIcon.Hammer, Loc.T("Crafting"));
             HasPlugin("https://love.puni.sh/ment.json", "Artisan");
 
             ImGui.Separator();
-            ImGuiEx.IconWithText(FontAwesomeIcon.Feather, "Gathering");
-            ImGui.Text("For botanist/miner/fisher");
+            ImGuiEx.IconWithText(FontAwesomeIcon.Feather, Loc.T("Gathering"));
+            ImGui.Text(Loc.T("For botanist/miner/fisher"));
             HasPlugin("https://puni.sh/api/repository/veyn", "vnavmesh");
             ImGui.Dummy(new Vector2(0, 10));
-            ImGui.Text("For fisher only");
+            ImGui.Text(Loc.T("For fisher only"));
             HasPlugin("https://love.puni.sh/ment.json", "AutoHook");
 
             ImGui.Separator();
-            ImGuiEx.IconWithText(FontAwesomeIcon.Running, "Automating Hub Activities");
+            ImGuiEx.IconWithText(FontAwesomeIcon.Running, Loc.T("Automating Hub Activities"));
             HasPlugin("https://puni.sh/api/repository/veyn", "vnavmesh");
 
             ImGui.Separator();
-            ImGui.TextWrapped("This isn't required, but highly recommended for leveling up characters. It will auto equip gear from your armory/inventory, and swap it out when running Leveling Grind Mode");
-            ImGuiEx.IconWithText(FontAwesomeIcon.Leaf, "Stylist");
+            ImGui.TextWrapped(Loc.T("This isn't required, but highly recommended for leveling up characters. It will auto equip gear from your armory/inventory, and swap it out when running Leveling Grind Mode"));
+            ImGuiEx.IconWithText(FontAwesomeIcon.Leaf, Loc.T("Stylist"));
             HasPlugin("https://raw.githubusercontent.com/NightmareXIV/MyDalamudPlugins/main/pluginmaster.json", "Stylist");
         }
 

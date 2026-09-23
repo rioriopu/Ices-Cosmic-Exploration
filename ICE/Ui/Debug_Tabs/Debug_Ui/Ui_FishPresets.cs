@@ -22,13 +22,13 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
         {
             if (ImGui.BeginTable("Fish Editor | Window Selector", 2, ImGuiTableFlags.Borders | ImGuiTableFlags.SizingFixedFit, ImGui.GetContentRegionAvail()))
             {
-                ImGui.TableSetupColumn("Mission Selector");
-                ImGui.TableSetupColumn("Mission Details", ImGuiTableColumnFlags.WidthStretch);
+                ImGui.TableSetupColumn(Loc.T("Mission Selector"));
+                ImGui.TableSetupColumn(Loc.T("Mission Details"), ImGuiTableColumnFlags.WidthStretch);
 
                 ImGui.TableNextRow();
                 ImGui.TableSetColumnIndex(0);
-                ImGui.InputText("Search Name", ref search_MissionName, 100);
-                ImGui.InputText("Search ID", ref search_MissionId);
+                ImGui.InputText(Loc.T("Search Name"), ref search_MissionName, 100);
+                ImGui.InputText(Loc.T("Search ID"), ref search_MissionId);
                 using (var missionSelection = ImRaii.Child("Mission Selection Child", new(300, ImGui.GetContentRegionAvail().Y)))
                 {
                     ImGui.Separator();
@@ -90,7 +90,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
                         ImGui.SameLine();
                 }
 
-                if (ImGui.Button("Export All Presets"))
+                if (ImGui.Button(Loc.T("Export All Presets")))
                 {
                     var clipboard = ExportAllMissions();
                     ImGui.SetClipboardText(clipboard);
@@ -98,14 +98,14 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
 
                 ImGui.SameLine();
 
-                if (ImGui.Button("Export Selected Mission"))
+                if (ImGui.Button(Loc.T("Export Selected Mission")))
                 {
                     var clipboard = ExportSelected();
                     ImGui.SetClipboardText(clipboard);
                 }
 
                 ImGui.SameLine();
-                if (ImGui.Button("Export for wiki"))
+                if (ImGui.Button(Loc.T("Export for wiki")))
                 {
                     var clipboard = ExportWiki();
                     ImGui.SetClipboardText(clipboard);
@@ -114,11 +114,11 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
                 ImGui.AlignTextToFramePadding();
                 ImGui.Text($"[{selectedMission}] {missionInfo.Name}");
                 ImGui.SameLine();
-                if (ImGui.Button("Copy Mission Name"))
+                if (ImGui.Button(Loc.T("Copy Mission Name")))
                 {
                     ImGui.SetClipboardText($"[{selectedMission}] {missionInfo.Name}");
                 }
-                if (ImGui.Button("Import New Preset"))
+                if (ImGui.Button(Loc.T("Import New Preset")))
                 {
                     var clipboard = ImGui.GetClipboardText();
                     if (clipboard.StartsWith("AH"))
@@ -133,7 +133,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
                     }
                 }
                 ImGui.SameLine(0, 10);
-                if (ImGui.Button("Temp Set Presets"))
+                if (ImGui.Button(Loc.T("Temp Set Presets")))
                 {
                     P.AutoHook.DeleteAllAnonymousPresets();
                     var preset = missionInfo.Fish_Presets[0];

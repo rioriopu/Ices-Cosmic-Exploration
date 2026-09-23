@@ -33,7 +33,7 @@ namespace ICE.Ui.DebugWindowTabs
         {
             ImGui.Text($"Selected Food: [{SelectedFood.Id}] {SelectedFood.Name}");
             ImGui.SameLine();
-            if (ImGui.Button("Select Food"))
+            if (ImGui.Button(Loc.T("Select Food")))
             {
                 PotentialCrafterFood.Clear();
                 foreach (var food in ConsumableInfo.CrafterFood)
@@ -58,7 +58,7 @@ namespace ICE.Ui.DebugWindowTabs
 
             ImGui.Text($"Selected Pot: [{SelectedPot.Id}] {SelectedPot.Name}");
             ImGui.SameLine();
-            if (ImGui.Button("Select Pot"))
+            if (ImGui.Button(Loc.T("Select Pot")))
             {
                 PotentialPots.Clear();
                 foreach (var pot in ConsumableInfo.Pots)
@@ -83,7 +83,7 @@ namespace ICE.Ui.DebugWindowTabs
 
             ImGui.Text($"Selected Manual: [{SelectedManual.Id}] {SelectedManual.Name}");
             ImGui.SameLine();
-            if (ImGui.Button("Select Manual"))
+            if (ImGui.Button(Loc.T("Select Manual")))
             {
                 PotentialManuals.Clear();
                 foreach (var manual in ConsumableInfo.Manuals)
@@ -108,7 +108,7 @@ namespace ICE.Ui.DebugWindowTabs
 
             ImGui.Text($"Selected Squadron Manual: [{SelectedSquadronManual.Id}] {SelectedSquadronManual.Name}");
             ImGui.SameLine();
-            if (ImGui.Button("Select Squadron Manual"))
+            if (ImGui.Button(Loc.T("Select Squadron Manual")))
             {
                 PotentialSquadronManuals.Clear();
                 foreach (var manual in ConsumableInfo.SquadronManuals)
@@ -132,9 +132,9 @@ namespace ICE.Ui.DebugWindowTabs
             }
 
             ImGui.Separator();
-            ImGui.InputUInt("Recipe Id", ref RecipeId);
+            ImGui.InputUInt(Loc.T("Recipe Id"), ref RecipeId);
 
-            if (ImGui.Button("Reset Temp"))
+            if (ImGui.Button(Loc.T("Reset Temp")))
             {
                 P.Artisan.SetTempFoodBackToNormal(RecipeId);
                 P.Artisan.SetTempPotionBackToNormal(RecipeId);
@@ -142,32 +142,32 @@ namespace ICE.Ui.DebugWindowTabs
                 P.Artisan.SetTempSquadronManualBackToNormal(RecipeId);
             }
 
-            if (ImGui.Button("Food [HQ]"))
+            if (ImGui.Button(Loc.T("Food [HQ]")))
             {
                 P.Artisan.ChangeFood(RecipeId, SelectedFood.Id, true, true);
             }
             ImGui.SameLine();
-            if (ImGui.Button("Food [NQ]"))
+            if (ImGui.Button(Loc.T("Food [NQ]")))
             {
                 P.Artisan.ChangeFood(RecipeId, SelectedFood.Id, false, true);
             }
 
-            if (ImGui.Button("Potion [HQ]"))
+            if (ImGui.Button(Loc.T("Potion [HQ]")))
             {
                 P.Artisan.ChangePotion(RecipeId, SelectedPot.Id, true, true);
             }
             ImGui.SameLine();
-            if (ImGui.Button("Potion [NQ]"))
+            if (ImGui.Button(Loc.T("Potion [NQ]")))
             {
                 P.Artisan.ChangePotion(RecipeId, SelectedPot.Id, false, true);
             }
 
-            if (ImGui.Button("Manual"))
+            if (ImGui.Button(Loc.T("Manual")))
             {
                 P.Artisan.ChangeManual(RecipeId, SelectedManual.Id, true);
             }
             ImGui.SameLine();
-            if (ImGui.Button("Squad Manual"))
+            if (ImGui.Button(Loc.T("Squad Manual")))
             {
                 P.Artisan.ChangeSquadronManual(RecipeId, SelectedSquadronManual.Id, true);
             }
@@ -189,8 +189,8 @@ namespace ICE.Ui.DebugWindowTabs
                     ImGui.SameLine();
                     ImGui.Text($"{name}");
 
-                    ImGui.SliderUInt("Max Usage", ref MaxSkillUsage, 0, actionInfo.UseAmount);
-                    if (ImGui.Button("Apply Temp"))
+                    ImGui.SliderUInt(Loc.T("Max Usage"), ref MaxSkillUsage, 0, actionInfo.UseAmount);
+                    if (ImGui.Button(Loc.T("Apply Temp")))
                     {
                         if (sheetInfo.TemporaryAction.ActionId == 41269)
                         {
@@ -202,7 +202,7 @@ namespace ICE.Ui.DebugWindowTabs
 
             ImGui.Separator();
 
-            if (ImGui.Button("Update Macros"))
+            if (ImGui.Button(Loc.T("Update Macros")))
             {
                 MacroList = P.Artisan.MacroList();
             }

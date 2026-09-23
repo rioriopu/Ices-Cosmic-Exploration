@@ -23,206 +23,206 @@ namespace ICE.Ui.DebugWindowTabs
             if (ImGui.BeginTable("Mission Reward Sheet", 18, tableFlags))
             {
                 // Setup columns - these names won't be directly visible
-                ImGui.TableSetupColumn("Mission ID");
-                ImGui.TableSetupColumn("Column 0");
-                ImGui.TableSetupColumn("Column 1");
-                ImGui.TableSetupColumn("Column 2");
-                ImGui.TableSetupColumn("Column 3");
-                ImGui.TableSetupColumn("Column 4");
-                ImGui.TableSetupColumn("Column 5");
-                ImGui.TableSetupColumn("Column 6");
-                ImGui.TableSetupColumn("Column 7");
-                ImGui.TableSetupColumn("Column 8");
-                ImGui.TableSetupColumn("Column 9");
-                ImGui.TableSetupColumn("Column 10");
-                ImGui.TableSetupColumn("Column 11");
-                ImGui.TableSetupColumn("Column 12");
-                ImGui.TableSetupColumn("Column 13");
-                ImGui.TableSetupColumn("Column 14");
-                ImGui.TableSetupColumn("Column 15");
-                ImGui.TableSetupColumn("Column 16");
-                ImGui.TableSetupColumn("Column 17");
+                ImGui.TableSetupColumn(Loc.T("Mission ID"));
+                ImGui.TableSetupColumn(Loc.T("Column 0"));
+                ImGui.TableSetupColumn(Loc.T("Column 1"));
+                ImGui.TableSetupColumn(Loc.T("Column 2"));
+                ImGui.TableSetupColumn(Loc.T("Column 3"));
+                ImGui.TableSetupColumn(Loc.T("Column 4"));
+                ImGui.TableSetupColumn(Loc.T("Column 5"));
+                ImGui.TableSetupColumn(Loc.T("Column 6"));
+                ImGui.TableSetupColumn(Loc.T("Column 7"));
+                ImGui.TableSetupColumn(Loc.T("Column 8"));
+                ImGui.TableSetupColumn(Loc.T("Column 9"));
+                ImGui.TableSetupColumn(Loc.T("Column 10"));
+                ImGui.TableSetupColumn(Loc.T("Column 11"));
+                ImGui.TableSetupColumn(Loc.T("Column 12"));
+                ImGui.TableSetupColumn(Loc.T("Column 13"));
+                ImGui.TableSetupColumn(Loc.T("Column 14"));
+                ImGui.TableSetupColumn(Loc.T("Column 15"));
+                ImGui.TableSetupColumn(Loc.T("Column 16"));
+                ImGui.TableSetupColumn(Loc.T("Column 17"));
 
                 // Draw custom header row with tooltips
                 ImGui.TableNextRow(ImGuiTableRowFlags.Headers);
 
                 // Column 0: Mission ID
                 ImGui.TableSetColumnIndex(0);
-                ImGui.TableHeader("Mission ID");
+                ImGui.TableHeader(Loc.T("Mission ID"));
                 if (ImGui.IsItemHovered())
                 {
                     ImGui.BeginTooltip();
-                    ImGui.Text("Row ID");
+                    ImGui.Text(Loc.T("Row ID"));
                     ImGui.EndTooltip();
                 }
 
                 // Column 1
                 ImGui.TableSetColumnIndex(1);
-                ImGui.TableHeader("CosmoCredits");
+                ImGui.TableHeader(Loc.T("CosmoCredits"));
                 if (ImGui.IsItemHovered())
                 {
                     ImGui.BeginTooltip();
-                    ImGui.Text("Unknown0");
+                    ImGui.Text(Loc.T("Unknown0"));
                     ImGui.EndTooltip();
                 }
 
                 // Column 2
                 ImGui.TableSetColumnIndex(2);
-                ImGui.TableHeader("PlanetCredits");
+                ImGui.TableHeader(Loc.T("PlanetCredits"));
                 if (ImGui.IsItemHovered())
                 {
                     ImGui.BeginTooltip();
-                    ImGui.Text("Unknown1");
+                    ImGui.Text(Loc.T("Unknown1"));
                     ImGui.EndTooltip();
                 }
 
                 // Column 3
                 ImGui.TableSetColumnIndex(3);
-                ImGui.TableHeader("Reward [0]");
+                ImGui.TableHeader(Loc.T("Reward [0]"));
                 if (ImGui.IsItemHovered())
                 {
                     ImGui.BeginTooltip();
-                    ImGui.Text("Unknown2");
+                    ImGui.Text(Loc.T("Unknown2"));
                     ImGui.EndTooltip();
                 }
 
                 // Column 4
                 ImGui.TableSetColumnIndex(4);
-                ImGui.TableHeader("Reward [1]");
+                ImGui.TableHeader(Loc.T("Reward [1]"));
                 if (ImGui.IsItemHovered())
                 {
                     ImGui.BeginTooltip();
-                    ImGui.Text("Unknown3");
+                    ImGui.Text(Loc.T("Unknown3"));
                     ImGui.EndTooltip();
                 }
 
                 // Column 5
                 ImGui.TableSetColumnIndex(5);
-                ImGui.TableHeader("Reward [2]");
+                ImGui.TableHeader(Loc.T("Reward [2]"));
                 if (ImGui.IsItemHovered())
                 {
                     ImGui.BeginTooltip();
-                    ImGui.Text("Unknown4");
+                    ImGui.Text(Loc.T("Unknown4"));
                     ImGui.EndTooltip();
                 }
 
                 // Column 6
                 ImGui.TableSetColumnIndex(6);
-                ImGui.TableHeader("Reward Amount");
+                ImGui.TableHeader(Loc.T("Reward Amount"));
                 if (ImGui.IsItemHovered())
                 {
                     ImGui.BeginTooltip();
-                    ImGui.Text("Unknown8");
+                    ImGui.Text(Loc.T("Unknown8"));
                     ImGui.EndTooltip();
                 }
 
                 // Column 7
                 ImGui.TableSetColumnIndex(7);
-                ImGui.TableHeader("Tool [0]");
+                ImGui.TableHeader(Loc.T("Tool [0]"));
                 if (ImGui.IsItemHovered())
                 {
                     ImGui.BeginTooltip();
-                    ImGui.Text("Unknown9");
+                    ImGui.Text(Loc.T("Unknown9"));
                     ImGui.EndTooltip();
                 }
 
                 // Column 8
                 ImGui.TableSetColumnIndex(8);
-                ImGui.TableHeader("Tool [1]");
+                ImGui.TableHeader(Loc.T("Tool [1]"));
                 if (ImGui.IsItemHovered())
                 {
                     ImGui.BeginTooltip();
-                    ImGui.Text("Unknown10");
+                    ImGui.Text(Loc.T("Unknown10"));
                     ImGui.EndTooltip();
                 }
 
                 // Column 9
                 ImGui.TableSetColumnIndex(9);
-                ImGui.TableHeader("Tool [2]");
+                ImGui.TableHeader(Loc.T("Tool [2]"));
                 if (ImGui.IsItemHovered())
                 {
                     ImGui.BeginTooltip();
-                    ImGui.Text("Unknown11");
+                    ImGui.Text(Loc.T("Unknown11"));
                     ImGui.EndTooltip();
                 }
 
                 // Column 10
                 ImGui.TableSetColumnIndex(10);
-                ImGui.TableHeader("Exp Type [0]");
+                ImGui.TableHeader(Loc.T("Exp Type [0]"));
                 if (ImGui.IsItemHovered())
                 {
                     ImGui.BeginTooltip();
-                    ImGui.Text("Unknown12");
+                    ImGui.Text(Loc.T("Unknown12"));
                     ImGui.EndTooltip();
                 }
 
                 // Column 11
                 ImGui.TableSetColumnIndex(11);
-                ImGui.TableHeader("Exp Type [1]");
+                ImGui.TableHeader(Loc.T("Exp Type [1]"));
                 if (ImGui.IsItemHovered())
                 {
                     ImGui.BeginTooltip();
-                    ImGui.Text("Unknown13");
+                    ImGui.Text(Loc.T("Unknown13"));
                     ImGui.EndTooltip();
                 }
 
                 // Column 12
                 ImGui.TableSetColumnIndex(12);
-                ImGui.TableHeader("Exp Type [2]");
+                ImGui.TableHeader(Loc.T("Exp Type [2]"));
                 if (ImGui.IsItemHovered())
                 {
                     ImGui.BeginTooltip();
-                    ImGui.Text("Unknown14");
+                    ImGui.Text(Loc.T("Unknown14"));
                     ImGui.EndTooltip();
                 }
 
                 // Column 13
                 ImGui.TableSetColumnIndex(13);
-                ImGui.TableHeader("Reward ItemID");
+                ImGui.TableHeader(Loc.T("Reward ItemID"));
                 if (ImGui.IsItemHovered())
                 {
                     ImGui.BeginTooltip();
-                    ImGui.Text("Unknown15");
+                    ImGui.Text(Loc.T("Unknown15"));
                     ImGui.EndTooltip();
                 }
 
                 // Column 14
                 ImGui.TableSetColumnIndex(14);
-                ImGui.TableHeader("ExpModifier [0]");
+                ImGui.TableHeader(Loc.T("ExpModifier [0]"));
                 if (ImGui.IsItemHovered())
                 {
                     ImGui.BeginTooltip();
-                    ImGui.Text("Unknown16");
+                    ImGui.Text(Loc.T("Unknown16"));
                     ImGui.EndTooltip();
                 }
 
                 // Column 15
                 ImGui.TableSetColumnIndex(15);
-                ImGui.TableHeader("ExpModifier [1]");
+                ImGui.TableHeader(Loc.T("ExpModifier [1]"));
                 if (ImGui.IsItemHovered())
                 {
                     ImGui.BeginTooltip();
-                    ImGui.Text("Unknown17");
+                    ImGui.Text(Loc.T("Unknown17"));
                     ImGui.EndTooltip();
                 }
 
                 // Column 16
                 ImGui.TableSetColumnIndex(16);
-                ImGui.TableHeader("ExpModifier [2]");
+                ImGui.TableHeader(Loc.T("ExpModifier [2]"));
                 if (ImGui.IsItemHovered())
                 {
                     ImGui.BeginTooltip();
-                    ImGui.Text("Unknown18");
+                    ImGui.Text(Loc.T("Unknown18"));
                     ImGui.EndTooltip();
                 }
 
                 // Column 17
                 ImGui.TableSetColumnIndex(17);
-                ImGui.TableHeader("? ? ?");
+                ImGui.TableHeader(Loc.T("? ? ?"));
                 if (ImGui.IsItemHovered())
                 {
                     ImGui.BeginTooltip();
-                    ImGui.Text("Unknown19");
+                    ImGui.Text(Loc.T("Unknown19"));
                     ImGui.EndTooltip();
                 }
 

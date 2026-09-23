@@ -15,10 +15,10 @@ namespace ICE.Ui.MainUi.Settings.Settings_Table
     {
         public static void Draw()
         {
-            ImGui.Checkbox("Force OOM Main", ref SchedulerMain.DebugOOMMain);
-            ImGui.Checkbox("Force OOM Sub", ref SchedulerMain.DebugOOMSub);
+            ImGui.Checkbox(Loc.T("Force OOM Main"), ref SchedulerMain.DebugOOMMain);
+            ImGui.Checkbox(Loc.T("Force OOM Sub"), ref SchedulerMain.DebugOOMSub);
 
-            if (ImGui.Button("Get current hub forecast"))
+            if (ImGui.Button(Loc.T("Get current hub forecast")))
             {
                 // Same fallback as other debug tabs: current hub, or Sinus when not in cosmic.
                 var territoryId = PlayerHelper.IsInCosmicZone()
@@ -45,20 +45,20 @@ namespace ICE.Ui.MainUi.Settings.Settings_Table
 
             using (ImRaii.Disabled(!PlayerHelper.IsInCosmicZone()))
             {
-                if (ImGui.Button("Refresh Forecast"))
+                if (ImGui.Button(Loc.T("Refresh Forecast")))
                 {
                     WeatherForecastHandler.GetForecast();
                 }
             }
             bool gatherDebug = C.ShowDebugGatherInfo;
-            if (ImGui.Checkbox("Show Gather Debug Info", ref gatherDebug))
+            if (ImGui.Checkbox(Loc.T("Show Gather Debug Info"), ref gatherDebug))
             {
                 C.ShowDebugGatherInfo = gatherDebug;
                 C.Save();
             }
 
             bool highlightTable = C.HighlightVisibleMissions;
-            if (ImGui.Checkbox("Highlight Visible Missions", ref highlightTable))
+            if (ImGui.Checkbox(Loc.T("Highlight Visible Missions"), ref highlightTable))
             {
                 C.HighlightVisibleMissions = highlightTable;
                 C.Save();

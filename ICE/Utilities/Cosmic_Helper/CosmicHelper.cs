@@ -150,7 +150,7 @@ public static unsafe partial class CosmicHelper
     public static void CrafterManagement(CosmicHelper.CosmicInfo mission, uint id, ImGuiTreeNodeFlags openDefault = ImGuiTreeNodeFlags.DefaultOpen)
     {
         var job = mission.Jobs.First(x => CosmicHelper.CrafterJobList.Contains(x));
-        ImGui.Text("Recipe Detailed Info");
+        ImGui.Text(Loc.T("Recipe Detailed Info"));
 
         Dictionary<ushort, CosmicHelper.CraftingInfo> missionCrafts = new();
         foreach (var craft in mission.Crafts_Main)
@@ -160,13 +160,13 @@ public static unsafe partial class CosmicHelper
 
         bool massApplyButton = ImGui.IsKeyDown(ImGuiKey.LeftShift) || ImGui.IsKeyDown(ImGuiKey.RightShift);
 
-        if (ImGui.CollapsingHeader("Craft Item Settings", openDefault))
+        if (ImGui.CollapsingHeader(Loc.T("Craft Item Settings"), openDefault))
         {
             using (ImRaii.Disabled(!massApplyButton))
             {
                 ImGui.PushID(id);
 
-                if (ImGui.Button("Apply to similar missions"))
+                if (ImGui.Button(Loc.T("Apply to similar missions")))
                 {
                     var currentMission = CosmicHelper.SheetMissionDict[id];
                     var recipeConfig = C.MissionConfig[id];
@@ -243,16 +243,16 @@ public static unsafe partial class CosmicHelper
             }
             if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled) && !massApplyButton)
             {
-                ImGui.SetTooltip("Hold shift to allow applying");
+                ImGui.SetTooltip(Loc.T("Hold shift to allow applying"));
             }
 
             foreach (var craft in missionCrafts)
             {
                 if (ImGui.BeginTable($"Main Craft Details_{craft.Key}", 3, ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Hideable))
                 {
-                    ImGui.TableSetupColumn("Item Details");
-                    ImGui.TableSetupColumn("Dropdown Detail");
-                    ImGui.TableSetupColumn("Dropdown Selection", ImGuiTableColumnFlags.WidthStretch);
+                    ImGui.TableSetupColumn(Loc.T("Item Details"));
+                    ImGui.TableSetupColumn(Loc.T("Dropdown Detail"));
+                    ImGui.TableSetupColumn(Loc.T("Dropdown Selection"), ImGuiTableColumnFlags.WidthStretch);
 
                     if (C.MissionConfig[id].CraftSettings.TryGetValue(craft.Key, out var recipeConfig))
                     {
@@ -264,7 +264,7 @@ public static unsafe partial class CosmicHelper
 
                         ImGui.TableNextRow();
                         ImGui.TableSetColumnIndex(0);
-                        if (ImGui.Checkbox("Use Global Artisan Settings", ref globalArtisan))
+                        if (ImGui.Checkbox(Loc.T("Use Global Artisan Settings"), ref globalArtisan))
                         {
                             recipeConfig.UseGlobal = globalArtisan;
                             C.Save();
@@ -379,7 +379,7 @@ public static unsafe partial class CosmicHelper
                             ImGuiEx.Icon(new Vector4(1.0f, 0.4f, 0.0f, 1.0f), FontAwesomeIcon.Diamond);
                             if (ImGui.IsItemHovered())
                             {
-                                ImGui.SetTooltip("Expert Craft");
+                                ImGui.SetTooltip(Loc.T("Expert Craft"));
                             }
                         }
 
@@ -394,7 +394,7 @@ public static unsafe partial class CosmicHelper
                         ImGui.Text($"{craft.Value.ItemName}");
 
                         ImGui.TableNextColumn();
-                        ImGui.Text("Solver");
+                        ImGui.Text(Loc.T("Solver"));
 
                         ImGui.TableNextColumn();
                         ImGui.SetNextItemWidth(recipe_ComboWidth);
@@ -441,14 +441,14 @@ public static unsafe partial class CosmicHelper
                             if (ImGui.BeginCombo("##MacroName", macroName, ImGuiComboFlags.HeightLargest))
                             {
                                 ImGui.SetNextItemWidth(200);
-                                if (ImGui.InputText("Macro Name", ref macroName))
+                                if (ImGui.InputText(Loc.T("Macro Name"), ref macroName))
                                 {
                                     recipeConfig.MacroName = macroName;
                                     C.SaveDebounced();
                                 }
 
                                 ImGui.Separator();
-                                if (ImGui.Button("Refresh Artisan Macros"))
+                                if (ImGui.Button(Loc.T("Refresh Artisan Macros")))
                                 {
                                     ArtisanMacros = P.Artisan.MacroList();
                                 }
@@ -481,7 +481,7 @@ public static unsafe partial class CosmicHelper
                             /*
                             ImGui.SameLine();
                             ImGui.SetNextItemWidth(200);
-                            if (ImGui.InputText("Macro Name", ref macroName))
+                            if (ImGui.InputText(Loc.T("Macro Name"), ref macroName))
                             {
                                 recipeConfig.MacroName = macroName;
                                 C.Save();
@@ -501,14 +501,14 @@ public static unsafe partial class CosmicHelper
                         if (supportedArtisan)
                         {
                             ImGui.TableNextColumn();
-                            ImGui.Text("Food");
+                            ImGui.Text(Loc.T("Food"));
 
                             ImGui.TableNextColumn();
                             ImGui.SetNextItemWidth(recipe_ComboWidth);
                             if (ImGui.BeginCombo("##FoodSelection", recipe_FoodLabel))
                             {
                                 bool isDefaultSelected = recipeConfig.FoodId == 0;
-                                if (ImGui.Selectable("Default", isDefaultSelected))
+                                if (ImGui.Selectable(Loc.T("Default"), isDefaultSelected))
                                 {
                                     recipeConfig.FoodId = 0;
                                     recipeConfig.FoodHQ = false;
@@ -556,7 +556,7 @@ public static unsafe partial class CosmicHelper
                         if (supportedArtisan)
                         {
                             ImGui.TableNextColumn();
-                            ImGui.Text("Potion");
+                            ImGui.Text(Loc.T("Potion"));
 
                             ImGui.TableNextColumn();
                             ImGui.SetNextItemWidth(recipe_ComboWidth);
@@ -564,7 +564,7 @@ public static unsafe partial class CosmicHelper
                             {
                                 // Default option
                                 bool isDefaultSelected = recipeConfig.PotionId == 0;
-                                if (ImGui.Selectable("Default", isDefaultSelected))
+                                if (ImGui.Selectable(Loc.T("Default"), isDefaultSelected))
                                 {
                                     recipeConfig.PotionId = 0;
                                     recipeConfig.PotionHQ = false;
@@ -613,7 +613,7 @@ public static unsafe partial class CosmicHelper
                         {
                             ImGui.TableNextColumn();
                             ImGui.AlignTextToFramePadding();
-                            ImGui.Text("Manual");
+                            ImGui.Text(Loc.T("Manual"));
 
                             ImGui.TableNextColumn();
                             ImGui.SetNextItemWidth(recipe_ComboWidth);
@@ -621,7 +621,7 @@ public static unsafe partial class CosmicHelper
                             {
                                 // Default option
                                 bool isDefaultSelected = recipeConfig.ManualId == 0;
-                                if (ImGui.Selectable("Default", isDefaultSelected))
+                                if (ImGui.Selectable(Loc.T("Default"), isDefaultSelected))
                                 {
                                     recipeConfig.ManualId = 0;
                                     C.Save();
@@ -662,7 +662,7 @@ public static unsafe partial class CosmicHelper
                         {
                             ImGui.TableNextRow();
                             ImGui.TableSetColumnIndex(1);
-                            ImGui.Text("Squadron Manual");
+                            ImGui.Text(Loc.T("Squadron Manual"));
 
                             ImGui.TableNextColumn();
                             ImGui.SetNextItemWidth(recipe_ComboWidth);
@@ -670,7 +670,7 @@ public static unsafe partial class CosmicHelper
                             {
                                 // Default option
                                 bool isDefaultSelected = recipeConfig.SquadronManualId == 0;
-                                if (ImGui.Selectable("Default", isDefaultSelected))
+                                if (ImGui.Selectable(Loc.T("Default"), isDefaultSelected))
                                 {
                                     recipeConfig.SquadronManualId = 0;
                                     C.Save();
@@ -737,7 +737,7 @@ public static unsafe partial class CosmicHelper
                                 ImGui.TableNextRow();
                                 ImGui.TableSetColumnIndex(0);
 #if DEBUG
-                                if (ImGui.Button("Test Apply"))
+                                if (ImGui.Button(Loc.T("Test Apply")))
                                 {
                                     var key = craft.Key;
                                     var useAmount = recipeConfig.SkillUsageAmount;
@@ -787,7 +787,7 @@ public static unsafe partial class CosmicHelper
                                 if (mission.TemporaryAction.ActionId == 41269 && !globalArtisan)
                                 {
                                     ImGui.TableSetColumnIndex(1);
-                                    ImGui.Text("Use after this many steps");
+                                    ImGui.Text(Loc.T("Use after this many steps"));
 
                                     ImGui.TableNextColumn();
                                     var minSteps = recipeConfig.MinStepsForMiracle;

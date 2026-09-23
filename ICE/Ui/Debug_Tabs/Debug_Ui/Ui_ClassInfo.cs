@@ -25,21 +25,21 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
                 if (!table) continue;
 
                 // Set up columns
-                ImGui.TableSetupColumn("Property", ImGuiTableColumnFlags.WidthFixed, 150f);
-                ImGui.TableSetupColumn("Value", ImGuiTableColumnFlags.WidthStretch);
+                ImGui.TableSetupColumn(Loc.T("Property"), ImGuiTableColumnFlags.WidthFixed, 150f);
+                ImGui.TableSetupColumn(Loc.T("Value"), ImGuiTableColumnFlags.WidthStretch);
                 ImGui.TableHeadersRow();
 
                 // Current Stage
                 ImGui.TableNextRow();
                 ImGui.TableNextColumn();
-                ImGui.Text("Current Stage");
+                ImGui.Text(Loc.T("Current Stage"));
                 ImGui.TableNextColumn();
                 ImGui.Text($"{item.Value.Stage_Current}");
 
                 // Next Stage
                 ImGui.TableNextRow();
                 ImGui.TableNextColumn();
-                ImGui.Text("Next Stage");
+                ImGui.Text(Loc.T("Next Stage"));
                 ImGui.TableNextColumn();
                 ImGui.Text($"{item.Value.Stage_Next}");
 

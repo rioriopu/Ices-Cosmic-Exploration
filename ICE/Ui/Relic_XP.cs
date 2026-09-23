@@ -53,7 +53,7 @@ using System.Collections.Generic;namespace ICE.Ui
             if (MaxStage)
             {
                 ImGui.SameLine();
-                ImGui.Text("[MAX]");
+                ImGui.Text(Loc.T("[MAX]"));
             }
             foreach (var type in XPTable)
             {

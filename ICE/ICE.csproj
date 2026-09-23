@@ -2,7 +2,7 @@
 <Project Sdk="Dalamud.NET.Sdk/15.0.0">
 
 	<PropertyGroup>
-		<Version>1.0.0.15</Version>
+		<Version>1.0.0.16</Version>
 		<Description>Who said we couldn't explore the moon!.</Description>
 		<PackageProjectUrl>https://github.com/goatcorp/ICE</PackageProjectUrl>
 		<PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression>
@@ -57,6 +57,12 @@
 
 	<ItemGroup>
 		<EmbeddedResource Include="Resources\MissionScores.csv" />
+	</ItemGroup>
+
+	<!-- 日本語辞書(プラグイン内蔵の日本語化で使用)。出力の localization\ フォルダへコピーし、配布 zip にも含める -->
+	<ItemGroup>
+		<None Include="..\localization\ICE_v0.3.csv" Link="localization\ICE_v0.3.csv" CopyToOutputDirectory="PreserveNewest" />
+		<None Include="..\localization\ICE_v1.0.csv" Link="localization\ICE_v1.0.csv" CopyToOutputDirectory="PreserveNewest" />
 	</ItemGroup>
 
 	<ItemGroup>

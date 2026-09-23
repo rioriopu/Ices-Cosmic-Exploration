@@ -51,7 +51,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Hud
             }
             else
             {
-                ImGui.Text("Waiting for \"WKSLottery\" to be visible");
+                ImGui.Text(Loc.T("Waiting for \"WKSLottery\" to be visible"));
             }
         }
     }

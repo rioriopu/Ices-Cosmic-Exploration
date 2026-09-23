@@ -9,7 +9,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Tables
         public static unsafe void Draw()
         {
             ImGui.SetNextItemWidth(250);
-            ImGui.InputText("Search by Name", ref RecipeTableSearchText, 100);
+            ImGui.InputText(Loc.T("Search by Name"), ref RecipeTableSearchText, 100);
 
             ImGuiTableFlags tableFlags = ImGuiTableFlags.RowBg |
                             ImGuiTableFlags.Borders |
@@ -20,20 +20,20 @@ namespace ICE.Ui.Debug_Tabs.Debug_Tables
 
             if (ImGui.BeginTable("Mission Info List", 14, tableFlags))
             {
-                ImGui.TableSetupColumn("Key");
-                ImGui.TableSetupColumn("Mission Name");
-                ImGui.TableSetupColumn("Main-Craft 1");
-                ImGui.TableSetupColumn("Amount [1]");
-                ImGui.TableSetupColumn("Main-Craft 2");
-                ImGui.TableSetupColumn("Amount [2]");
-                ImGui.TableSetupColumn("Main-Craft 3");
-                ImGui.TableSetupColumn("Amount [3]");
-                ImGui.TableSetupColumn("Pre-Craft [1]");
-                ImGui.TableSetupColumn("Amount [1]");
-                ImGui.TableSetupColumn("Pre-Craft [2]");
-                ImGui.TableSetupColumn("Amount [2]");
-                ImGui.TableSetupColumn("Pre-Craft [3]");
-                ImGui.TableSetupColumn("Amount [3]");
+                ImGui.TableSetupColumn(Loc.T("Key"));
+                ImGui.TableSetupColumn(Loc.T("Mission Name"));
+                ImGui.TableSetupColumn(Loc.T("Main-Craft 1"));
+                ImGui.TableSetupColumn(Loc.T("Amount [1]"));
+                ImGui.TableSetupColumn(Loc.T("Main-Craft 2"));
+                ImGui.TableSetupColumn(Loc.T("Amount [2]"));
+                ImGui.TableSetupColumn(Loc.T("Main-Craft 3"));
+                ImGui.TableSetupColumn(Loc.T("Amount [3]"));
+                ImGui.TableSetupColumn(Loc.T("Pre-Craft [1]"));
+                ImGui.TableSetupColumn(Loc.T("Amount [1]"));
+                ImGui.TableSetupColumn(Loc.T("Pre-Craft [2]"));
+                ImGui.TableSetupColumn(Loc.T("Amount [2]"));
+                ImGui.TableSetupColumn(Loc.T("Pre-Craft [3]"));
+                ImGui.TableSetupColumn(Loc.T("Amount [3]"));
 
                 ImGui.TableHeadersRow();
 

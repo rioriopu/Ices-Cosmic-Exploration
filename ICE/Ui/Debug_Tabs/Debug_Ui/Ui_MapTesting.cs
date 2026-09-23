@@ -14,7 +14,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
 
         public static unsafe void Draw()
         {
-            ImGui.InputInt("TableId", ref TableRow);
+            ImGui.InputInt(Loc.T("TableId"), ref TableRow);
 
             var MapInfo = ExcelHelper.MarkerSheet;
 
@@ -34,13 +34,13 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
                 Utils.SetGatheringRing(territoryId, _x, _y, _radius);
             }
             ImGui.SetNextItemWidth(125);
-            ImGui.InputInt("Map X (Sheet)", ref posX);
+            ImGui.InputInt(Loc.T("Map X (Sheet)"), ref posX);
             ImGui.SameLine();
             ImGui.SetNextItemWidth(125);
-            ImGui.InputInt("Map Y (Sheet)", ref posY);
+            ImGui.InputInt(Loc.T("Map Y (Sheet)"), ref posY);
             ImGui.SameLine();
             ImGui.SetNextItemWidth(125);
-            ImGui.InputInt("Map Radius", ref posRadius);
+            ImGui.InputInt(Loc.T("Map Radius"), ref posRadius);
             if (ImGui.Button($"Test Map Marker from coords"))
             {
                 var agent = AgentMap.Instance();

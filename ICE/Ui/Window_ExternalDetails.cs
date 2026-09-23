@@ -112,7 +112,7 @@ namespace ICE.Ui
 
                 if (ImGui.BeginTabBar("Mission Details Master Tabs"))
                 {
-                    if (ImGui.BeginTabItem("Details"))
+                    if (ImGui.BeginTabItem(Loc.T("Details")))
                     {
                         MissionDetails(sheetInfo);
                         ImGui.EndTabItem();
@@ -120,7 +120,7 @@ namespace ICE.Ui
 
                     if (CosmicHelper.CrafterJobList.ContainsAny(sheetInfo.Jobs))
                     {
-                        if (ImGui.BeginTabItem("Craft Details"))
+                        if (ImGui.BeginTabItem(Loc.T("Craft Details")))
                         {
                             CraftDetails(sheetInfo);
                             ImGui.EndTabItem();
@@ -130,7 +130,7 @@ namespace ICE.Ui
                     var statsFlag = _openStatsTab ? ImGuiTabItemFlags.SetSelected : ImGuiTabItemFlags.None;
                     _openStatsTab = false;
 
-                    if (ImGui.BeginTabItem("Completion Stats", statsFlag))
+                    if (ImGui.BeginTabItem(Loc.T("Completion Stats"), statsFlag))
                     {
                         StatInfo(sheetInfo);
                         ImGui.EndTabItem();
@@ -251,8 +251,8 @@ namespace ICE.Ui
 
             if (ImGui.BeginTable("Detailed Mission Info", 2, ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.Borders))
             {
-                ImGui.TableSetupColumn("Name");
-                ImGui.TableSetupColumn("Info");
+                ImGui.TableSetupColumn(Loc.T("Name"));
+                ImGui.TableSetupColumn(Loc.T("Info"));
 
                 // Cosmocredits
                 ItemInfo(45690, mission.CosmoCredit);
@@ -301,7 +301,7 @@ namespace ICE.Ui
                 {
                     ImGui.TableNextRow();
                     ImGui.TableSetColumnIndex(0);
-                    ImGui.Text("Gathering Zone");
+                    ImGui.Text(Loc.T("Gathering Zone"));
 
                     ImGui.TableNextColumn();
 
@@ -318,7 +318,7 @@ namespace ICE.Ui
                 {
                     ImGui.TableNextRow();
                     ImGui.TableSetColumnIndex(0);
-                    ImGui.Text("Critical Area");
+                    ImGui.Text(Loc.T("Critical Area"));
 
                     ImGui.TableNextColumn();
                     ImGuiEx.Icon(FontAwesomeIcon.Flag);
@@ -332,7 +332,7 @@ namespace ICE.Ui
                 {
                     ImGui.TableNextRow();
                     ImGui.TableSetColumnIndex(0);
-                    ImGui.Text("Mission Skill");
+                    ImGui.Text(Loc.T("Mission Skill"));
 
                     ImGui.TableNextColumn();
                     ImGui_Ice.ImageButtonWithText(mission.TemporaryAction.Icon.GetWrapOrEmpty(), $"{mission.TemporaryAction.Name}", "tempAction", size);
@@ -347,7 +347,7 @@ namespace ICE.Ui
                     ImGui.TableNextRow();
                     ImGui.TableSetColumnIndex(0);
                     ImGui.AlignTextToFramePadding();
-                    ImGui.Text("Supplied Items");
+                    ImGui.Text(Loc.T("Supplied Items"));
 
                     ImGui.TableNextColumn();
                     for (int i = 0; i < mission.Supplies.Count(); i++)
@@ -364,7 +364,7 @@ namespace ICE.Ui
                         if (i+1 < mission.Supplies.Count())
                         {
                             ImGui.SameLine();
-                            ImGui.Text(" | ");
+                            ImGui.Text(Loc.T(" | "));
                             ImGui.SameLine();
                         }
                     }
@@ -402,7 +402,7 @@ namespace ICE.Ui
                         ImGui.BeginTooltip();
                         if (mission.SequenceMissions_Next.Count() > 0)
                         {
-                            ImGui.Text("Next Sequence:");
+                            ImGui.Text(Loc.T("Next Sequence:"));
                             foreach (var missionSeq in mission.SequenceMissions_Next)
                             {
                                 var seqInfo = CosmicHelper.SheetMissionDict[missionSeq];
@@ -411,7 +411,7 @@ namespace ICE.Ui
                         }
                         if (mission.SequenceMissions_Previous.Count() > 0)
                         {
-                            ImGui.Text("Previous Sequence:");
+                            ImGui.Text(Loc.T("Previous Sequence:"));
                             foreach (var missionSeq in mission.SequenceMissions_Previous)
                             {
                                 var seqInfo = CosmicHelper.SheetMissionDict[missionSeq];
@@ -438,7 +438,7 @@ namespace ICE.Ui
                     if (ImGui.IsItemHovered())
                     {
                         ImGui.BeginTooltip();
-                        ImGui.Text("The following missions are required to have gold before you can do this one");
+                        ImGui.Text(Loc.T("The following missions are required to have gold before you can do this one"));
                         foreach (var missionUnlock in mission.MissionUnlock)
                         {
                             ImGui_Ice.CompletionStatusIcon(CosmicHelper.SheetMissionDict[missionUnlock]);
@@ -453,7 +453,7 @@ namespace ICE.Ui
                     ImGuiEx.IconButton(FontAwesomeIcon.Leaf);
                     if (ImGui.IsItemHovered())
                     {
-                        ImGui.SetTooltip("Leveling mode mission");
+                        ImGui.SetTooltip(Loc.T("Leveling mode mission"));
                     }
                 }
 
@@ -464,8 +464,8 @@ namespace ICE.Ui
             {
                 if (ImGui.BeginTable("Exp Rewards", 2, ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.Borders))
                 {
-                    ImGui.TableSetupColumn("Class Exp");
-                    ImGui.TableSetupColumn("% of Level");
+                    ImGui.TableSetupColumn(Loc.T("Class Exp"));
+                    ImGui.TableSetupColumn(Loc.T("% of Level"));
 
                     ImGui.TableHeadersRow();
 
@@ -473,7 +473,7 @@ namespace ICE.Ui
                     {
                         ImGui.TableNextRow();
                         ImGui.TableSetColumnIndex(0);
-                        ImGui.Text("Lv. 10-49");
+                        ImGui.Text(Loc.T("Lv. 10-49"));
 
                         ImGui.TableNextColumn();
                         ImGui.Text($"{mission.ExpModifier_1}%");
@@ -483,7 +483,7 @@ namespace ICE.Ui
                     {
                         ImGui.TableNextRow();
                         ImGui.TableSetColumnIndex(0);
-                        ImGui.Text("Lv. 50-89");
+                        ImGui.Text(Loc.T("Lv. 50-89"));
 
                         ImGui.TableNextColumn();
                         ImGui.Text($"{mission.ExpModifier_2}%");
@@ -493,7 +493,7 @@ namespace ICE.Ui
                     {
                         ImGui.TableNextRow();
                         ImGui.TableSetColumnIndex(0);
-                        ImGui.Text("Lv. 90-99");
+                        ImGui.Text(Loc.T("Lv. 90-99"));
 
                         ImGui.TableNextColumn();
                         ImGui.Text($"{mission.ExpModifier_3}%");
@@ -503,10 +503,10 @@ namespace ICE.Ui
                 }
             }
 
-            ImGui.Text("Mission Atributes");
+            ImGui.Text(Loc.T("Mission Atributes"));
             if (mission.Attributes == MissionAttributes.None)
             {
-                ImGui.Text("None");
+                ImGui.Text(Loc.T("None"));
                 return;
             }
             else
@@ -535,7 +535,7 @@ namespace ICE.Ui
 
                 using (ImRaii.Disabled(!allowDelete))
                 {
-                    if (ImGui.Button("Reset Stats"))
+                    if (ImGui.Button(Loc.T("Reset Stats")))
                     {
                         P.MissionTimer.ResetTimers(SelectedMission);
                     }
@@ -543,7 +543,7 @@ namespace ICE.Ui
                 if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
                 {
                     ImGui.BeginTooltip();
-                    ImGui.Text("Hold Shift + Control");
+                    ImGui.Text(Loc.T("Hold Shift + Control"));
                     ImGui.EndTooltip();
                 }
 
@@ -554,8 +554,8 @@ namespace ICE.Ui
                 }
                 else
                 {
-                    ImGui.Text("Best Time: --:--:--");
-                    ImGui.Text("Average Time: --:--:--");
+                    ImGui.Text(Loc.T("Best Time: --:--:--"));
+                    ImGui.Text(Loc.T("Average Time: --:--:--"));
                 }
 
                 ImGui.Text($"Times Completed: {config.TotalCompletions}");
@@ -566,17 +566,17 @@ namespace ICE.Ui
                 var planetCredit = missionInfo.LunarCredit;
 
                 ImGui.Separator();
-                ImGui.Text("Estimated Score Per Hour:");
+                ImGui.Text(Loc.T("Estimated Score Per Hour:"));
                 ImGui.SameLine();
-                ImGui.TextDisabled("?");
+                ImGui.TextDisabled(Loc.T("?"));
                 if (ImGui.IsItemHovered())
                 {
                     ImGui.BeginTooltip();
-                    ImGui.Text("This is ASSUMING:");
-                    ImGui.Text("1: You have immaculate rng of getting the mission you want every time");
-                    ImGui.Text("2: You're hitting the threshold every time");
-                    ImGui.Text("This is based on your average time.\n" +
-                               "So get a good couple of runs to get a good feel for the timing");
+                    ImGui.Text(Loc.T("This is ASSUMING:"));
+                    ImGui.Text(Loc.T("1: You have immaculate rng of getting the mission you want every time"));
+                    ImGui.Text(Loc.T("2: You're hitting the threshold every time"));
+                    ImGui.Text(Loc.T("This is based on your average time.\n" +
+                               "So get a good couple of runs to get a good feel for the timing"));
                     ImGui.EndTooltip();
                 }
                 if (ImGui.BeginTable("Score Info: External Details", 5, ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.RowBg | ImGuiTableFlags.Borders))
@@ -616,7 +616,7 @@ namespace ICE.Ui
                         if (ImGui.BeginTabBar("Completion Stats"))
                         {
                             // "All" tab always shown if there are any records
-                            if (ImGui.BeginTabItem("All"))
+                            if (ImGui.BeginTabItem(Loc.T("All")))
                             {
                                 DrawTurninTable(config.TurninRecords);
                                 ImGui.EndTabItem();
@@ -670,8 +670,8 @@ namespace ICE.Ui
                 return;
 
             ImGui.TableSetupScrollFreeze(0, 1);
-            ImGui.TableSetupColumn("Time");
-            ImGui.TableSetupColumn("State", ImGuiTableColumnFlags.WidthStretch, 100f);
+            ImGui.TableSetupColumn(Loc.T("Time"));
+            ImGui.TableSetupColumn(Loc.T("State"), ImGuiTableColumnFlags.WidthStretch, 100f);
             ImGui.TableHeadersRow();
 
             foreach (var record in records)

@@ -36,10 +36,10 @@ namespace ICE.Ui.Debug_Tabs.Debug_CS
 
             if (ImGui.BeginTable("CS: Missions Avaialble", 4, ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.RowBg | ImGuiTableFlags.Borders))
             {
-                ImGui.TableSetupColumn("Job");
-                ImGui.TableSetupColumn("Id");
-                ImGui.TableSetupColumn("Name");
-                ImGui.TableSetupColumn("Flag");
+                ImGui.TableSetupColumn(Loc.T("Job"));
+                ImGui.TableSetupColumn(Loc.T("Id"));
+                ImGui.TableSetupColumn(Loc.T("Name"));
+                ImGui.TableSetupColumn(Loc.T("Flag"));
 
                 ImGui.TableHeadersRow();
 

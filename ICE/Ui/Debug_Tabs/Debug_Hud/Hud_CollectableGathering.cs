@@ -11,12 +11,12 @@ namespace ICE.Ui.Debug_Tabs.Debug_Hud
         {
             if (GenericHelpers.TryGetAddonMaster<GatheringMasterpiece>("GatheringMasterpiece", out var gatherCollect) && gatherCollect.IsAddonReady)
             {
-                if (ImGui.Button("TryGather"))
+                if (ImGui.Button(Loc.T("TryGather")))
                 {
                     Task_Gather.CollectableGather(gatherCollect);
                 }
                 ImGui.SameLine();
-                if (ImGui.Button("Reset Buff Check"))
+                if (ImGui.Button(Loc.T("Reset Buff Check")))
                 {
                     Mission_Settings.Collectable_BuffCount = GatheringUtil.CollectStandardCharges();
                 }
@@ -36,7 +36,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Hud
                     // Row 1
                     ImGui.TableNextRow();
                     ImGui.TableSetColumnIndex(0);
-                    ImGui.Text("Item Name: ");
+                    ImGui.Text(Loc.T("Item Name: "));
 
                     ImGui.TableNextColumn();
                     ImGui.Text($"{gatherCollect.ItemName}");
@@ -44,7 +44,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Hud
                     // Row 2
                     ImGui.TableNextRow();
                     ImGui.TableSetColumnIndex(0);
-                    ImGui.Text("Item ID: ");
+                    ImGui.Text(Loc.T("Item ID: "));
 
                     ImGui.TableNextColumn();
                     ImGui.Text($"{gatherCollect.ItemID}");
@@ -52,7 +52,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Hud
                     // Row 3
                     ImGui.TableNextRow();
                     ImGui.TableSetColumnIndex(0);
-                    ImGui.Text("Current Collectability: ");
+                    ImGui.Text(Loc.T("Current Collectability: "));
 
                     ImGui.TableNextColumn();
                     ImGui.Text($"{gatherCollect.CurrentCollectability}");
@@ -60,7 +60,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Hud
                     // Row 4
                     ImGui.TableNextRow();
                     ImGui.TableSetColumnIndex(0);
-                    ImGui.Text("Item Integrity: ");
+                    ImGui.Text(Loc.T("Item Integrity: "));
 
                     ImGui.TableNextColumn();
                     ImGui.Text($"{gatherCollect.CurrentIntegrity} / {gatherCollect.TotalIntegrity}");
@@ -68,7 +68,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Hud
                     // Row 5
                     ImGui.TableNextRow();
                     ImGui.TableSetColumnIndex(0);
-                    ImGui.Text("Min Collectibility: ");
+                    ImGui.Text(Loc.T("Min Collectibility: "));
 
                     ImGui.TableNextColumn();
                     ImGui.Text($"{gatherCollect.MinCollectability}");
@@ -76,7 +76,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Hud
                     // Row 6
                     ImGui.TableNextRow();
                     ImGui.TableSetColumnIndex(0);
-                    ImGui.Text("Mid Collectibility: ");
+                    ImGui.Text(Loc.T("Mid Collectibility: "));
 
                     ImGui.TableNextColumn();
                     ImGui.Text($"{gatherCollect.MidCollectability}");
@@ -84,7 +84,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Hud
                     // Row 7
                     ImGui.TableNextRow();
                     ImGui.TableSetColumnIndex(0);
-                    ImGui.Text("High Collectibility: ");
+                    ImGui.Text(Loc.T("High Collectibility: "));
 
                     ImGui.TableNextColumn();
                     ImGui.Text($"{gatherCollect.HighCollectability}");
@@ -92,7 +92,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Hud
                     // Row 8
                     ImGui.TableNextRow();
                     ImGui.TableSetColumnIndex(0);
-                    ImGui.Text("Max Collectibility: ");
+                    ImGui.Text(Loc.T("Max Collectibility: "));
 
                     ImGui.TableNextColumn();
                     ImGui.Text($"{gatherCollect.MaxCollectability}");
@@ -123,7 +123,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Hud
             }
             else if (GenericHelpers.TryGetAddonMaster<Gathering>("Gathering", out var gather) && gather.IsAddonReady)
             {
-                if (ImGui.Button("Increase collectability"))
+                if (ImGui.Button(Loc.T("Increase collectability")))
                 {
                     foreach (var item in gather.GatheredItems)
                     {
@@ -139,7 +139,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Hud
             }
             else
             {
-                ImGui.Text("Waiting for Gather Collectable window to be visible");
+                ImGui.Text(Loc.T("Waiting for Gather Collectable window to be visible"));
             }
         }
     }

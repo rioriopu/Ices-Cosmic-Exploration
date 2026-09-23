@@ -58,7 +58,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
 
         public static void Draw()
         {
-            if (ImGui.Button("Get Active List"))
+            if (ImGui.Button(Loc.T("Get Active List")))
             {
                 TeleportList();
             }
@@ -69,7 +69,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
                 {
                     ImGui.TableNextRow();
                     ImGui.TableSetColumnIndex(0);
-                    ImGui.Text("ID:");
+                    ImGui.Text(Loc.T("ID:"));
 
                     ImGui.TableNextColumn();
                     ImGui.Text($"{zone.Key}");

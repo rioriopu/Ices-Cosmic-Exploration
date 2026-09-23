@@ -10,7 +10,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_CS
     {
         public static void Draw()
         {
-            ImGui.Text("All world timers:");
+            ImGui.Text(Loc.T("All world timers:"));
             TimerUpdate();
 
             if (CosmicHandler.EventInfo() is { } info)

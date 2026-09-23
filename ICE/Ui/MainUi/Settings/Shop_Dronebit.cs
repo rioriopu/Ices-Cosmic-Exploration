@@ -10,18 +10,18 @@ namespace ICE.Ui.MainUi.Settings
     {
         public static void Draw()
         {
-            if (ImGui.Button("Run Drone Finder"))
+            if (ImGui.Button(Loc.T("Run Drone Finder")))
             {
                 SchedulerMain.State = IceState.ArtifactSearch;
             }
 
-            if (ImGui.Button("Stop"))
+            if (ImGui.Button(Loc.T("Stop")))
             {
                 SchedulerMain.DisablePlugin();
             }
 
             bool buyDrones = C.Cosmodrone_Buy;
-            if (ImGui.Checkbox("Buy Drones", ref buyDrones))
+            if (ImGui.Checkbox(Loc.T("Buy Drones"), ref buyDrones))
             {
                 C.Cosmodrone_Buy = buyDrones;
                 C.Save();
@@ -32,7 +32,7 @@ namespace ICE.Ui.MainUi.Settings
 
             int drone_buyAtAmount = C.Cosmodrone_BuyAt;
             ImGui.SetNextItemWidth(200);
-            if (ImGui.SliderInt("Buy At Amount", ref drone_buyAtAmount, 200, 5000))
+            if (ImGui.SliderInt(Loc.T("Buy At Amount"), ref drone_buyAtAmount, 200, 5000))
             {
                 drone_buyAtAmount = (int)Math.Round(drone_buyAtAmount / 200.0) * 200;
                 C.Cosmodrone_BuyAt = drone_buyAtAmount;
@@ -45,7 +45,7 @@ namespace ICE.Ui.MainUi.Settings
 
             int maxCrateAmount = C.Cosmodrone_MaxKeep;
             ImGui.SetNextItemWidth(200);
-            if (ImGui.InputInt("Maximum Drones", ref maxCrateAmount))
+            if (ImGui.InputInt(Loc.T("Maximum Drones"), ref maxCrateAmount))
             {
                 if (maxCrateAmount < 0)
                     maxCrateAmount = 0;
@@ -59,7 +59,7 @@ namespace ICE.Ui.MainUi.Settings
                 );
 
             bool runDroneFinder = C.Cosmodrone_Run;
-            if (ImGui.Checkbox("Automate cosmodrone", ref runDroneFinder))
+            if (ImGui.Checkbox(Loc.T("Automate cosmodrone"), ref runDroneFinder))
             {
                 C.Cosmodrone_Run = runDroneFinder;
                 C.Save();
