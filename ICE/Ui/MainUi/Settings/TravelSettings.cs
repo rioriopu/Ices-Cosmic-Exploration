@@ -131,6 +131,14 @@ namespace ICE.Ui.MainUi.Settings.Settings_Table
                 C.Save();
             }
 
+            bool useBoards = C.UseBoards;
+            if (ImGui.Checkbox("Use Boards (hover platforms)", ref useBoards))
+            {
+                C.UseBoards = useBoards;
+                C.Save();
+            }
+            ImGuiEx.HelpMarker("乗り口へ歩くと自動発進してショートカット先へ運ばれる連絡ボードを移動に使います(アウクセシア)。");
+
             bool useRedAlertNpc = C.UseRedAlertNpc;
             if (ImGui.Checkbox("Use Red Alert NPC for travel", ref useRedAlertNpc))
             {

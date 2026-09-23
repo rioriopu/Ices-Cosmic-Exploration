@@ -45,6 +45,7 @@ namespace ICE.Scheduler.Tasks
             Hub_Return,
             Hub_Aethernet,
             Hub_RedAlert,
+            Board,          // 乗り口へ歩くと自動発進して到着地点へ運ばれる連絡ボード(Auxesia など)
         }
 
         #region Navmesh Stuff
@@ -384,6 +385,9 @@ namespace ICE.Scheduler.Tasks
 
         public class PathInfo
         {
+            // ボード移動用: 乗り口(Entry)と到着地点(Exit)。CalculateBoard が採用したボードの座標を保持する。
+            public Vector3 BoardEntry { get; set; } = Vector3.Zero;
+            public Vector3 BoardExit { get; set; } = Vector3.Zero;
             public Vector3 destination { get; set; } = Vector3.Zero;
             public float distance { get; set; } = 0;
             public List<Vector3> pathTo { get; set; } = null;
@@ -399,6 +403,7 @@ namespace ICE.Scheduler.Tasks
             [TravelTypes.Hub_Return] = new(),
             [TravelTypes.Hub_Aethernet] = new(),
             [TravelTypes.Hub_RedAlert] = new(),
+            [TravelTypes.Board] = new(),
         };
         public class AethernetSystem
         {
@@ -408,6 +413,27 @@ namespace ICE.Scheduler.Tasks
             public int MapSelector { get; set; } = 0;
             public uint RequiredLogLv { get; set; } = 0;
         }
+        // 連絡ボード: 乗り口(Entry)へ歩くと自動発進し、到着地点(Exit)へ運ばれる。オブジェクト操作は不要。
+        public class BoardInfo
+        {
+            public Vector3 Entry { get; set; } = Vector3.Zero; // 乗り口(ここへ歩くと発進)
+            public Vector3 Exit { get; set; } = Vector3.Zero;  // 到着地点(運ばれて降りる場所)
+        }
+        public static Dictionary<uint, List<BoardInfo>> PlanetBoards = new()
+        {
+            [1319] = new()  // Auxesia (実機取得 2026-06-03)。双方向ペアの連絡ボード網。
+            {
+                // ハブ ↔ 中央
+                new() { Entry = new(257.09f, 208.35f, 335.37f), Exit = new(-4.57f, 186.59f, 21.81f) },   // ハブ→中央
+                new() { Entry = new(-12.81f, 187.47f, 30.51f),  Exit = new(250.08f, 208.43f, 341.45f) }, // 中央→ハブ
+                // 中央 ↔ 北西
+                new() { Entry = new(-41.66f, 187.30f, -1.94f),  Exit = new(-368.59f, 170.09f, -173.83f) }, // 中央→北西
+                new() { Entry = new(-361.62f, 170.02f, -166.83f), Exit = new(-32.92f, 186.64f, 6.43f) },   // 北西→中央
+                // 中央 ↔ 東
+                new() { Entry = new(17.17f, 186.58f, 1.88f),    Exit = new(594.02f, 190.12f, 119.37f) },  // 中央→東
+                new() { Entry = new(597.97f, 190.11f, 110.60f), Exit = new(10.87f, 186.62f, -6.43f) },    // 東→中央
+            },
+        };
         public static Dictionary<uint, List<AethernetSystem>> PlanetAethernet = new()
         {
             // Keys must match CosmicMoonRegistry.*.TerritoryId — validated in CosmicMoonContent.ValidateRegistry()
@@ -615,6 +641,7 @@ namespace ICE.Scheduler.Tasks
                     new(() => CalculateHub(destination), "Calculating Hub Path"),
                     new(() => CalculateDirect(destination), "Calculating Direct Path"),
                     new(() => CalculateHubAethernet(destination), "Calculate Hub Aetheryte Travel"),
+                    new(() => CalculateBoard(destination), "Calculating Board Path"),
                     new(() => FindBestTravel(destination, waitForBusy, distance), "Finding best pathing method")
                 );
             }
@@ -760,6 +787,78 @@ namespace ICE.Scheduler.Tasks
                 aethernet.distance = distance;
                 aethernet.Aethernet_TravelTo = closestAetheryte.AethernetId;
                 aethernet.Aethernet_TravelFrom = destinationAetheryte.AethernetId;
+            }
+
+            return true;
+        }
+        // ボード(乗り口へ歩くと自動発進し到着地点へ運ばれる)を移動手段の一つとして評価する。CalculateAethernet を踏襲。
+        // コスト = 徒歩(プレイヤー→Entry) + 徒歩(Exit→目的地)。ボードの運搬自体は実質ゼロコスト扱い。
+        // 目的地がボードの Exit 側にある時だけこの合計が直接歩行より短くなり、FindBestTravel に選ばれる。
+        private static bool? CalculateBoard(Vector3 destination)
+        {
+            string tag = "Navmesh: Board Calculation";
+            var territory = Player.Territory.RowId;
+
+            if (!C.UseBoards)
+                return true;
+            if (!PlanetBoards.TryGetValue(territory, out var boardList) || boardList.Count == 0)
+                return true;
+
+            // 目的地に最も近い到着地点(Exit)を持つボードを選ぶ
+            var board = boardList.OrderBy(b => Vector3.Distance(b.Exit, destination)).FirstOrDefault();
+            if (board == null)
+                return true;
+
+            // ボードは Exit が目的地の近く(=ショートカットになる)時だけ使う。Exit が目的地から遠いボードに乗ると
+            // 大遠回りになる(実機: 全 Exit が300m超なのにボードを選び遠回りした)。現在地より目的地に近づかないボードも不採用。
+            const float BoardUsefulDist = 80f;
+            float exitToDest = Vector3.Distance(board.Exit, destination);
+            float playerToDest = Vector3.Distance(Player.Position, destination);
+            if (exitToDest > BoardUsefulDist || exitToDest >= playerToDest)
+            {
+                if (EzThrottler.Throttle("Board not useful msg", 3000))
+                    IceLogging.Verbose($"Board not useful (exit->dest {exitToDest:F0}m). Skipping board option.", tag);
+                return true;
+            }
+
+            var boardPath = TravelMethods[TravelTypes.Board];
+            var playerPosition = Player.Position;
+
+            if (_PathCalculations == null)
+            {
+                _PathCalculations = Task.Run(async () =>
+                {
+                    boardPath.pathTo = await FindPath(playerPosition, board.Entry);   // プレイヤー→乗り口
+                    boardPath.pathFrom = await FindPath(board.Exit, destination);     // 到着地点→目的地
+                });
+                if (EzThrottler.Throttle("Started board task"))
+                    IceLogging.Verbose("Started to calculate board path", tag);
+                return false;
+            }
+
+            if (!_PathCalculations.IsCompleted)
+            {
+                if (EzThrottler.Throttle("Calculating board path message", 1000))
+                    IceLogging.Verbose("Still calculating board path (via navmesh)", tag);
+                return false;
+            }
+
+            _PathCalculations = null;
+            float distance = 0;
+            if (boardPath.pathTo != null)
+                for (int i = 0; i < boardPath.pathTo.Count - 1; i++)
+                    distance += Vector3.Distance(boardPath.pathTo[i], boardPath.pathTo[i + 1]);
+            if (boardPath.pathFrom != null)
+                for (int i = 0; i < boardPath.pathFrom.Count - 1; i++)
+                    distance += Vector3.Distance(boardPath.pathFrom[i], boardPath.pathFrom[i + 1]);
+
+            // 両区間とも歩行経路が成立した時のみ採用(片方でも経路不能ならボードに乗っても目的地へ行けず嵌るため除外)
+            if (boardPath.pathTo != null && boardPath.pathFrom != null && distance > 0)
+            {
+                boardPath.distance = distance;
+                boardPath.BoardEntry = board.Entry;
+                boardPath.BoardExit = board.Exit;
+                IceLogging.Verbose($"Board candidate: entry={board.Entry} exit={board.Exit} totalWalk={distance:F1}", tag);
             }
 
             return true;
@@ -1282,6 +1381,15 @@ namespace ICE.Scheduler.Tasks
                         new(() => DestinationPathing(destination, waitForBusy, distance), "Pathing to our destination: Red Alert")
                     );
             }
+            else if (bestTravel.Key == TravelTypes.Board)
+            {
+                _boardRidden = false; // 乗車検知をリセット
+                P.TaskManager.InsertMulti
+                    (
+                        new(() => TravelToBoard(bestTravel.Value), "Riding board shortcut"),
+                        new(() => DestinationPathing(destination, waitForBusy, distance, mountBeforeMove: true), "Pathing from board exit to destination")
+                    );
+            }
             else
             {
                 P.TaskManager.Insert(() => DestinationPathing(destination, waitForBusy, distance), "Pathing to our destination: Basic");
@@ -1289,6 +1397,53 @@ namespace ICE.Scheduler.Tasks
 
             return true;
         }
+        private static bool _boardRidden = false;
+        // ボード移動の実行: 乗り口(Entry)へ歩く → 乗ると自動発進(乗車中は Condition 101) → 到着地点(Exit)で完了。
+        // 発進は Entry へ到達するだけで起きるので、Entry へ歩いて乗車→運搬を待つ→Exit 到着で次タスクへ進む。
+        private static unsafe bool? TravelToBoard(PathInfo board)
+        {
+            string tag = "[Navmesh: Board ride]";
+            var entry = board.BoardEntry;
+            var exit = board.BoardExit;
+
+            // 乗車中: ボードが運んでいる。navmesh は止めて待つ。
+            if (Svc.Condition[ConditionFlag.Unknown101])
+            {
+                _boardRidden = true;
+                if (P.Navmesh.IsRunning())
+                    P.Navmesh.Stop();
+                if (EzThrottler.Throttle("Board riding message", 1000))
+                    IceLogging.Verbose("Riding the board, waiting for arrival...", tag);
+                return false;
+            }
+
+            // 到着地点付近に居る → 完了(Entry と Exit は遠く離れているため、Exit 付近に居る=乗車して運ばれた証拠)。
+            // Condition 101 の検知に依存せず位置で判定するので、乗車フラグが拾えなくても確実に完了できる。
+            if (Player.DistanceTo(exit) < 10f)
+            {
+                IceLogging.Info("Board ride complete, arrived near exit", tag);
+                return true;
+            }
+
+            // まだ乗っていない＆到着していない → 乗り口へ歩いて乗車させる
+            if (Player.DistanceTo(entry) > 1.5f)
+            {
+                if (!Task_NavTo(entry, false, 1.5f).Value)
+                {
+                    if (EzThrottler.Throttle("Board entry move message", 1000))
+                        IceLogging.Verbose($"Moving to board entry. Distance: {Player.DistanceTo(entry):F1}", tag);
+                }
+                return false;
+            }
+
+            // 乗り口に到達済みだがまだ発進していない → 発進を待つ。発進しなければスタック検知に委ねる。
+            if (P.Navmesh.IsRunning())
+                P.Navmesh.Stop();
+            if (EzThrottler.Throttle("Board waiting to launch", 1000))
+                IceLogging.Verbose("At board entry, waiting for it to launch...", tag);
+            return false;
+        }
+
         private static unsafe bool? TravelToAethershard(PathInfo shardInfo)
         {
             string tag = "[Navmesh: Aethershard movement]";

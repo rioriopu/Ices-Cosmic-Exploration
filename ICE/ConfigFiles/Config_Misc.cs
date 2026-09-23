@@ -31,6 +31,7 @@ public partial class Config
 
     public bool UseHubReturn { get; set; } = true;
     public bool UseAethernet { get; set; } = true;
+    public bool UseBoards { get; set; } = true; // 連絡ボード(乗り口へ歩くと自動発進する)を移動に使う
     public float HubReturn_Distance { get; set; } = 75f;
     public bool UseRedAlertNpc { get; set; } = false;
     public bool HideRewardWindow { get; set; } = true;
