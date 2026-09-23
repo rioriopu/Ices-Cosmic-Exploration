@@ -81,6 +81,7 @@ internal class DebugWindow : Window
             ["Relic Info"] = () => Ui_RelicInfo.Draw(),
             ["Relic Info V2"] = () => Ui_ClassInfo.Draw(),
             ["NPC Box Viewer"] = () => Ui_NpcViewer.Draw(),
+            ["Leveling Gear Shop"] = () => Ui_LevelingGearShop.Draw(),
             ["Oizyr Map Stuff"] = () => Ui_OyzinMap.Draw(),
             ["Aethernet Test"] = () => Ui_Aethernet.Draw(),
         },
