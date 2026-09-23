@@ -160,6 +160,10 @@ namespace ICE.Scheduler.Tasks
 
         private static unsafe bool? CheckGatheringState()
         {
+            // ミッション境界(報告/放棄直後)では CurrentLunarMission==0 → CurrentMissionInfo が null になるため早期に抜ける。
+            if (CosmicHelper.CurrentLunarMission == 0)
+                return true;
+
             string handle = "[Task_DualClass | Check Gather State]";
 
             IceLogging.Debug("Starting 'Check Gather State'");
@@ -381,6 +385,10 @@ namespace ICE.Scheduler.Tasks
 
         private static unsafe bool? FishingCheck()
         {
+            // ミッション境界(報告/放棄直後)では CurrentLunarMission==0 → CurrentMissionInfo が null になるため早期に抜ける。
+            if (CosmicHelper.CurrentLunarMission == 0)
+                return true;
+
             string handle = "[Dual Class: Fishing Check]";
 
             if (_fishingDebug == null)
@@ -454,6 +462,10 @@ namespace ICE.Scheduler.Tasks
 
         private static unsafe bool? CheckItems()
         {
+            // ミッション境界(報告/放棄直後)では CurrentLunarMission==0 → CurrentMissionInfo が null になるため早期に抜ける。
+            if (CosmicHelper.CurrentLunarMission == 0)
+                return true;
+
             string handle = "[Dual Class: Check Items]";
 
             if (!Svc.Condition[ConditionFlag.Gathering])

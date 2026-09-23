@@ -1,4 +1,4 @@
-﻿using ECommons.GameHelpers;
+using ECommons.GameHelpers;
 using ICE.Utilities.Cosmic_Helper;
 using System;
 using System.Collections.Generic;
@@ -102,6 +102,9 @@ namespace ICE.Scheduler.Tasks
                     PlaylistOptions.DronebitAmount => dronebitAmount >= entry.DronebitAmount,
                     PlaylistOptions.ClassLevel => level >= entry.ClassLevel,
                     PlaylistOptions.ClassScore => classScore >= entry.ClassScore,
+                    // None / ToolMaxExp / GoldClassMissions など未対応の目標は「未達成」扱いにする。
+                    // 既定分岐が無いと SwitchExpressionException で Agenda の開始判定ごと落ちる。
+                    _ => false,
                 };
 
                 if (!achieved)

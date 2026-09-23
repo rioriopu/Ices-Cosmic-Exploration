@@ -1,4 +1,4 @@
-﻿using ECommons.GameHelpers;
+using ECommons.GameHelpers;
 using FFXIVClientStructs.FFXIV.Client.Game.WKS;
 using ICE.Utilities.Cosmic_Helper;
 using MissionRank = FFXIVClientStructs.FFXIV.Client.Game.WKS.WKSMissionModule.MissionRank;
@@ -94,12 +94,17 @@ namespace ICE.Scheduler.Tasks
         private static unsafe void AbandonMissionInstance()
         {
             var WKSInstance = WKSManager.Instance();
+            // エリア遷移中などで取得できないフレームがあるため、null なら何もしない(次tickで再試行される)。
+            if (WKSInstance == null || WKSInstance->MissionModule == null)
+                return;
             WKSInstance->MissionModule->AbandonMission();
         }
 
         private static unsafe void ReportMissionInstance()
         {
             var WKSInstance = WKSManager.Instance();
+            if (WKSInstance == null || WKSInstance->MissionModule == null)
+                return;
             WKSInstance->MissionModule->ReportMission();
         }
 

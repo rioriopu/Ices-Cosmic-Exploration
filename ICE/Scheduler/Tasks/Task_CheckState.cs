@@ -224,7 +224,7 @@ namespace ICE.Scheduler.Tasks
                         return true;
                     }
                 }
-                if (C.StopOnceHitCosmicScore)
+                if (C.StopOnceHitCosmicScore && cosmicClassInfo.ContainsKey(jobId))
                 {
                     var currentScore = cosmicClassInfo[jobId].Score;
                     if (currentScore >= C.CosmicScoreCap)
@@ -262,7 +262,7 @@ namespace ICE.Scheduler.Tasks
                         return true;
                     }
                 }
-                if (C.StopOnceRelicFinished)
+                if (C.StopOnceRelicFinished && cosmicClassInfo.ContainsKey((uint)jobId))
                 {
                     var relicInfo = cosmicClassInfo[(uint)jobId];
                     bool potentionalTurnin = relicInfo.Stage_Current < relicInfo.Stage_Next;
@@ -349,7 +349,7 @@ namespace ICE.Scheduler.Tasks
                         }
                     }
                 }
-                if (C.StopAtRelicLv)
+                if (C.StopAtRelicLv && cosmicClassInfo.ContainsKey((uint)jobId))
                 {
                     var relicInfo = cosmicClassInfo[(uint)jobId];
                     // if 15 <= 20
@@ -364,7 +364,7 @@ namespace ICE.Scheduler.Tasks
                         return true;
                     }
                 }
-                if (C.StopWhenMasteryComplete)
+                if (C.StopWhenMasteryComplete && cosmicClassInfo.ContainsKey(jobId))
                 {
                     var mastery = cosmicClassInfo[jobId];
                     if (C.MasteryCap <= mastery.Mastery)
@@ -437,7 +437,9 @@ namespace ICE.Scheduler.Tasks
                     $"Agenda: {entry.SelectedMode}");
 
                 var job = entry.SelectedJob;
-                var relicInfo = relicProgress[job];
+                // ジョブ情報が未取得(未解放ジョブ等)の場合は KeyNotFoundException になるため、そのエントリは飛ばす。
+                if (!relicProgress.TryGetValue(job, out var relicInfo))
+                    continue;
 
                 var relicLevel = relicInfo.Stage_Current;
                 var classScore = relicInfo.Score;
@@ -610,7 +612,9 @@ namespace ICE.Scheduler.Tasks
             if (C.TurninRelic)
             {
                 var jobId = Mission_Settings.SelectedJob;
-                var relicInfo = relicProgress[jobId];
+                // ジョブ情報が未取得なら既定値(ステージ0=納品不可)で扱い、直接添字の例外を避ける。
+                if (!relicProgress.TryGetValue(jobId, out var relicInfo))
+                    relicInfo = new();
 
                 bool isUpgradable = relicInfo.Stage_Current < relicInfo.Stage_Next;
                 IceLogging.Verbose("Reporting Relic Info Progress", tag);

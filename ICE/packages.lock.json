@@ -53,6 +53,12 @@
         "resolved": "10.0.26100.6",
         "contentHash": "QjL9vliSWmscUv6A7bjvsryHjYnY0norqvCNcLXSdEy1VIIzMF6FiS7BuvLTBuGUeN9FY4zJbU65OsHEv7jG9A=="
       },
+      "YamlDotNet": {
+        "type": "Direct",
+        "requested": "[17.1.0, )",
+        "resolved": "17.1.0",
+        "contentHash": "AhsNXgeAs3Ugt653t8LC44xXDuldFfwBpWbWX9pN3e4Yg8U5Bk8jLn8eXtGv5HV2V2nHu7F46fqsPC+tpcTGAA=="
+      },
       "JetBrains.Annotations": {
         "type": "Transitive",
         "resolved": "2024.3.0",

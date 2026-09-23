@@ -8,7 +8,10 @@ namespace ICE.Utilities.Cosmic_Helper;
 
 public static partial class CosmicHelper
 {
-    public static CosmicInfo CurrentMissionInfo => SheetMissionDict[CurrentLunarMission];
+    // ミッション報告/放棄の瞬間は CurrentLunarMission が 0 になり、直接添字だと KeyNotFoundException になる。
+    // TryGetValue で null を返し、呼び出し側は CurrentLunarMission == 0 を見て早期 return する。
+    public static CosmicInfo CurrentMissionInfo =>
+        SheetMissionDict.TryGetValue(CurrentLunarMission, out var info) ? info : null;
 
     /// <summary>
     /// Gives the current mission that is active

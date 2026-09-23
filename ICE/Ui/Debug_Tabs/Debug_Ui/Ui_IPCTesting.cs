@@ -151,11 +151,11 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
             {
                 if (CosmicHelper.CurrentLunarMission != 0)
                 {
-                    foreach (var craftItem in CosmicHelper.CurrentMissionInfo.Crafts_Main)
+                    foreach (var craftItem in CosmicHelper.CurrentMissionInfo?.Crafts_Main ?? new())
                     {
                         P.Artisan.ChangeSolver(craftItem.Value.RecipeId, "Raphael Recipe Solver", true);
                     }
-                    foreach (var preCraft in CosmicHelper.CurrentMissionInfo.Crafts_Pre)
+                    foreach (var preCraft in CosmicHelper.CurrentMissionInfo?.Crafts_Pre ?? new())
                     {
                         P.Artisan.ChangeSolver(preCraft.Value.RecipeId, "Raphael Recipe Solver", true);
                     }
@@ -165,11 +165,11 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
             {
                 if (CosmicHelper.CurrentLunarMission != 0)
                 {
-                    foreach (var craftItem in CosmicHelper.CurrentMissionInfo.Crafts_Main)
+                    foreach (var craftItem in CosmicHelper.CurrentMissionInfo?.Crafts_Main ?? new())
                     {
                         P.Artisan.ChangeSolver(craftItem.Value.RecipeId, "Progress Only Solver", true);
                     }
-                    foreach (var preCraft in CosmicHelper.CurrentMissionInfo.Crafts_Pre)
+                    foreach (var preCraft in CosmicHelper.CurrentMissionInfo?.Crafts_Pre ?? new())
                     {
                         P.Artisan.ChangeSolver(preCraft.Value.RecipeId, "Progress Only Solver", true);
                     }
@@ -194,11 +194,11 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
             {
                 if (CosmicHelper.CurrentLunarMission != 0)
                 {
-                    foreach (var craftItem in CosmicHelper.CurrentMissionInfo.Crafts_Main)
+                    foreach (var craftItem in CosmicHelper.CurrentMissionInfo?.Crafts_Main ?? new())
                     {
                         P.Artisan.SetTempSolverBackToNormal(craftItem.Value.RecipeId);
                     }
-                    foreach (var preCraft in CosmicHelper.CurrentMissionInfo.Crafts_Pre)
+                    foreach (var preCraft in CosmicHelper.CurrentMissionInfo?.Crafts_Pre ?? new())
                     {
                         P.Artisan.SetTempSolverBackToNormal(preCraft.Value.RecipeId);
                     }

@@ -1,4 +1,4 @@
-﻿using Dalamud.Game.ClientState.Conditions;
+using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.ClientState.Objects.Types;
 using ECommons.GameHelpers;
 using FFXIVClientStructs.FFXIV.Client.Game;
@@ -49,6 +49,18 @@ namespace ICE.Scheduler.Tasks
             {
                 IceLogging.Info("Stellar Return is fully disabled, walking to hub instead", tag);
                 return true;
+            }
+
+            // COSMO MISSIONS(WKSMission)ウィンドウが開いていると Stellar Return(帰還)が発動できない。
+            // 開いていれば先に閉じてから帰還処理へ進む(実機報告: 窓を開いたまま止まり、閉じると帰還が始まる)。
+            if (GenericHelpers.TryGetAddonMaster<WKSMission>("WKSMission", out var wksMissionWin) && wksMissionWin.IsAddonReady)
+            {
+                if (EzThrottler.Throttle("CloseWKSMissionForReturn", 500))
+                {
+                    IceLogging.Info("帰還前に COSMO MISSIONS ウィンドウを閉じます(Stellar Return 阻害回避)", tag);
+                    GenericHandlers.FireCallback("WKSMission", true, -1);
+                }
+                return false;
             }
 
             if (CosmicMoonRegistry.TryGetHubCenter(Player.Territory.RowId, out var HubCenter))
@@ -232,6 +244,7 @@ namespace ICE.Scheduler.Tasks
             }
             return false;
         }
+        private static long _selfRepairStart = 0;
         public unsafe static bool? SelfRepair_All()
         {
             string tag = "Self Repair: All";
@@ -242,43 +255,58 @@ namespace ICE.Scheduler.Tasks
                 {
                     if (EzThrottler.Throttle("Waiting for repair"))
                         IceLogging.Verbose("Waiting for us to finish repairs", tag);
-
                     return false;
                 }
-                else
-                {
-                    IceLogging.Debug("All gear has been repaired, continuing", tag);
-                    return true;
-                }
+                _selfRepairStart = 0;
+                IceLogging.Debug("All gear has been repaired, continuing", tag);
+                return true;
             }
-            else if (Svc.Condition[ConditionFlag.Mounted])
+
+            if (_selfRepairStart == 0) _selfRepairStart = Environment.TickCount64;
+            // 修理が一定時間で完了しない(修理窓の操作が効かない等)場合は無限に待たず中断し、次の処理へ進める。
+            if (Environment.TickCount64 - _selfRepairStart > 30000)
+            {
+                IceLogging.Warning("自己修理が30秒以内に完了しないため中断します(修理窓の操作不成立の可能性)。次の処理へ進みます", tag);
+                _selfRepairStart = 0;
+                return true;
+            }
+
+            if (Svc.Condition[ConditionFlag.Mounted])
             {
                 if (EzThrottler.Throttle("Attempting to dismount for repairing"))
                 {
                     IceLogging.Debug("Dismounting for self repair", tag);
                     ActionManager.Instance()->UseAction(ActionType.GeneralAction, 9);
                 }
+                return false;
             }
-            else if (Svc.Condition[ConditionFlag.Occupied39])
+            if (Svc.Condition[ConditionFlag.Occupied39])
             {
                 if (EzThrottler.Throttle("Waiting for repair"))
                     IceLogging.Verbose("Waiting for us to finish repairs", tag);
+                return false;
             }
-            else if (GenericHelpers.TryGetAddonByName<AtkUnitBase>("SelectYesno", out var addon) && GenericHelpers.IsAddonReady(addon))
+            // 確認ダイアログ → はい(AddonMaster 経由で確実に押す)
+            if (GenericHelpers.TryGetAddonMaster<SelectYesno>("SelectYesno", out var yn) && yn.IsAddonReady)
             {
-                if (FrameThrottler.Throttle("SelectYesnoThrottle", 300))
-                {
-                    IceLogging.Debug("SelectYesno Callback", tag);
-                    ECommons.Automation.Callback.Fire(addon, true, 0);
-                }
+                if (FrameThrottler.Throttle("SelfRepairYes", 300)) yn.Yes();
+                return false;
             }
-            else if (GenericHelpers.TryGetAddonByName<AtkUnitBase>("Repair", out var addon2) && GenericHelpers.IsAddonReady(addon2))
+            // 修理窓 → ECommons の RepairAll で「すべて修理」を押す(生のコールバックが効かないケース対策)
+            if (GenericHelpers.TryGetAddonMaster<Repair>("Repair", out var rep) && rep.IsAddonReady)
             {
                 if (FrameThrottler.Throttle("Firing off repair request", 300))
                 {
-                    IceLogging.Debug("Repair Callback", tag);
-                    ECommons.Automation.Callback.Fire(addon2, true, 1);
+                    IceLogging.Debug("Repair All (ECommons)", tag);
+                    rep.RepairAll();
                 }
+                return false;
+            }
+            // 修理窓が無い(まだ開いていない/手動で閉じられた)のに装備は損耗 → 自己修理を(再)展開して止まらないようにする
+            if (EzThrottler.Throttle("ReopenSelfRepair", 1000))
+            {
+                IceLogging.Debug("修理窓が無いので自己修理を再展開します", tag);
+                ActionManager.Instance()->UseAction(ActionType.GeneralAction, 6);
             }
             return false;
         }

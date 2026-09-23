@@ -22,6 +22,10 @@ namespace ICE.Scheduler.Tasks
 
         public static void Enqueue()
         {
+            // ミッション境界(報告/放棄直後)では CurrentLunarMission==0 → CurrentMissionInfo が null になるため早期に抜ける。
+            if (CosmicHelper.CurrentLunarMission == 0)
+                return;
+
             if (Svc.Condition[ConditionFlag.Gathering])
             {
                 IceLogging.Debug("Current in a gathering session");
@@ -68,6 +72,10 @@ namespace ICE.Scheduler.Tasks
 
         public static bool? GatherInteractV2()
         {
+            // ミッション境界(報告/放棄直後)では CurrentLunarMission==0 → CurrentMissionInfo が null になるため早期に抜ける。
+            if (CosmicHelper.CurrentLunarMission == 0)
+                return true;
+
             string tag = "Gather: Gather Interacting";
 
             bool CheckDelay()
@@ -136,6 +144,10 @@ namespace ICE.Scheduler.Tasks
                             // just a normal item to gather. so we're just going to do our normal gathering process
                             bool missingDur = gather.CurrentIntegrity != gather.TotalIntegrity;
                             var testItem = gather.GatheredItems.Where(x => x.ItemID != 0).FirstOrDefault();
+                            // 採取窓が開いた瞬間や全アイテム枯渇のフレームでは ItemID!=0 のアイテムが0件のことがある。
+                            // null のまま GatherChance を読むと NRE でタスクが落ちるため、次フレームで再評価する。
+                            if (testItem == null)
+                                return false;
                             int gatherChance = testItem.GatherChance;
                             int boonChance = testItem.BoonChance;
                             int playerGp = PlayerHelper.GetGp();
@@ -209,6 +221,9 @@ namespace ICE.Scheduler.Tasks
                 GreaterReachCount = 0;
                 HadGreaterReach = false;
                 GatherDelayThrottle = 0;
+                // 採取セッションを抜けた(次ノードへ向かう)タイミングでスキル使用回数をリセットする。
+                // しないとミッションをまたいで累積し、MaxUse 到達でスキルが二度と使われなくなる。
+                Mission_Settings.ResetSkillUseAmount();
                 return true;
             }
 
@@ -216,6 +231,10 @@ namespace ICE.Scheduler.Tasks
         }
         public static unsafe void CollectableGather(GatheringMasterpiece collectable)
         {
+            // ミッション境界(報告/放棄直後)では CurrentLunarMission==0 → CurrentMissionInfo が null になるため早期に抜ける。
+            if (CosmicHelper.CurrentLunarMission == 0)
+                return;
+
             var integrity = collectable.CurrentIntegrity;
             var collect_Current = collectable.CurrentCollectability;
             var collect_Max = collectable.MaxCollectability;
@@ -307,6 +326,10 @@ namespace ICE.Scheduler.Tasks
         }
         public static bool? CheckCurrentLocation()
         {
+            // ミッション境界(報告/放棄直後)では CurrentLunarMission==0 → CurrentMissionInfo が null になるため早期に抜ける。
+            if (CosmicHelper.CurrentLunarMission == 0)
+                return true;
+
             ThrottleMessage("- - - Check Gather Locations Task - - -", "[Check Gather Locations]");
 
             var zoneId = Player.Territory;
@@ -463,6 +486,10 @@ namespace ICE.Scheduler.Tasks
         private const float SmartRoutingThreshold = 50f;
         public static bool? PathandCheckNode()
         {
+            // ミッション境界(報告/放棄直後)では CurrentLunarMission==0 → CurrentMissionInfo が null になるため早期に抜ける。
+            if (CosmicHelper.CurrentLunarMission == 0)
+                return true;
+
             var zoneId = Player.Territory;
             var missionEntry = CosmicHelper.CurrentMissionInfo;
             var gatherFile = GatheringRouteLoader.GetRoute(missionEntry.Gather_MapKey);
@@ -912,6 +939,10 @@ namespace ICE.Scheduler.Tasks
         }
         public static bool? CheckReduceMission()
         {
+            // ミッション境界(報告/放棄直後)では CurrentLunarMission==0 → CurrentMissionInfo が null になるため早期に抜ける。
+            if (CosmicHelper.CurrentLunarMission == 0)
+                return true;
+
             IceLogging.Info($"Current itemId: {Mission_Settings.item_collectableId}", "[Gather: Check Reduce Mission]");
             bool hasCollectable = PlayerHelper.GetItemCount(Mission_Settings.item_collectableId, out var count) && count > 0;
             bool isReducableMission = CosmicHelper.CurrentMissionInfo.Attributes.HasFlag(MissionAttributes.ReducedItems);

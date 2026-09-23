@@ -46,6 +46,10 @@ namespace ICE.Scheduler.Tasks
 
         private static unsafe bool? FishCheckV2()
         {
+            // ミッション境界(報告/放棄直後)では CurrentLunarMission==0 → CurrentMissionInfo が null になるため早期に抜ける。
+            if (CosmicHelper.CurrentLunarMission == 0)
+                return true;
+
             string handle = "Fishing Task: State Check";
             if (Svc.Condition[ConditionFlag.Fishing])
             {
@@ -239,6 +243,10 @@ namespace ICE.Scheduler.Tasks
 
         private static unsafe bool? FishingCheck()
         {
+            // ミッション境界(報告/放棄直後)では CurrentLunarMission==0 → CurrentMissionInfo が null になるため早期に抜ける。
+            if (CosmicHelper.CurrentLunarMission == 0)
+                return true;
+
             if (_fishingDebug == null)
             {
                 _fishingDebug = new FishingDebug();
@@ -643,6 +651,10 @@ namespace ICE.Scheduler.Tasks
         }
         public static FisherSpotInfo? GetCurrentFishingSpot()
         {
+            // ミッション境界では CurrentMissionInfo が null になるため、釣り場も無しとして返す。
+            if (CosmicHelper.CurrentLunarMission == 0)
+                return null;
+
             var zone = Player.Territory.RowId;
             var mission = CosmicHelper.CurrentMissionInfo;
             var flag = mission.MapPosition;
