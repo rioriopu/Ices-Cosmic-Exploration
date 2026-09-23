@@ -22,6 +22,8 @@ namespace ICE.Scheduler
             // レベリング装備の購入中なら、それも中止して開いている店舗/メニューを閉じる(緊急停止)
             if (Task_BuyLevelingGear.Running)
                 Task_BuyLevelingGear.Abort("stop");
+            if (Task_SellLevelingGear.Running)
+                Task_SellLevelingGear.Abort("stop");
             P.TaskManager.Abort();
             State = IceState.Idle;
             GenericManager.RestorePandoraStates();

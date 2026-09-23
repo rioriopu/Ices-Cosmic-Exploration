@@ -667,3 +667,5 @@ In Relic Grind mode the swap happens automatically even if the checkbox above is
 Turned on automatically when you press ""Buy Leveling Gear"".","レベリングミッションの後とレベリング装備の購入後に最強装備を行い
 （Stylist があればそれを、無ければゲームのおすすめ装備）、ギアセットを更新します。
 「レベリング装備を購入」を押すと自動で ON になります。"
+"ICE","","","","Sell Leveling Gear","レベリング装備を売却"
+"ICE","","","","Items to sell","売却予定の装備"

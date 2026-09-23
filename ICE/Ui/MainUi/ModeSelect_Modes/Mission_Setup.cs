@@ -51,6 +51,55 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
         private static int ItemCount = 0;
         private static string newListName = string.Empty;
 
+        // 「レベリング装備を売却」の確認ダイアログ。
+        private static void DrawSellLevelingGearPopup()
+        {
+            var plan = Task_SellLevelingGear.Current;
+            bool jp = Task_SellLevelingGear.IsJapanese;
+            if (plan == null)
+            {
+                ImGui.CloseCurrentPopup();
+                return;
+            }
+            if (!string.IsNullOrEmpty(plan.Error))
+            {
+                ImGui.TextColored(new Vector4(1f, 0.4f, 0.4f, 1f), plan.Error);
+                if (ImGui.Button("No"))
+                    ImGui.CloseCurrentPopup();
+                return;
+            }
+
+            ImGui.PushTextWrapPos(ImGui.GetCursorPosX() + 520 * ImGuiHelpers.GlobalScale);
+            string category = jp ? (plan.IsGatherer ? "ギャザラー" : "クラフター") : (plan.IsGatherer ? "gatherers" : "crafters");
+            ImGui.TextUnformatted(jp
+                ? $"レベリング装備品（{plan.Items.Count}）を自動売却します。本当によろしいですか？※全{category}がLv100か確認してください"
+                : $"Sell {plan.Items.Count} leveling gear item(s) automatically. Are you sure? *Make sure all {category} are Lv100 first");
+            ImGui.TextDisabled(jp
+                ? $"対象: {(plan.IsGatherer ? "ギャザラー" : "クラフター")}用のレベリング装備（ゴッドギスで買える Lv10〜95、アーマリーチェスト内の NQ 品のみ。HQ は売りません） / 見込み {plan.TotalGil:N0} ギル"
+                : $"Target: {category}' leveling gear (Lv10–95 sold by the vendor, NQ items in the Armoury Chest only; HQ is never sold) / about {plan.TotalGil:N0} gil");
+            ImGui.PopTextWrapPos();
+
+            if (plan.Items.Count > 0 && ImGui.CollapsingHeader("Items to sell"))
+            {
+                using var list = ImRaii.Child("##lgear_sell_list", new Vector2(520 * ImGuiHelpers.GlobalScale, 200 * ImGuiHelpers.GlobalScale), true);
+                if (list.Success)
+                    foreach (var e in plan.Items)
+                        ImGui.TextUnformatted($"{LevelingGearShop.SlotNameJp(e.GearSlot)}  {e.Name} (Lv{e.LevelEquip})  {e.Price:N0}g");
+            }
+
+            if (ImGui.Button("Yes", new Vector2(120 * ImGuiHelpers.GlobalScale, 0)))
+            {
+                if (plan.Items.Count == 0)
+                    IceLogging.ChatInfo(jp ? "売却するレベリング装備はありません" : "No leveling gear to sell", "[I.C.E.]");
+                else
+                    Task_SellLevelingGear.Enqueue(plan);
+                ImGui.CloseCurrentPopup();
+            }
+            ImGui.SameLine();
+            if (ImGui.Button("No", new Vector2(120 * ImGuiHelpers.GlobalScale, 0)))
+                ImGui.CloseCurrentPopup();
+        }
+
         // 「レベリング装備を購入」の確認ダイアログ。文面は動的なので、クライアント言語が日本語なら日本語で直接描く。
         private static void DrawBuyLevelingGearPopup()
         {
@@ -293,7 +342,7 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                 ImGui.SetCursorPosY(ImGui.GetCursorPosY() + yOffset);
 
                 // 停止ボタンはレベリング装備の購入中(State は Idle のまま)にも押せるようにする(緊急停止)
-                using (ImRaii.Disabled(SchedulerMain.State == IceState.Idle && !Task_BuyLevelingGear.Running))
+                using (ImRaii.Disabled(SchedulerMain.State == IceState.Idle && !Task_BuyLevelingGear.Running && !Task_SellLevelingGear.Running))
                 {
                     using (ImRaii.PushColor(ImGuiCol.Button, new Vector4(0.8f, 0.2f, 0.2f, 1.0f)))
                     using (ImRaii.PushColor(ImGuiCol.ButtonHovered, new Vector4(0.9f, 0.3f, 0.3f, 1.0f)))
@@ -559,6 +608,23 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                 if (ImGui.BeginPopup("Buy Leveling Gear: Confirm"))
                 {
                     DrawBuyLevelingGearPopup();
+                    ImGui.EndPopup();
+                }
+
+                // レベリング装備の売却: ゴッドギスで買える Lv10〜95 の装備(現在ジョブの種類=クラフター/ギャザラー分)の NQ 品をアーマリーから売る
+                ImGui.SameLine(0, 10 * scale);
+                ImGui.SetCursorPosY(ImGui.GetCursorPosY() + yOffset);
+                using (ImRaii.Disabled(SchedulerMain.State != IceState.Idle || Task_BuyLevelingGear.Running || Task_SellLevelingGear.Running || !usingSupportedJob))
+                {
+                    if (ImGui.Button("Sell Leveling Gear"))
+                    {
+                        Task_SellLevelingGear.BuildPlan(currentJobId);
+                        ImGui.OpenPopup("Sell Leveling Gear: Confirm");
+                    }
+                }
+                if (ImGui.BeginPopup("Sell Leveling Gear: Confirm"))
+                {
+                    DrawSellLevelingGearPopup();
                     ImGui.EndPopup();
                 }
             }
