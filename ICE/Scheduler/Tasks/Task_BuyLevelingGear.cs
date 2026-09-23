@@ -17,9 +17,11 @@ namespace ICE.Scheduler.Tasks
     /// </summary>
     internal static class Task_BuyLevelingGear
     {
-        public const int MinLevel = 10;
-        public const int MaxLevel = 95;
-        public const int Step = 5;
+        // 購入する装備Lvの段階。丁度の Lv の装備が無い段階は、その Lv 以下で最も高い Lv の装備を買う(例: Lv75 → Lv74/73)。
+        public static readonly int[] Steps = { 10, 20, 30, 40, 50, 52, 55, 60, 65, 70, 75, 80, 85, 90, 95 };
+        public static int MinLevel => Steps[0];
+        public static int MaxLevel => Steps[^1];
+        public static string StepsText => string.Join("→", Steps);
         public const int KeepFreeSlots = 2; // 購入後にアーマリーチェストの各部位に残しておく空き枠
 
         public static readonly GearSlot[] TargetSlots =
@@ -90,9 +92,9 @@ namespace ICE.Scheduler.Tasks
                 return plan;
             }
 
-            // 各Lv帯・各部位で「そのLv以下で最高Lv」の装備を1点。同じアイテムは1度だけ、所持済みは買わない。
+            // 各段階・各部位で「そのLv以下で最高Lv」の装備を1点。同じアイテムは1度だけ、所持済みは買わない。
             var planned = new HashSet<uint>();
-            for (int lv = MinLevel; lv <= MaxLevel; lv += Step)
+            foreach (int lv in Steps)
             {
                 foreach (var slot in TargetSlots)
                 {
