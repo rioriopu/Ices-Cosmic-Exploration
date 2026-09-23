@@ -96,8 +96,8 @@ namespace ICE.Ui.MainUi.Settings
             }
             if (ImGui.IsItemHovered())
                 ImGui.SetTooltip(hasOverride
-                    ? "Override active — click to inherit from Global"
-                    : "Click to override this setting for this character");
+                    ? Loc.T("Override active — click to inherit from Global")
+                    : Loc.T("Click to override this setting for this character"));
 
             ImGui.SameLine();
 
@@ -118,8 +118,8 @@ namespace ICE.Ui.MainUi.Settings
             }
             if (ImGui.IsItemHovered())
                 ImGui.SetTooltip(hasOverride
-                    ? "Override active — click to inherit from Global"
-                    : "Click to override this setting for this character");
+                    ? Loc.T("Override active — click to inherit from Global")
+                    : Loc.T("Click to override this setting for this character"));
 
             ImGui.SameLine();
 
@@ -311,7 +311,7 @@ namespace ICE.Ui.MainUi.Settings
 
             #region Labels
 
-            string GetSolverLabel(ArtisanCraftType type) => type switch
+            string GetSolverLabel(ArtisanCraftType type) => Loc.T(type switch
             {
                 ArtisanCraftType.Default => "Default",
                 ArtisanCraftType.Raphael => "Raphael Solver",
@@ -319,7 +319,7 @@ namespace ICE.Ui.MainUi.Settings
                 ArtisanCraftType.Standard => "Standard Solver",
                 ArtisanCraftType.Expert => "Expert Recipe Solver",
                 _ => "Unknown"
-            };
+            });
 
             string GetFoodLabel(uint foodId)
             {
@@ -799,8 +799,8 @@ namespace ICE.Ui.MainUi.Settings
                 }
                 if (ImGui.IsItemHovered())
                     ImGui.SetTooltip(hasMountOverride
-                        ? "Override active — click to inherit from Global"
-                        : "Click to override mount for this character");
+                        ? Loc.T("Override active — click to inherit from Global")
+                        : Loc.T("Click to override mount for this character"));
                 ImGui.SameLine();
 
                 using (ImRaii.Disabled(!hasMountOverride))
@@ -966,7 +966,7 @@ namespace ICE.Ui.MainUi.Settings
                     C.Save(); 
                 }
 
-                string currentJobName = BattleJobs.FirstOrDefault(x => x.Value == C.Relic_BattleJob).Key ?? "Auto (any other job)";
+                string currentJobName = Loc.T(BattleJobs.FirstOrDefault(x => x.Value == C.Relic_BattleJob).Key ?? "Auto (any other job)");
                 ImGui.SetNextItemWidth(200);
                 if (ImGui.BeginCombo(Loc.T("Battle Job##relicJob"), currentJobName))
                 {
@@ -978,7 +978,7 @@ namespace ICE.Ui.MainUi.Settings
                     foreach (var (jobName, jobId) in BattleJobs)
                     {
                         bool sel = C.Relic_BattleJob == jobId;
-                        if (ImGui.Selectable(jobName, sel))
+                        if (ImGui.Selectable(Loc.T(jobName), sel))
                         { 
                             C.Relic_BattleJob = jobId; 
                             C.Save(); 
@@ -1017,7 +1017,7 @@ namespace ICE.Ui.MainUi.Settings
                 OverrideField("Relic_BattleJob", C.Relic_BattleJob, ov.Relic_BattleJob,
                     v => ov.Relic_BattleJob = v,
                     current => {
-                        string currentJobName = BattleJobs.FirstOrDefault(x => x.Value == current).Key ?? "Auto (any other job)";
+                        string currentJobName = Loc.T(BattleJobs.FirstOrDefault(x => x.Value == current).Key ?? "Auto (any other job)");
                         ImGui.SetNextItemWidth(200);
                         if (ImGui.BeginCombo(Loc.T("Battle Job##relicJobOv"), currentJobName))
                         {
@@ -1029,7 +1029,7 @@ namespace ICE.Ui.MainUi.Settings
                             foreach (var (jobName, jobId) in BattleJobs)
                             {
                                 bool sel = current == jobId;
-                                if (ImGui.Selectable(jobName, sel) && ov.Relic_BattleJob.HasValue)
+                                if (ImGui.Selectable(Loc.T(jobName), sel) && ov.Relic_BattleJob.HasValue)
                                 { 
                                     ov.Relic_BattleJob = jobId; 
                                     C.Save(); 

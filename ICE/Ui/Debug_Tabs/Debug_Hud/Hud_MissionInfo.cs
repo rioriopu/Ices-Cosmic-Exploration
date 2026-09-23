@@ -50,7 +50,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Hud
 
                         ImGui.TableNextRow();
                         ImGui.TableSetColumnIndex(0);
-                        ImGui.Text($"Current State");
+                        ImGui.Text(Loc.T("Current State"));
 
                         ImGui.TableNextColumn();
                         ImGui.Text($"{Task_CheckScore.CurrentRank()}");
@@ -91,7 +91,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Hud
 
                     ImGui.TableNextRow();
                     ImGui.TableSetColumnIndex(0);
-                    ImGui.Text($"Collected Total");
+                    ImGui.Text(Loc.T("Collected Total"));
                     ImGui.TableNextColumn();
                     ImGui.Text($"{CosmicHelper.CurrentTotal()}");
                     ImGui.TableNextRow();

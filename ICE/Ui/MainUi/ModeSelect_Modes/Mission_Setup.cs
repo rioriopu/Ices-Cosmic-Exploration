@@ -1,4 +1,4 @@
-﻿using Dalamud.Interface;
+using Dalamud.Interface;
 using Dalamud.Interface.Utility;
 using Dalamud.Interface.Utility.Raii;
 using ECommons.GameHelpers;
@@ -136,8 +136,8 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
             if (plan.Shortage.Count > 0)
             {
                 ImGui.TextColored(new Vector4(1f, 0.4f, 0.4f, 1f), jp
-                    ? "以下の部位（アーマリーチェスト）に空き枠が足りないため購入出来ません。"
-                    : "Not enough free Armoury Chest slots in the following slots, so nothing will be bought:");
+                    ? Loc.T("以下の部位（アーマリーチェスト）に空き枠が足りないため購入出来ません。")
+                    : Loc.T("Not enough free Armoury Chest slots in the following slots, so nothing will be bought:"));
                 foreach (var kv in plan.Shortage)
                     ImGui.BulletText(jp ? $"{LevelingGearShop.SlotNameJp(kv.Key)}：{kv.Value}枠不足" : $"{kv.Key}: {kv.Value} slot(s) short");
             }
@@ -215,7 +215,7 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                     modeIcon = FontAwesomeIcon.ClipboardList;
                 }
 
-                ImGuiEx.IconWithText(modeIcon, $"{modeType} Mode");
+                ImGuiEx.IconWithText(modeIcon, Loc.T($"{modeType} Mode"));
 
                 // レリックモードの一時レベリング中はその旨を表示する
                 if (relicMode && RelicFallback.Active)
@@ -275,7 +275,7 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                         if (C.StopOnceHitLunarCredits)
                             ImGui.BulletText($"Stop once planetary credit hit [{C.LunarCreditsCap:N0}]");
                         if (C.StopOnceRelicFinished)
-                            ImGui.BulletText($"Stop once relic completed");
+                            ImGui.BulletText(Loc.T("Stop once relic completed"));
                         if (C.StopOnceStandardMissionsGolded)
                             ImGui.BulletText(Loc.T("Stop when all standard missions are golded"));
 
@@ -342,9 +342,9 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                     if (ImGui.IsItemHovered())
                     {
                         ImGui.BeginTooltip();
-                        ImGui.Text($"Hey! Your version of autohook is not currently supported on this planet");
-                        ImGui.Text($"You need to (currently) be on the testing version to be able fish automated here");
-                        ImGui.Text($"There will be another warning to pop up if you try and run this still and it selects a fishing mission...");
+                        ImGui.Text(Loc.T("Hey! Your version of autohook is not currently supported on this planet"));
+                        ImGui.Text(Loc.T("You need to (currently) be on the testing version to be able fish automated here"));
+                        ImGui.Text(Loc.T("There will be another warning to pop up if you try and run this still and it selects a fishing mission..."));
                         ImGui.EndTooltip();
                     }
                 }
@@ -392,8 +392,8 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                         C.GrindOffClassRedAlert = allowCriticalsAllClass;
                         C.Save();
                     }
-                    ImGuiEx.HelpMarker($"This will allow you to grind other classes for criticals/red alerts. " +
-                        $"(So if you're on crp, but a bsm red alert pops up)");
+                    ImGuiEx.HelpMarker(Loc.T("This will allow you to grind other classes for criticals/red alerts. " +
+                        "(So if you're on crp, but a bsm red alert pops up)"));
 
                     bool removeGold = C.RemoveAfterGold;
                     if (ImGui.Checkbox(Loc.T("Remove Mission Upon Gold Completion"), ref removeGold))
@@ -413,7 +413,7 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
 
                     ImGui.Checkbox(Loc.T("Stop after current mission"), ref Mission_Settings.StopAfterCurrent);
                     bool relicTurnin = C.TurninRelic;
-                    if (ImGui.Checkbox($"Turnin if relic is complete##RelicTurnin_GeneralSetting", ref relicTurnin))
+                    if (ImGui.Checkbox(Loc.T("Turnin if relic is complete##RelicTurnin_GeneralSetting"), ref relicTurnin))
                     {
                         C.TurninRelic = relicTurnin;
                         C.Save();
@@ -490,7 +490,7 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
 
                     if (ImGui.BeginPopup("Preset Save Editor"))
                     {
-                        ImGui.InputText($"Playlist Name", ref newListName);
+                        ImGui.InputText(Loc.T("Playlist Name"), ref newListName);
                         using (ImRaii.Disabled(string.IsNullOrEmpty(newListName)))
                         {
                             if (ImGui.Button(Loc.T("Save New List")))
@@ -525,7 +525,7 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
 
                         if (ImGui.BeginPopup("Preset: List Viewer"))
                         {
-                            ImGui.Text($"Load Mission Preset");
+                            ImGui.Text(Loc.T("Load Mission Preset"));
 
                             if (ImGui.BeginTable($"Preset: TableViewer", 3, ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.RowBg | ImGuiTableFlags.Borders))
                             {
@@ -537,7 +537,7 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                                 ImGui.TableNextRow();
                                 ImGui.TableSetColumnIndex(0);
                                 ImGui.AlignTextToFramePadding();
-                                ImGui.Text($"Clear All");
+                                ImGui.Text(Loc.T("Clear All"));
                                 ImGui.SameLine();
                                 if (ImGuiEx.IconButton(FontAwesomeIcon.ArrowUpRightFromSquare, $"FreshPreset_Button"))
                                 {

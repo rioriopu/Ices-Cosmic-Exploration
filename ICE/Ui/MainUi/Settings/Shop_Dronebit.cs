@@ -27,7 +27,7 @@ namespace ICE.Ui.MainUi.Settings
                 C.Save();
             }
             ImGui_Ice.IconWithTooltip(FontAwesomeIcon.QuestionCircle, 
-                "Do you want to buy drones? If yes, enable this"
+                Loc.T("Do you want to buy drones? If yes, enable this")
                 );
 
             int drone_buyAtAmount = C.Cosmodrone_BuyAt;
@@ -39,8 +39,8 @@ namespace ICE.Ui.MainUi.Settings
                 C.SaveDebounced();
             }
             ImGui_Ice.IconWithTooltip(FontAwesomeIcon.QuestionCircle, 
-                "When do you wanna buy drones from the vendor?\n" +
-                "Set in incriments of 200, max of 5,000"
+                Loc.T("When do you wanna buy drones from the vendor?\n" +
+                "Set in incriments of 200, max of 5,000")
                 );
 
             int maxCrateAmount = C.Cosmodrone_MaxKeep;
@@ -53,9 +53,9 @@ namespace ICE.Ui.MainUi.Settings
                 C.SaveDebounced();
             }
             ImGui_Ice.IconWithTooltip(FontAwesomeIcon.QuestionCircle,
-                "What's the maximum amount of drones you wanna keep?\n" +
+                Loc.T("What's the maximum amount of drones you wanna keep?\n" +
                 "0 = will just keep buying\n" +
-                "Anything above 0 will just be a hard cap and will stop buying if it reaches this"
+                "Anything above 0 will just be a hard cap and will stop buying if it reaches this")
                 );
 
             bool runDroneFinder = C.Cosmodrone_Run;
@@ -65,8 +65,8 @@ namespace ICE.Ui.MainUi.Settings
                 C.Save();
             }
             ImGui_Ice.IconWithTooltip(FontAwesomeIcon.QuestionCircle,
-                "Do you want to run the automated drone finding? If yes, enable this\n" +
-                "PLEASE NOTE. DO. NOT. LEAVE. THIS. ALONE. This is still being worked on heavily");
+                Loc.T("Do you want to run the automated drone finding? If yes, enable this\n" +
+                "PLEASE NOTE. DO. NOT. LEAVE. THIS. ALONE. This is still being worked on heavily"));
         }
     }
 }

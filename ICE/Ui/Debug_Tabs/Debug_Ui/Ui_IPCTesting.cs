@@ -43,7 +43,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
             ImGui.SetNextItemWidth(125);
             ImGui.InputInt(Loc.T("Y Location"), ref YLoc);
 
-            if (ImGui.Button($"Test Radius"))
+            if (ImGui.Button(Loc.T("Test Radius")))
             {
                 var agent = AgentMap.Instance();
 

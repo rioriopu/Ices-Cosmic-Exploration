@@ -96,7 +96,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
                 ImGui.TableNextColumn(); ImGui.Text(string.Join(",", item.Jobs.Select(j => CosmicHelper.GetJobName(j))));
                 ImGui.TableNextColumn(); ImGui.Text(item.RuntimePrice >= 0 ? $"{item.RuntimePrice:N0} (sheet {item.Price:N0})" : $"{item.Price:N0}");
                 ImGui.TableNextColumn(); ImGui.Text(item.ArmouryCount.ToString());
-                ImGui.TableNextColumn(); ImGui.Text(item.IsEquipped ? "yes" : "");
+                ImGui.TableNextColumn(); ImGui.Text(item.IsEquipped ? Loc.T("yes") : Loc.T(""));
             }
         }
     }

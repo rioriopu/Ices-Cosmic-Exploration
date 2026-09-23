@@ -70,7 +70,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Tables
                                 ImGui.Text($"Recipe ID: {mainCraft.Value.RecipeId}");
                                 ImGui.Text($"Expert Craft: {mainCraft.Value.ExpertCraft}");
                                 ImGui.Separator();
-                                ImGui.Text($"Required Item");
+                                ImGui.Text(Loc.T("Required Item"));
                                 foreach (var item in mainCraft.Value.RequiredItems)
                                 {
                                     ImGui.Text($"Id: {item.Key}");
@@ -103,7 +103,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Tables
                                     ImGui.Text($"Recipe ID: {preCraft.Value.RecipeId}");
                                     ImGui.Text($"Expert Craft: {preCraft.Value.ExpertCraft}");
                                     ImGui.Separator();
-                                    ImGui.Text($"Required Item");
+                                    ImGui.Text(Loc.T("Required Item"));
                                     foreach (var item in preCraft.Value.RequiredItems)
                                     {
                                         string itemNameC = ExcelHelper.ItemSheet.GetRow(item.Key).Name.ToString();

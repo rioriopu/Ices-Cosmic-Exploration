@@ -25,7 +25,7 @@ namespace ICE.Ui.MainUi.Settings
             #region CosmoCredits
 
             bool stopCosmic = C.StopOnceHitCosmoCredits;
-            if (ImGui.Checkbox($"Stop at Cosmic Credits", ref stopCosmic))
+            if (ImGui.Checkbox(Loc.T("Stop at Cosmic Credits"), ref stopCosmic))
             {
                 C.StopOnceHitCosmoCredits = stopCosmic;
                 C.Save();
@@ -50,7 +50,7 @@ namespace ICE.Ui.MainUi.Settings
             #region Planet Credits
 
             bool stopLunar = C.StopOnceHitLunarCredits;
-            if (ImGui.Checkbox($"Stop at Planetary Credit Amount", ref stopLunar))
+            if (ImGui.Checkbox(Loc.T("Stop at Planetary Credit Amount"), ref stopLunar))
             {
                 C.StopOnceHitLunarCredits = stopLunar;
                 C.Save();
@@ -71,7 +71,7 @@ namespace ICE.Ui.MainUi.Settings
             #region Cosmic Score
 
             bool stopScore = C.StopOnceHitCosmicScore;
-            if (ImGui.Checkbox($"Stop at Cosmic Score", ref stopScore))
+            if (ImGui.Checkbox(Loc.T("Stop at Cosmic Score"), ref stopScore))
             {
                 C.StopOnceHitCosmicScore = stopScore;
                 C.BuyItems = false;
@@ -93,7 +93,7 @@ namespace ICE.Ui.MainUi.Settings
             #region Level
 
             bool stopWhenLevel = C.StopWhenLevel;
-            if (ImGui.Checkbox($"Stop at Level", ref stopWhenLevel))
+            if (ImGui.Checkbox(Loc.T("Stop at Level"), ref stopWhenLevel))
             {
                 C.StopWhenLevel = stopWhenLevel;
                 C.Save();
@@ -114,7 +114,7 @@ namespace ICE.Ui.MainUi.Settings
             #region Relic Completed
 
             bool relicStop = C.StopOnceRelicFinished;
-            if (ImGui.Checkbox($"Stop @ Relic Complete", ref relicStop))
+            if (ImGui.Checkbox(Loc.T("Stop @ Relic Complete"), ref relicStop))
             {
                 C.StopOnceRelicFinished = relicStop;
                 C.Save();

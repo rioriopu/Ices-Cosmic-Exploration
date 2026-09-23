@@ -786,11 +786,11 @@ public static class CosmicTables
                         if (ImGui.IsItemHovered())
                         {
                             ImGui.BeginTooltip();
-                            ImGui.Text($"Sequence Missions");
+                            ImGui.Text(Loc.T("Sequence Missions"));
                             if (item.SheetInfo.SequenceMissions_Previous.Count() > 0)
                             {
                                 ImGui.Separator();
-                                ImGui.Text($"Previous Missions");
+                                ImGui.Text(Loc.T("Previous Missions"));
                                 foreach (var mission in item.SheetInfo.SequenceMissions_Previous)
                                 {
                                     ImGuiEx.IconWithText(FontAwesomeIcon.ListOl, $"[{mission}] {CosmicHelper.SheetMissionDict[mission].Name}");
@@ -799,7 +799,7 @@ public static class CosmicTables
                             if (item.SheetInfo.SequenceMissions_Next.Count() > 0)
                             {
                                 ImGui.Separator();
-                                ImGui.Text($"Next Missions");
+                                ImGui.Text(Loc.T("Next Missions"));
                                 foreach (var mission in item.SheetInfo.SequenceMissions_Next)
                                 {
                                     ImGuiEx.IconWithText(FontAwesomeIcon.ListOl, $"[{mission}] {CosmicHelper.SheetMissionDict[mission].Name}");
@@ -917,9 +917,9 @@ public static class CosmicTables
                 if (ImGui.IsItemHovered())
                 {
                     ImGui.BeginTooltip();
-                    ImGui.Text($"Click button to view external details");
+                    ImGui.Text(Loc.T("Click button to view external details"));
                     ImGui.Separator();
-                    ImGui.Text($"[Average] Rewards per minute");
+                    ImGui.Text(Loc.T("[Average] Rewards per minute"));
                     if (C.MissionConfig.TryGetValue(item.Id, out var config))
                     {
                         ImGui.Text($"Total Completions: {config.TotalCompletions:N0}/{config.TotalAttempts:N0}");
@@ -1699,11 +1699,11 @@ public static class CosmicTables
                         if (ImGui.IsItemHovered())
                         {
                             ImGui.BeginTooltip();
-                            ImGui.Text($"Sequence Missions");
+                            ImGui.Text(Loc.T("Sequence Missions"));
                             if (item.SheetInfo.SequenceMissions_Previous.Count() > 0)
                             {
                                 ImGui.Separator();
-                                ImGui.Text($"Previous Missions");
+                                ImGui.Text(Loc.T("Previous Missions"));
                                 foreach (var mission in item.SheetInfo.SequenceMissions_Previous)
                                 {
                                     ImGuiEx.IconWithText(FontAwesomeIcon.ListOl, $"[{mission}] {CosmicHelper.SheetMissionDict[mission].Name}");
@@ -1712,7 +1712,7 @@ public static class CosmicTables
                             if (item.SheetInfo.SequenceMissions_Next.Count() > 0)
                             {
                                 ImGui.Separator();
-                                ImGui.Text($"Next Missions");
+                                ImGui.Text(Loc.T("Next Missions"));
                                 foreach (var mission in item.SheetInfo.SequenceMissions_Next)
                                 {
                                     ImGuiEx.IconWithText(FontAwesomeIcon.ListOl, $"[{mission}] {CosmicHelper.SheetMissionDict[mission].Name}");

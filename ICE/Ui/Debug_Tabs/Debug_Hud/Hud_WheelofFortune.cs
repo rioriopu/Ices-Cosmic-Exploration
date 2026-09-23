@@ -6,38 +6,38 @@ namespace ICE.Ui.Debug_Tabs.Debug_Hud
     {
         public static void Draw()
         {
-            if (ImGui.Button($"Auto Gamba"))
+            if (ImGui.Button(Loc.T("Auto Gamba")))
             {
                 Task_Gamba.Enqueue();
             }
 
             if (GenericHelpers.TryGetAddonMaster<WKSLottery>("WKSLottery", out var lotto) && lotto.IsAddonReady)
             {
-                ImGui.Text($"Lottery addon is visible!");
+                ImGui.Text(Loc.T("Lottery addon is visible!"));
 
-                if (ImGui.Button($"Left wheel select"))
+                if (ImGui.Button(Loc.T("Left wheel select")))
                 {
                     Task_Gamba.SelectWheelLeft(lotto);
                 }
                 ImGui.SameLine();
 
-                if (ImGui.Button($"Right wheel select"))
+                if (ImGui.Button(Loc.T("Right wheel select")))
                 {
                     Task_Gamba.SelectWheelRight(lotto);
                 }
 
                 ImGui.SameLine();
-                if (ImGui.Button($"Confirm"))
+                if (ImGui.Button(Loc.T("Confirm")))
                 {
                     lotto.ConfirmButton();
                 }
 
-                if (ImGui.Button($"Auto Gamba"))
+                if (ImGui.Button(Loc.T("Auto Gamba")))
                 {
                     Task_Gamba.Enqueue();
                 }
 
-                ImGui.Text($"Items in left wheel");
+                ImGui.Text(Loc.T("Items in left wheel"));
                 foreach (var l in lotto.LeftWheelItems)
                 {
                     ImGui.Text($"Name: {l.itemName} | Id: {l.itemId} | Amount: {l.itemAmount}");

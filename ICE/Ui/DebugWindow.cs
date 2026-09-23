@@ -31,7 +31,7 @@ internal class DebugWindow : Window
             Icon = FontAwesomeIcon.Bars,
             IconOffset = new Vector2(2, 1),
             Click = _ => _showSidebar = !_showSidebar,
-            ShowTooltip = () => ImGui.SetTooltip(_showSidebar ? "Hide tab list" : "Show tab list"),
+            ShowTooltip = () => ImGui.SetTooltip(_showSidebar ? Loc.T("Hide tab list") : Loc.T("Show tab list")),
         });
 
         P.windowSystem.AddWindow(this);

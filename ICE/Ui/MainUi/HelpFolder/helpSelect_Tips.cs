@@ -47,7 +47,7 @@ namespace ICE.Ui.MainUi.HelpFolder
                 foreach (Help_Selection tip in Enum.GetValues<Help_Selection>())
                 {
                     bool isSelected = tip == selectedMode;
-                    if (ImGui.Selectable($"{EnumString(tip)}", isSelected))
+                    if (ImGui.Selectable(Loc.T(EnumString(tip)), isSelected))
                     {
                         selectedMode = tip;
                     }

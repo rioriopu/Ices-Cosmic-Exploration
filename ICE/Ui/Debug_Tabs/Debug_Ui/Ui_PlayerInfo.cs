@@ -78,7 +78,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
                 ImGui.Text($"Distance: {Player.DistanceTo(currentTarget):N2}");
             }
 
-            ImGui.Text($"Items on person: ");
+            ImGui.Text(Loc.T("Items on person: "));
             foreach (var item in ConsumableInfo.GatherFood)
             {
                 if (PlayerHelper.GetItemCount(item.Id, out var count) && count > 0)

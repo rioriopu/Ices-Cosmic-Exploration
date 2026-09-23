@@ -156,7 +156,7 @@ namespace ICE.Ui.MainUi.Settings
             }
 
             bool showSelectedWeatherMissions = C.Overlay_WeatherSelected;
-            if (ImGui.Checkbox($"Show enabled missions on weather hover", ref showSelectedWeatherMissions))
+            if (ImGui.Checkbox(Loc.T("Show enabled missions on weather hover"), ref showSelectedWeatherMissions))
             {
                 C.Overlay_WeatherSelected = showSelectedWeatherMissions;
                 C.Save();
@@ -225,8 +225,8 @@ namespace ICE.Ui.MainUi.Settings
             }
             ImGui.SameLine();
             ImGuiEx.IconWithTooltip(FontAwesomeIcon.InfoCircle,
-                                   "Automatically removes the Star Contributor visual effect (the glow you get for being a top contributor).\n" +
-                                   "The buff restores itself when you re-enter the zone.");
+                                   Loc.T("Automatically removes the Star Contributor visual effect (the glow you get for being a top contributor).\n" +
+                                   "The buff restores itself when you re-enter the zone."));
 
             bool autoStartOnMoonEnter = C.StartUponEnterMoon;
             if (ImGui.Checkbox(Loc.T("Auto start upon entering a Cosmic Exploration area"), ref autoStartOnMoonEnter))
@@ -236,10 +236,10 @@ namespace ICE.Ui.MainUi.Settings
             }
             ImGui.SameLine();
             ImGuiEx.IconWithTooltip(FontAwesomeIcon.QuestionCircle,
-                                   "This will check to see if you're on a gathering/crafting class upon first entering the moon.\n" +
+                                   Loc.T("This will check to see if you're on a gathering/crafting class upon first entering the moon.\n" +
                                    "If you are, it will automatically start as if you had pressed the start button yourself\n" +
                                    "Really useful if you have a tool to auto-log you in/if you just want to enter the moon and go\n" +
-                                   "This will ONLY run upon first entry.");
+                                   "This will ONLY run upon first entry."));
             ImGui.Dummy(Vector2.Zero);
         }
         private static void GoldMissionRemover()
@@ -371,9 +371,9 @@ namespace ICE.Ui.MainUi.Settings
                 C.Save();
             }
             ImGui.SameLine();
-            ImGuiEx.IconWithTooltip(FontAwesomeIcon.QuestionCircle, "This does abosolutely nothing\n" +
+            ImGuiEx.IconWithTooltip(FontAwesomeIcon.QuestionCircle, Loc.T("This does abosolutely nothing\n" +
                 "But I know there's going to be people who enable this and don't read, so it's a tehe.\n" +
-                "Thanks for using my plugin though, it means a lot <3");
+                "Thanks for using my plugin though, it means a lot <3"));
 
             var fakeFishing = C.FakeIncreaseFisher;
             ImGui.Dummy(new(0, 0));
@@ -384,8 +384,8 @@ namespace ICE.Ui.MainUi.Settings
             }
             ImGui.SameLine();
             ImGuiEx.IconWithTooltip(FontAwesomeIcon.QuestionCircle, 
-                "This is your warning, this will just apply a clown head to you every minute or so from glamourer.\n" +
-                "100% a joke setting, don't take it seriously. I don't have the technology for this");
+                Loc.T("This is your warning, this will just apply a clown head to you every minute or so from glamourer.\n" +
+                "100% a joke setting, don't take it seriously. I don't have the technology for this"));
         }
         private static void Separator()
         {

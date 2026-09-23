@@ -49,7 +49,7 @@ namespace ICE.Ui.MainUi.HelpFolder
         {
             // Search input
             ImGui.SetNextItemWidth(300);
-            ImGui.InputTextWithHint("##LogSearch", "Search logs...", ref searchFilter, 256);
+            ImGui.InputTextWithHint("##LogSearch", Loc.T("Search logs..."), ref searchFilter, 256);
 
             ImGui.SameLine();
             if (ImGui.Button(Loc.T("Copy Logs")))

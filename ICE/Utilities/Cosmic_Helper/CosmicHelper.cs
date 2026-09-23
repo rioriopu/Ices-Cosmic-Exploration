@@ -274,7 +274,7 @@ public static unsafe partial class CosmicHelper
 
                         string GetSolverLabel(ArtisanCraftType type)
                         {
-                            return type switch
+                            return Loc.T(type switch
                             {
                                 ArtisanCraftType.Default => "Default",
                                 ArtisanCraftType.Raphael => "Raphael Solver",
@@ -283,7 +283,7 @@ public static unsafe partial class CosmicHelper
                                 ArtisanCraftType.Expert => "Expert Recipe Solver",
                                 ArtisanCraftType.Macro => "Artisan Macro",
                                 _ => "Unknown"
-                            };
+                            });
                         }
                         string GetFoodLable(uint foodId)
                         {
@@ -722,7 +722,7 @@ public static unsafe partial class CosmicHelper
                             if (supportedArtisan)
                             {
                                 ImGui.TableNextColumn();
-                                ImGui.Text($"Max use");
+                                ImGui.Text(Loc.T("Max use"));
 
                                 ImGui.TableNextColumn();
                                 var maxUsage = recipeConfig.SkillUsageAmount;

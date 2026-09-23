@@ -14,12 +14,12 @@ public static class Settings_TableColumns
     public static void ColumnSettings()
     {
         int missionSelectedOption = C.TableSortOption;
-        if (ImGui.BeginCombo(Loc.T("Sort By"), missionSortOptions[missionSelectedOption]))
+        if (ImGui.BeginCombo(Loc.T("Sort By"), Loc.T(missionSortOptions[missionSelectedOption])))
         {
             for (int i = 0; i < missionSortOptions.Length; i++)
             {
                 bool isSelected = (i == missionSelectedOption);
-                if (ImGui.Selectable(missionSortOptions[i], isSelected))
+                if (ImGui.Selectable(Loc.T(missionSortOptions[i]), isSelected))
                 {
                     missionSelectedOption = i;
                 }
@@ -111,7 +111,7 @@ public static class Settings_TableColumns
                 ApplyToAllClasses = false;
                 ApplyToSpecicClass = true;
             }
-            if (ImGui.Combo("##ClassSelector", ref selectedClassIndex, classOptions, classOptions.Length))
+            if (ImGui.Combo("##ClassSelector", ref selectedClassIndex, classOptions.Select(Loc.T).ToArray(), classOptions.Length))
             {
                 // Update SpecificClass when selection changes
                 SpecificClass = classIds[selectedClassIndex];

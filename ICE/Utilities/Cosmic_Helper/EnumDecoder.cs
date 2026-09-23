@@ -11,7 +11,8 @@ public static unsafe partial class CosmicHelper
         if (CosmicMoonRegistry.TryGetMoonForMaxRelicOption(option, out var moon))
             return $"Max {moon.DisplayName} Relic [Lv. {moon.MaxRelicStage}]";
 
-        return option switch
+        // UI に表示する名前なので辞書で日本語化する
+        return Loc.T(option switch
         {
             PlaylistOptions.None => "None",
             PlaylistOptions.SelectedRelicLv => "Selected Relic Level",
@@ -24,6 +25,6 @@ public static unsafe partial class CosmicHelper
             PlaylistOptions.ToolMaxExp => "Max Tool Exp",
             PlaylistOptions.MasteryScore => "Mastery Score",
             _ => "???"
-        };
+        });
     }
 }

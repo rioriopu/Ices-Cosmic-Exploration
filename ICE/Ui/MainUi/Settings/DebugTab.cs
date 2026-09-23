@@ -65,7 +65,7 @@ namespace ICE.Ui.MainUi.Settings.Settings_Table
             }
 
             bool onlyGrabMission = C.OnlyGrabMission_Debug;
-            if (ImGui.Checkbox($"Only grab mission", ref onlyGrabMission))
+            if (ImGui.Checkbox(Loc.T("Only grab mission"), ref onlyGrabMission))
             {
                 C.OnlyGrabMission_Debug = onlyGrabMission;
                 C.Save();

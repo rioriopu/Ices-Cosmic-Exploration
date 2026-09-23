@@ -296,7 +296,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Tables
                     }
                     else
                     {
-                        ImGui.Text($"0");
+                        ImGui.Text(Loc.T("0"));
                     }
 
                     // Rank of the mission
@@ -345,7 +345,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Tables
                         }
                         else
                         {
-                            ImGui.Text($"-");
+                            ImGui.Text(Loc.T("-"));
                         }
                     }
 

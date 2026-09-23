@@ -46,7 +46,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Tables
             ImGui.SetNextItemWidth(200);
             ImGui.SliderInt(Loc.T("Filter##JobFilter"), ref sliderIndex, 0, 11, jobLabels[sliderIndex]);
 
-            ImGui.Text($"1, 2, 3, 4, 5");
+            ImGui.Text(Loc.T("1, 2, 3, 4, 5"));
             ImGui.Text(Loc.T("2, 3, 5, 6, 7"));
 
             using (var missionTable = ImRaii.Child("Mission Selection Window", new Vector2(0, 0)))

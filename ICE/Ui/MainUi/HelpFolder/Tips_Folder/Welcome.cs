@@ -8,8 +8,8 @@ namespace ICE.Ui.MainUi.HelpFolder.Tips_Folder
     {
         public static void Draw()
         {
-            ImGui.TextWrapped($"Welcome! This is probably the most complicated plugin I've created so far.");
-            ImGui.TextWrapped($"This plugin is designed for specifically for the use of Cosmic Exploration, and is kinda hefty. So I'm going to try and go through all the different tips / tricks");
+            ImGui.TextWrapped(Loc.T("Welcome! This is probably the most complicated plugin I've created so far."));
+            ImGui.TextWrapped(Loc.T("This plugin is designed for specifically for the use of Cosmic Exploration, and is kinda hefty. So I'm going to try and go through all the different tips / tricks"));
 
             ImGui.Dummy(new(0, 5));
 

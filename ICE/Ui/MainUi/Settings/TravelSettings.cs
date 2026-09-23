@@ -98,9 +98,9 @@ namespace ICE.Ui.MainUi.Settings.Settings_Table
             }
             ImGui.SameLine();
             ImGui_Ice.IconWithTooltip(FontAwesomeIcon.QuestionCircle,
-                "This will adjust how much of the center point of the fan it will randomize from.\n" +
+                Loc.T("This will adjust how much of the center point of the fan it will randomize from.\n" +
                 "360 = the whole fan will be available for selection\n" +
-                "Anything besides that will chose within that fan (if it's available)", false);
+                "Anything besides that will chose within that fan (if it's available)"), false);
 
             bool selfGather = C.Gather_NoNav;
             if (ImGui.Checkbox(Loc.T("Disable Pathfinding Between Gathering Nodes"), ref selfGather))
@@ -110,11 +110,11 @@ namespace ICE.Ui.MainUi.Settings.Settings_Table
             }
             ImGui.SameLine();
             ImGui_Ice.IconWithTooltip(FontAwesomeIcon.QuestionCircle,
-                "This will disable the pathfinding between the nodes WHILE in the mission\n" +
+                Loc.T("This will disable the pathfinding between the nodes WHILE in the mission\n" +
                 "But still allow the automation of skills/gathering actions/desynth between missions\n" +
                 "This is VERY testing beta, so there might be issues\n" +
                 "I swear on cuthulu's name if you enable this then ask \"Why it don't work\"" +
-                "You'll be banned by the shadow realm");
+                "You'll be banned by the shadow realm"));
 
 
             bool useHubReturn = C.UseHubReturn;
@@ -297,10 +297,10 @@ namespace ICE.Ui.MainUi.Settings.Settings_Table
         {
             ImGuiEx.IconWithText(FontAwesomeIcon.Fish, Loc.T("Personalized Fishing Spots"));
             ImGui.SameLine();
-            ImGui_Ice.IconWithTooltip(FontAwesomeIcon.QuestionCircle, "A way for you to save your own positions if you choose to not use a randomized spot that's included in the plugin\n" +
+            ImGui_Ice.IconWithTooltip(FontAwesomeIcon.QuestionCircle, Loc.T("A way for you to save your own positions if you choose to not use a randomized spot that's included in the plugin\n" +
                 "You don't have to use this, it will just use a random spot if:\n" +
                 "1: A position is saved:\n" +
-                "2: A random spot even is saved", false);
+                "2: A random spot even is saved"), false);
             ImGui.Dummy(new Vector2(0, 5));
 
             var currentTerritory = Player.Territory.RowId;
@@ -362,7 +362,7 @@ namespace ICE.Ui.MainUi.Settings.Settings_Table
             }
             else
             {
-                ImGui.Text($"Current planet has no stored fishing holes in the sheets. (Might need to be added?)");
+                ImGui.Text(Loc.T("Current planet has no stored fishing holes in the sheets. (Might need to be added?)"));
             }
         }
     }

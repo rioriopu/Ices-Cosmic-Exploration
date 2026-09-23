@@ -84,7 +84,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
             var planet = CosmicMoonRegistry.All[_selectedPlanetIndex];
 
             ImGui.SetNextItemWidth(-1);
-            ImGui.InputTextWithHint("##routeSearch", "Search...", ref _routeSearch, 64);
+            ImGui.InputTextWithHint("##routeSearch", Loc.T("Search..."), ref _routeSearch, 64);
 
             var routes = GatheringUtil.GatherSpots
                 .Where(x => x.Value.TerritoryId == planet.TerritoryId)

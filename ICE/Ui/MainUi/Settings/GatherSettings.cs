@@ -328,8 +328,8 @@ namespace ICE.Ui.MainUi.Settings
             }
             ImGui.SameLine();
             ImGui_Ice.IconWithTooltip(FontAwesomeIcon.QuestionCircle,
-                "採取したいノードの前に立って「現在地を記録」を押すと、以降はルートを無視してその地点へ移動し採取します。\n" +
-                "記録した惑星にいるときだけ有効です。通常のルート採取に戻すときはチェックを外すか記録をクリアしてください。");
+                Loc.T("採取したいノードの前に立って「現在地を記録」を押すと、以降はルートを無視してその地点へ移動し採取します。\n" +
+                "記録した惑星にいるときだけ有効です。通常のルート採取に戻すときはチェックを外すか記録をクリアしてください。"));
 
             if (C.DesignatedNodeEnabled)
             {
@@ -367,11 +367,11 @@ namespace ICE.Ui.MainUi.Settings
             }
             ImGui.SameLine();
             ImGui_Ice.IconWithTooltip(FontAwesomeIcon.QuestionCircle,
-                "This will disable the pathfinding between the nodes WHILE in the mission\n" +
+                Loc.T("This will disable the pathfinding between the nodes WHILE in the mission\n" +
                 "But still allow the automation of skills/gathering actions/desynth between missions\n" +
                 "This is VERY testing beta, so there might be issues\n" +
                 "I swear on cuthulu's name if you enable this then ask \"Why it don't work\"" +
-                "You'll be banned by the shadow realm");
+                "You'll be banned by the shadow realm"));
 
             ImGui.Separator();
 
@@ -537,9 +537,9 @@ namespace ICE.Ui.MainUi.Settings
                     int minUseGp = entry.GatherBuffs.Buffs[buffName].MinGp;
                     int minActionGp = GatheringUtil.GathActionDict[buffName].RequiredGp;
                     int maxActionUsage = entry.GatherBuffs.Buffs[buffName].MaxUse;
-                    string ActionInfo = "Apply a 30% buff to your boon chance.";
+                    string ActionInfo = Loc.T("Apply a 30% buff to your boon chance.");
 
-                    ImGui.Text($"Action Info: ");
+                    ImGui.Text(Loc.T("Action Info: "));
                     ImGuiEx.HelpMarker(ActionInfo);
 
                     if (ImGui.Checkbox(Loc.T("Enable"), ref currentlyEnabled))
@@ -579,9 +579,9 @@ namespace ICE.Ui.MainUi.Settings
                     int minUseGp = entry.GatherBuffs.Buffs[buffName].MinGp;
                     int minActionGp = GatheringUtil.GathActionDict[buffName].RequiredGp;
                     int maxActionUsage = entry.GatherBuffs.Buffs[buffName].MaxUse;
-                    string ActionInfo = "Apply a 10% buff to your boon chance.";
+                    string ActionInfo = Loc.T("Apply a 10% buff to your boon chance.");
 
-                    ImGui.Text($"Action Info: ");
+                    ImGui.Text(Loc.T("Action Info: "));
                     ImGuiEx.HelpMarker(ActionInfo);
 
                     if (ImGui.Checkbox(Loc.T("Enable"), ref currentlyEnabled))
@@ -623,9 +623,9 @@ namespace ICE.Ui.MainUi.Settings
                     int minUseGp = entry.GatherBuffs.Buffs[buffName].MinGp;
                     int minActionGp = GatheringUtil.GathActionDict[buffName].RequiredGp;
                     int maxActionUsage = entry.GatherBuffs.Buffs[buffName].MaxUse;
-                    string ActionInfo = "Increases item yield from Gatherer's Boon by 1";
+                    string ActionInfo = Loc.T("Increases item yield from Gatherer's Boon by 1");
 
-                    ImGui.Text($"Action Info: ");
+                    ImGui.Text(Loc.T("Action Info: "));
                     ImGuiEx.HelpMarker(ActionInfo);
 
                     if (ImGui.Checkbox(Loc.T("Enable"), ref currentlyEnabled))
@@ -668,10 +668,10 @@ namespace ICE.Ui.MainUi.Settings
                     int minUsableDurability = entry.GatherBuffs.Buffs[buffName].MinUsableDurability;
                     int minActionGp = GatheringUtil.GathActionDict[buffName].RequiredGp;
                     int maxActionUsage = entry.GatherBuffs.Buffs[buffName].MaxUse;
-                    string ActionInfo = "Increases the number of items obtained when gathering by 2\n" +
-                                        "Will only apply when the gathering node has full durability";
+                    string ActionInfo = Loc.T("Increases the number of items obtained when gathering by 2\n" +
+                                        "Will only apply when the gathering node has full durability");
 
-                    ImGui.Text($"Action Info: ");
+                    ImGui.Text(Loc.T("Action Info: "));
                     ImGuiEx.HelpMarker(ActionInfo);
 
                     if (ImGui.Checkbox(Loc.T("Enable"), ref currentlyEnabled))
@@ -694,8 +694,8 @@ namespace ICE.Ui.MainUi.Settings
                         C.SaveDebounced();
                     }
                     ImGui_Ice.IconWithTooltip(Dalamud.Interface.FontAwesomeIcon.InfoCircle,
-                        "What's the minimum durability a node can have before this action is activated?\n" +
-                        "Mainly used for missions where you can chain durability refresh");
+                        Loc.T("What's the minimum durability a node can have before this action is activated?\n" +
+                        "Mainly used for missions where you can chain durability refresh"));
 
                     ImGui.SetNextItemWidth(200);
                     if (ImGui.InputInt(Loc.T("Max Use"), ref maxActionUsage))
@@ -724,10 +724,10 @@ namespace ICE.Ui.MainUi.Settings
                     int minUsableDurability = entry.GatherBuffs.Buffs[buffName].MinUsableDurability;
                     int minActionGp = GatheringUtil.GathActionDict[buffName].RequiredGp;
                     int maxActionUsage = entry.GatherBuffs.Buffs[buffName].MaxUse;
-                    string ActionInfo = "Increases the number of items obtained when gathering by 1\n" +
-                                        "Will only apply when the gathering node has full durability";
+                    string ActionInfo = Loc.T("Increases the number of items obtained when gathering by 1\n" +
+                                        "Will only apply when the gathering node has full durability");
 
-                    ImGui.Text($"Action Info: ");
+                    ImGui.Text(Loc.T("Action Info: "));
                     ImGuiEx.HelpMarker(ActionInfo);
 
                     if (ImGui.Checkbox(Loc.T("Enable"), ref currentlyEnabled))
@@ -750,8 +750,8 @@ namespace ICE.Ui.MainUi.Settings
                         C.SaveDebounced();
                     }
                     ImGui_Ice.IconWithTooltip(Dalamud.Interface.FontAwesomeIcon.InfoCircle,
-                        "What's the minimum durability a node can have before this action is activated?\n" +
-                        "Mainly used for missions where you can chain durability refresh");
+                        Loc.T("What's the minimum durability a node can have before this action is activated?\n" +
+                        "Mainly used for missions where you can chain durability refresh"));
 
                     ImGui.SetNextItemWidth(200);
                     if (ImGui.InputInt(Loc.T("Max Use"), ref maxActionUsage))
@@ -780,10 +780,10 @@ namespace ICE.Ui.MainUi.Settings
                     int minUsableDurability = entry.GatherBuffs.Buffs[buffName].MinUsableDurability;
                     int minActionGp = GatheringUtil.GathActionDict[buffName].RequiredGp;
                     int maxActionUsage = entry.GatherBuffs.Buffs[buffName].MaxUse;
-                    string ActionInfo = "Increase the Integrity by 1\n" +
-                                        "50% chance to grant Eureka Moment";
+                    string ActionInfo = Loc.T("Increase the Integrity by 1\n" +
+                                        "50% chance to grant Eureka Moment");
 
-                    ImGui.Text($"Action Info: ");
+                    ImGui.Text(Loc.T("Action Info: "));
                     ImGuiEx.HelpMarker(ActionInfo);
 
                     if (ImGui.Checkbox(Loc.T("Enable"), ref currentlyEnabled))
@@ -832,10 +832,10 @@ namespace ICE.Ui.MainUi.Settings
                     int minUseGp = entry.GatherBuffs.Buffs[buffName].MinGp;
                     int minActionGp = GatheringUtil.GathActionDict[buffName].RequiredGp;
                     int maxActionUsage = entry.GatherBuffs.Buffs[buffName].MaxUse;
-                    string ActionInfo = "Increases the number of items obtained when gathering by 2\n" +
-                                        "Will only apply when the gathering node has full durability";
+                    string ActionInfo = Loc.T("Increases the number of items obtained when gathering by 2\n" +
+                                        "Will only apply when the gathering node has full durability");
 
-                    ImGui.Text($"Action Info: ");
+                    ImGui.Text(Loc.T("Action Info: "));
                     ImGuiEx.HelpMarker(ActionInfo);
 
                     if (ImGui.Checkbox(Loc.T("Enable"), ref currentlyEnabled))
@@ -888,11 +888,11 @@ namespace ICE.Ui.MainUi.Settings
                     int minUseGp = entry.GatherBuffs.Buffs[buffName].MinGp;
                     int minActionGp = GatheringUtil.GathActionDict[buffName].RequiredGp;
                     int maxActionUsage = entry.GatherBuffs.Buffs[buffName].MaxUse;
-                    string ActionInfo = "Increases the gather chance by 50%\n" +
+                    string ActionInfo = Loc.T("Increases the gather chance by 50%\n" +
                                         "Please note: You can have multiple enabled, but only the one that will get you the closest to " +
-                                        "100% the cheapest will be applied";
+                                        "100% the cheapest will be applied");
 
-                    ImGui.Text($"Action Info: ");
+                    ImGui.Text(Loc.T("Action Info: "));
                     ImGuiEx.HelpMarker(ActionInfo);
 
                     if (ImGui.Checkbox(Loc.T("Enable"), ref currentlyEnabled))
@@ -934,11 +934,11 @@ namespace ICE.Ui.MainUi.Settings
                     int minUseGp = entry.GatherBuffs.Buffs[buffName].MinGp;
                     int minActionGp = GatheringUtil.GathActionDict[buffName].RequiredGp;
                     int maxActionUsage = entry.GatherBuffs.Buffs[buffName].MaxUse;
-                    string ActionInfo = "Increases the gather chance by 15%\n" +
+                    string ActionInfo = Loc.T("Increases the gather chance by 15%\n" +
                                         "Please note: You can have multiple enabled, but only the one that will get you the closest to " +
-                                        "100% the cheapest will be applied";
+                                        "100% the cheapest will be applied");
 
-                    ImGui.Text($"Action Info: ");
+                    ImGui.Text(Loc.T("Action Info: "));
                     ImGuiEx.HelpMarker(ActionInfo);
 
                     if (ImGui.Checkbox(Loc.T("Enable"), ref currentlyEnabled))
@@ -980,11 +980,11 @@ namespace ICE.Ui.MainUi.Settings
                     int minUseGp = entry.GatherBuffs.Buffs[buffName].MinGp;
                     int minActionGp = GatheringUtil.GathActionDict[buffName].RequiredGp;
                     int maxActionUsage = entry.GatherBuffs.Buffs[buffName].MaxUse;
-                    string ActionInfo = "Increases the gather chance by 5%\n" +
+                    string ActionInfo = Loc.T("Increases the gather chance by 5%\n" +
                                         "Please note: You can have multiple enabled, but only the one that will get you the closest to " +
-                                        "100% the cheapest will be applied";
+                                        "100% the cheapest will be applied");
 
-                    ImGui.Text($"Action Info: ");
+                    ImGui.Text(Loc.T("Action Info: "));
                     ImGuiEx.HelpMarker(ActionInfo);
 
                     if (ImGui.Checkbox(Loc.T("Enable"), ref currentlyEnabled))
@@ -1026,10 +1026,10 @@ namespace ICE.Ui.MainUi.Settings
                     int minUseGp = entry.GatherBuffs.Buffs[buffName].MinGp;
                     int minActionGp = GatheringUtil.GathActionDict[buffName].RequiredGp;
                     int maxActionUsage = entry.GatherBuffs.Buffs[buffName].MaxUse;
-                    string ActionInfo = "Increases the gather chance by 15%\n" +
-                                        "This can be applied with normal field mastery, but will only apply per hit";
+                    string ActionInfo = Loc.T("Increases the gather chance by 15%\n" +
+                                        "This can be applied with normal field mastery, but will only apply per hit");
 
-                    ImGui.Text($"Action Info: ");
+                    ImGui.Text(Loc.T("Action Info: "));
                     ImGuiEx.HelpMarker(ActionInfo);
 
                     if (ImGui.Checkbox(Loc.T("Enable"), ref currentlyEnabled))

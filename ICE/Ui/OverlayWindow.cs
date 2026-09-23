@@ -145,7 +145,7 @@ namespace ICE.Ui
                 if (ImGui.IsItemHovered())
                 {
                     ImGui.BeginTooltip();
-                    ImGui.Text(droneActive ? "Stop Drone Finder" : "Run Drone Finder");
+                    ImGui.Text(droneActive ? Loc.T("Stop Drone Finder") : Loc.T("Run Drone Finder"));
                     ImGui.EndTooltip();
                 }
             }
@@ -160,7 +160,7 @@ namespace ICE.Ui
                 ModeSelect.MissionGoldMode => "Gold Completion Grind",
                 _ => C.SelectedMode.ToString(),
             };
-            ImGui.Text($"{modeName} - {SchedulerMain.State}");
+            ImGui.Text($"{Loc.T(modeName)} - {SchedulerMain.State}");
 
             // Start/Stop toggle
             bool running = SchedulerMain.State != IceState.Idle;
@@ -178,7 +178,7 @@ namespace ICE.Ui
             if (ImGui.IsItemHovered())
             {
                 ImGui.BeginTooltip();
-                ImGui.Text(running ? "Stop" : "Start");
+                ImGui.Text(running ? Loc.T("Stop") : Loc.T("Start"));
                 ImGui.EndTooltip();
             }
 
@@ -196,7 +196,7 @@ namespace ICE.Ui
             if (ImGui.IsItemHovered())
             {
                 ImGui.BeginTooltip();
-                ImGui.Text(Mission_Settings.StopAfterCurrent ? "Stop after current mission: ON" : "Stop after current mission: OFF");
+                ImGui.Text(Mission_Settings.StopAfterCurrent ? Loc.T("Stop after current mission: ON") : Loc.T("Stop after current mission: OFF"));
                 ImGui.EndTooltip();
             }
 
@@ -510,7 +510,7 @@ namespace ICE.Ui
             if (ImGui.IsItemHovered())
             {
                 ImGui.BeginTooltip();
-                ImGui.Text(icon == FontAwesomeIcon.Cloud ? "Weather" : "Timed");
+                ImGui.Text(icon == FontAwesomeIcon.Cloud ? Loc.T("Weather") : Loc.T("Timed"));
                 ImGui.EndTooltip();
             }
         }

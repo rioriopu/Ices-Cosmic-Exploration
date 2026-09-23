@@ -216,7 +216,7 @@ namespace ICE.Ui.DebugWindowTabs
             }
             else
             {
-                ImGui.Text($"No macro's loaded");
+                ImGui.Text(Loc.T("No macro's loaded"));
             }
 
         }

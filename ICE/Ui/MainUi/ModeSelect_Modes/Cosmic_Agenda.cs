@@ -1,4 +1,4 @@
-﻿using Dalamud.Interface;
+using Dalamud.Interface;
 using Dalamud.Interface.Utility;
 using Dalamud.Interface.Utility.Raii;
 using ECommons.GameHelpers;
@@ -85,7 +85,7 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                         modeIcon = FontAwesomeIcon.ClipboardList;
                     }
 
-                    ImGuiEx.IconWithText(modeIcon, $"{modeType} Mode");
+                    ImGuiEx.IconWithText(modeIcon, Loc.T($"{modeType} Mode"));
 
                     ImGui.SameLine(0, 10 * scale);
 
@@ -416,7 +416,7 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
 
         private static string ModeSelectString(ModeSelect mode)
         {
-            return mode switch
+            return Loc.T(mode switch
             {
                 ModeSelect.Standard => "Standard",
                 ModeSelect.RelicMode => "Relic Grind Mode",
@@ -425,7 +425,7 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                 ModeSelect.MissionGoldMode => "Gold Completion Mode",
                 ModeSelect.AgendaMode => "Cosmic Agenda Mode",
                 _ => $"??? {mode}"
-            };
+            });
         }
 
         private static ImGuiEx.RealtimeDragDrop<AgendaInfo>? _dragDrop;
@@ -604,7 +604,7 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                                 }
                                 else
                                 {
-                                    ImGui.SetTooltip($"No score can be loaded");
+                                    ImGui.SetTooltip(Loc.T("No score can be loaded"));
                                 }
                             }
                         }

@@ -99,21 +99,21 @@ namespace ICE.Ui.Debug_Tabs.Debug_Hud
 
                     ImGui.TableNextRow();
                     ImGui.TableSetColumnIndex(0);
-                    ImGui.Text($"Scour Amount");
+                    ImGui.Text(Loc.T("Scour Amount"));
 
                     ImGui.TableNextColumn();
                     ImGui.Text($"{gatherCollect.ScourPower}");
 
                     ImGui.TableNextRow();
                     ImGui.TableSetColumnIndex(0);
-                    ImGui.Text($"Brazen Power");
+                    ImGui.Text(Loc.T("Brazen Power"));
 
                     ImGui.TableNextColumn();
                     ImGui.Text($"{gatherCollect.BrazenPowerMin} | {gatherCollect.BrazenPowerMax}");
 
                     ImGui.TableNextRow();
                     ImGui.TableSetColumnIndex(0);
-                    ImGui.Text($"Meticulous Power");
+                    ImGui.Text(Loc.T("Meticulous Power"));
 
                     ImGui.TableNextColumn();
                     ImGui.Text($"{gatherCollect.MeticulousPower}");

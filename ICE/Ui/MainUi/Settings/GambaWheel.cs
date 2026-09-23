@@ -221,7 +221,7 @@ namespace ICE.Ui.MainUi.Settings
                                     }
 
                                     ImGui.TableNextColumn();
-                                    ImGui.TextUnformatted(UnlockState.IsItemUnlockable(itemInfo) ? UnlockState.IsItemUnlocked(itemInfo) ? "Yes" : "No" : "-");
+                                    ImGui.TextUnformatted(UnlockState.IsItemUnlockable(itemInfo) ? UnlockState.IsItemUnlocked(itemInfo) ? Loc.T("Yes") : Loc.T("No") : Loc.T("-"));
                                     
                                     ImGui.TableNextColumn();
                                     ImGui.Text($"{name}");

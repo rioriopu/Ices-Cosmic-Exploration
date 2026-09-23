@@ -18,7 +18,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
 
             var MapInfo = ExcelHelper.MarkerSheet;
 
-            if (ImGui.Button($"Test Radius"))
+            if (ImGui.Button(Loc.T("Test Radius")))
             {
                 var agent = AgentMap.Instance();
 
@@ -41,7 +41,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
             ImGui.SameLine();
             ImGui.SetNextItemWidth(125);
             ImGui.InputInt(Loc.T("Map Radius"), ref posRadius);
-            if (ImGui.Button($"Test Map Marker from coords"))
+            if (ImGui.Button(Loc.T("Test Map Marker from coords")))
             {
                 var agent = AgentMap.Instance();
                 int _x = posX - 1024;

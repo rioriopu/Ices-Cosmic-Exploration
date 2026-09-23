@@ -88,7 +88,7 @@ namespace ICE.Ui.MainUi.Settings
                         ProvisionalTypes.ProvisionalWeather => "Weather",
                         _ => entry.ToString()
                     };
-                    ImGui.Text($"{type}");
+                    ImGui.Text(Loc.T(type));
 
                     ImGui.PopID();
                 }
@@ -106,8 +106,8 @@ namespace ICE.Ui.MainUi.Settings
             ImGui.Text(Loc.T("Mission Search Priority"));
             ImGui_Ice.IconWithTooltip(
                 FontAwesomeIcon.InfoCircle, 
-                "Order you would like to do the actions. It will work from the top down.\n" +
-                "So if you Have Red Arert -> Drone Search, if a red alert isn't available, it will proceed to use a drone box if it can");
+                Loc.T("Order you would like to do the actions. It will work from the top down.\n" +
+                "So if you Have Red Arert -> Drone Search, if a red alert isn't available, it will proceed to use a drone box if it can"));
 
             _dragDrop_MissionType ??= new ImGuiEx.RealtimeDragDrop<MissionTypes>(
                 "MissionTypeDragDrop",
@@ -160,12 +160,12 @@ namespace ICE.Ui.MainUi.Settings
                         MissionTypes.Standard => "Standard Missions [A->D]",
                         _ => $"{entry}"
                     };
-                    ImGui.Text($"{name}");
+                    ImGui.Text(Loc.T(name));
                     if (entry == MissionTypes.DroneSearch && !C.Cosmodrone_Run)
                     {
                         ImGui.SameLine();
                         ImGui_Ice.IconWithTooltip(FontAwesomeIcon.ExclamationTriangle,
-                            "Finding drone locations is turned off, so we're just going to ignore this. If you want to run this, please enable it");
+                            Loc.T("Finding drone locations is turned off, so we're just going to ignore this. If you want to run this, please enable it"));
                     }
 
                     ImGui.PopID();
@@ -183,10 +183,10 @@ namespace ICE.Ui.MainUi.Settings
         {
             ImGui.Text(Loc.T("Provisional Job Priority"));
             ImGui_Ice.IconWithTooltip(FontAwesomeIcon.InfoCircle,
-                "Order you would like to do the provisional mission in, if multiple are selected and the option to do multiple classes is enabled");
+                Loc.T("Order you would like to do the provisional mission in, if multiple are selected and the option to do multiple classes is enabled"));
 
             bool provisionalAllJobs = C.GrindAllProvisionals;
-            if (ImGui_Ice.SliderButton("##Provisional_AllJobsToggle", "Allow for all Provisional Jobs", ref provisionalAllJobs))
+            if (ImGui_Ice.SliderButton("##Provisional_AllJobsToggle", Loc.T("Allow for all Provisional Jobs"), ref provisionalAllJobs))
             {
                 C.GrindAllProvisionals = provisionalAllJobs;
                 C.Save();
@@ -228,7 +228,7 @@ namespace ICE.Ui.MainUi.Settings
 
                     ImGui.TableNextColumn();
                     ImGui.AlignTextToFramePadding();
-                    ImGui.Text($"{GetJobName(entry)}");
+                    ImGui.Text(Loc.T(GetJobName(entry)));
 
                     ImGui.PopID();
                 }

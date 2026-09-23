@@ -104,7 +104,7 @@ namespace ICE.Ui
         {
             if (CosmicHelper.SheetMissionDict.TryGetValue(SelectedMission, out var sheetInfo))
             {
-                ImGui.Text($"Mission:");
+                ImGui.Text(Loc.T("Mission:"));
                 ImGui.SameLine(0, 5);
                 ImGui.TextDisabled($"[{SelectedMission}]");
                 ImGui.SameLine(0, 5);
@@ -204,7 +204,7 @@ namespace ICE.Ui
                 {
                     ImGui.TableNextRow();
                     ImGui.TableSetColumnIndex(0);
-                    ImGui.Text($"Mission Exp[s]");
+                    ImGui.Text(Loc.T("Mission Exp[s]"));
 
                     ImGui.TableNextColumn();
                     for (int i = 0; i < exps.Count; i++)
@@ -280,7 +280,7 @@ namespace ICE.Ui
                 ImGui.TableNextRow();
                 ImGui.TableSetColumnIndex(0);
                 ImGui.AlignTextToFramePadding();
-                ImGui.Text($"Job(s)");
+                ImGui.Text(Loc.T("Job(s)"));
 
                 ImGui.TableNextColumn();
                 ImGui_Ice.DrawJobIconButton("Jobs", mission.Jobs);
@@ -288,7 +288,7 @@ namespace ICE.Ui
                 ImGui.TableNextRow();
                 ImGui.TableSetColumnIndex(0);
                 ImGui.AlignTextToFramePadding();
-                ImGui.Text($"Completed:");
+                ImGui.Text(Loc.T("Completed:"));
 
                 ImGui.TableNextColumn();
                 ImGui_Ice.CompletionStatusIcon(mission);
@@ -373,7 +373,7 @@ namespace ICE.Ui
                 ImGui.TableNextRow();
                 ImGui.TableSetColumnIndex(0);
                 ImGui.AlignTextToFramePadding();
-                ImGui.Text($"Notes [Hover over]");
+                ImGui.Text(Loc.T("Notes [Hover over]"));
 
                 ImGui.TableNextColumn();
                 var HasSPM = mission.BestSPM.SPM > 0;

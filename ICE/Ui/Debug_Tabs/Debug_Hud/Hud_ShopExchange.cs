@@ -69,7 +69,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Hud
 
                         ImGui.TableNextColumn();
                         ImGui.SetNextItemWidth(200);
-                        ImGui.InputInt($"Buy Amount", ref BuyAmount);
+                        ImGui.InputInt(Loc.T("Buy Amount"), ref BuyAmount);
                         ImGui.SameLine();
                         if (ImGui.Button($"Buy Item##{item.ItemId}_Buy"))
                         {

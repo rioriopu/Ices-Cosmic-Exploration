@@ -277,7 +277,7 @@ namespace ICE.Ui.MainUi.Settings
 
             // Unlocked (for consumable items like mounts, orchestrion rolls, cards, etc.)
             ImGui.TableNextColumn();
-            ImGui.TextUnformatted(UnlockState.IsItemUnlockable(itemInfo) ? UnlockState.IsItemUnlocked(itemInfo) ? "Yes" : "No" : "-");
+            ImGui.TextUnformatted(UnlockState.IsItemUnlockable(itemInfo) ? UnlockState.IsItemUnlocked(itemInfo) ? Loc.T("Yes") : Loc.T("No") : Loc.T("-"));
 
             // Keep Amount
             ImGui.TableNextColumn();

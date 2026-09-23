@@ -270,14 +270,14 @@ There's certain missions that are worth grinding more than others. Weather/time 
 "ICE","","","","Exp Grinding","経験値稼ぎ"
 "ICE","","","","Credit / Planetary Credits / Token farming","クレジット／惑星クレジット／トークン稼ぎ"
 "ICE","","","","Basic missions (Ranks D→A) will only pull from the class you started on. Provisional missions (Weather, Timed, and Sequence) and Red Alerts will be picked up between missions — enable the multi-class setting to allow switching classes for these as well.","基本ミッション（ランクD→A）は開始時のクラスからのみ選ばれます。臨時ミッション（天候・時限・シーケンス）と緊急ミッションはミッションの合間に受注されます。これらでクラス切替を許可するには、マルチクラス設定を有効にしてください。"
-"ICE","","","","A mode designed to automate mission selection for relic progression with minimal intervention. It scans all available missions, evaluates the experience each one provides, and picks whichever yields the most for your current level.","リレック進行のためのミッション選択を、最小限の操作で自動化するモードです。受注可能な全ミッションを走査し、それぞれの経験値を評価して、現在のレベルで最も稼げるものを選びます。"
+"ICE","","","","A mode designed to automate mission selection for relic progression with minimal intervention. It scans all available missions, evaluates the experience each one provides, and picks whichever yields the most for your current level.","レリック進行のためのミッション選択を、最小限の操作で自動化するモードです。受注可能な全ミッションを走査し、それぞれの経験値を評価して、現在のレベルで最も稼げるものを選びます。"
 "ICE","","","","If you're high enough level to need the next rank category but haven't unlocked it yet (e.g. Rank D completed but Rank C not yet unlocked), make sure to unlock it manually before starting.","次のランク帯が必要なレベルに達しているのに未解放の場合（例: ランクDは完了したがランクCが未解放）、開始前に手動で解放しておいてください。"
 "ICE","","","","Note: this mode does not swap planets for you. Each planet also has an exp cap:","注意: このモードは惑星の移動を行いません。また各惑星には経験値の上限があります："
 "ICE","","","","Sinus   — Rank IV Max","焦がれの入江   — ランクIVまで"
 "ICE","","","","Phaenna — Rank V Max","パエンナ — ランクVまで"
 "ICE","","","","Oizys   — Rank VI Max","オイジュス   — ランクVIまで"
 "ICE","","","","Auxesia - Rank VII Max","アウクセシア - ランクVIIまで"
-"ICE","","","","So make sure that you're on the correct planet to accomodate for the exp that you needand to allow for completion your relic.","必要な経験値が得られ、リレックを完成させられる正しい惑星にいることを確認してください。"
+"ICE","","","","So make sure that you're on the correct planet to accomodate for the exp that you needand to allow for completion your relic.","必要な経験値が得られ、レリックを完成させられる正しい惑星にいることを確認してください。"
 "ICE","","","","Gold Completion","ゴールド達成"
 "ICE","","","","A very direct mode of aiming to get a gold completion of every single mission that is not currently gold-completed.Removed the need of selecting each mission that you want to do, and will automatically pick->choose the missions based onthe priority that you currently have set.","ゴールド未達成の全ミッションでゴールド評価を目指す、とても直接的なモードです。やりたいミッションを個別に選ぶ必要がなく、現在設定している優先度に基づいて自動でミッションを選択します。"
 "ICE","","","","PLEASE NOTE: that this has no other internal logic. It has no way to tell it can't do the mission due to eithera set of missing stats, no food... ect. This is just meant to be the most direct ""auto select missions that it can do"".If you want some control over WHICH missions that you know you can do, select standard mode and choose the missions that need completed","注意: このモードにはそれ以外の内部ロジックはありません。ステータス不足や食事なしなどでミッションをこなせないかどうかは判断できません。あくまで「できるミッションを自動で選ぶ」だけの最も直接的なモードです。こなせると分かっているミッションを自分で制御したい場合は、スタンダードモードで完了したいミッションを選んでください。"
@@ -292,12 +292,12 @@ There's certain missions that are worth grinding more than others. Weather/time 
 "ICE","","","","A bit more tedious, and defitenly not the fastest, but it's the safest so far.","少し手間がかかり最速ではありませんが、今のところ最も安全な方法です。"
 "ICE","","","","Fisher has profiles already built into the plugin, and Btn/Min will auto set profiles to be able to turnin missions ASAP","漁師はプラグインに組み込みのプロファイルがあり、園芸師/採掘師はできるだけ早く納品できるよう自動でプロファイルを設定します"
 "ICE","","","","You NEED to get gear more often here than crafters, about every 5-7 levels below lv 50, then about every 3 levels after","クラフターより頻繁に装備更新が必要です。Lv.50までは5〜7レベルごと、以降は約3レベルごとが目安です"
-"ICE","","","","Cosmic Agenda | Agenda Mode","コズミックアジェンダ | アジェンダモード"
+"ICE","","","","Cosmic Agenda | Agenda Mode","コスモアジェンダ | アジェンダモード"
 "ICE","","","","The mode to help combine (most) of the other modes into one little playlist so you can set and forget.The purpose of this is to allow you to organize when and what order you want to do things","他のモード（の大半）を1つのプレイリストにまとめ、設定したら放置できるようにするモードです。いつ・どの順番で何をするかを整理できます"
 "ICE","","","","This includes but not limited to:","例えば次のようなことができます："
 "ICE","","","","Leveling selected classes to to a specific level","選択したクラスを特定のレベルまで上げる"
 "ICE","","","","Farming specific classes scores to 500k","特定クラスのスコアを50万まで稼ぐ"
-"ICE","","","","Completed relics on all classes","全クラスのリレックを完成させる"
+"ICE","","","","Completed relics on all classes","全クラスのレリックを完成させる"
 "ICE","","","","You can specify the modes that you want to use these from, and it will run continue attempting to do that class until that objective is complete.This will respect any setting that you currently have enabled, it's jsut a fancy way of letting you the user choose what to do","使用するモードを指定でき、その目標が達成されるまでそのクラスで実行を続けます。現在有効な設定はすべて尊重されます。ユーザーが何をするかを選ぶための便利な仕組みです"
 "ICE","","","","Welcome! This is probably the most complicated plugin I've created so far.","ようこそ！これはおそらく私がこれまでに作った中で最も複雑なプラグインです。"
 "ICE","","","","This plugin is designed for specifically for the use of Cosmic Exploration, and is kinda hefty. So I'm going to try and go through all the different tips / tricks","このプラグインは宇宙探査専用に設計されており、かなりボリュームがあります。そこで、さまざまなヒントやコツを順に説明していきます"
@@ -382,7 +382,7 @@ typed in correctly. This is *case* specific so","プリセット名が正しく�
 "ICE","","","","Type","種別"
 "ICE","","","","Completed","完了"
 "ICE","","","","Detailed Class View","クラス詳細表示"
-"ICE","","","","Relic","リレック"
+"ICE","","","","Relic","レリック"
 "ICE","","","","Score","スコア"
 "ICE","","","","Mastery","マスタリー"
 "ICE","","","","Mastery Score","マスタリースコア"
@@ -405,15 +405,15 @@ If you just want to focus one specific class, set this to false","有効にす�
 4: If you're on a crafting class, it will return you back to the stop you were crafting post turnin. 
 	- This is optional, you can disable it at your own free will, I just like this so I can just go back to an isolated area of my choosing
 5: In Relic Grind mode this all happens automatically (see ""Relic Mode: Auto Upgrade Tool""), even if this box is unchecked.","動作の説明です。今後変更した場合はこのツールチップも更新します。
-1: リレック納品は現在の「実際の」クラス（メニューのクラスではなく）で判定します。
+1: レリック納品は現在の「実際の」クラス（メニューのクラスではなく）で判定します。
 2: 強化する主道具は装備していてはいけないため、納品の間は別のジョブに切り替えます。
 	- 「ジョブ切替設定」のジョブにギアセットがあればそれを、無ければギアセットのある他の任意のジョブを使います。
-3: これは「リレック納品で停止」より優先されます。両方有効なら停止せず納品して続行します。
+3: これは「レリック納品で停止」より優先されます。両方有効なら停止せず納品して続行します。
 4: クラフタークラスの場合、納品後に製作していた場所へ戻ります。
 	- これは任意で無効にできます。私は好きな場所に戻れるのでこの動作が気に入っています
-5: リレック周回モードでは、このチェックが外れていてもこの一連の動作を自動で行います（「リレックモード: 主道具を自動強化」参照）。"
-"ICE","","","","Relic Mode: Allow Red Alerts","リレックモード: 緊急ミッションを許可"
-"ICE","","","","Relic Mode: Only Enabled","リレックモード: 有効なミッションのみ"
+5: レリック周回モードでは、このチェックが外れていてもこの一連の動作を自動で行います（「レリックモード: 主道具を自動強化」参照）。"
+"ICE","","","","Relic Mode: Allow Red Alerts","レリックモード: 緊急ミッションを許可"
+"ICE","","","","Relic Mode: Only Enabled","レリックモード: 有効なミッションのみ"
 "ICE","","","","Open Job Swap Settings","ジョブ切替設定を開く"
 "ICE","","","","Save Current Mission Preset","現在のミッション設定をプリセット保存"
 "ICE","","","","Playlist Name","プレイリスト名"
@@ -590,8 +590,8 @@ The delays will be before, and a little bit inbetween interacting with menus","�
 "ICE","","","","Name","名前"
 "ICE","","","","Weather","天候"
 "ICE","","","","Timed","時限"
-"ICE","","","","Relic Tool XP","リレックツール経験値"
-"ICE","","","","Stop At Relic Lv.","リレックLv.で停止"
+"ICE","","","","Relic Tool XP","レリックツール経験値"
+"ICE","","","","Stop At Relic Lv.","レリックLv.で停止"
 "ICE","","","","Mission:","ミッション:"
 "ICE","","","","Details","詳細"
 "ICE","","","","Craft Details","製作詳細"
@@ -636,8 +636,8 @@ So get a good couple of runs to get a good feel for the timing","平均タイム
 "ICE","","","","Test Apply","適用テスト"
 "ICE","","","","Use after this many steps","この手数の後に使用"
 "ICE","","","","Node Location","ノード位置"
-"ICE","","","","Relic Mode: Auto Upgrade Tool","リレックモード: 主道具を自動強化"
-"ICE","","","","Relic Mode: Prioritize Incomplete D-B","リレックモード: D〜B未達成ミッションを優先"
+"ICE","","","","Relic Mode: Auto Upgrade Tool","レリックモード: 主道具を自動強化"
+"ICE","","","","Relic Mode: Prioritize Incomplete D-B","レリックモード: D〜B未達成ミッションを優先"
 "ICE","","","","Auto (any other job)","自動(納品ジョブ以外の任意のジョブ)"
 "ICE","","","","When the tool's analysis reaches the required value: return to the hub, walk to Researchingway,
 swap to another job (the tool must not be equipped), upgrade the tool, swap back to the original job,
@@ -647,16 +647,16 @@ The temporary job comes from ""Job Swap Settings"" if it has a gearset, otherwis
 最強装備を行い（Stylist があればそれを、無ければゲームのおすすめ装備）、ミッションを再開します。
 一時ジョブは「ジョブ切替設定」のジョブにギアセットがあればそれを、無ければギアセットのある他の任意のジョブを使います。"
 "ICE","","","","Take D/C/B rank missions you have never completed before picking by relic exp,
-so the completion count needed to unlock the next rank keeps growing.","リレック経験値で選ぶ前に、一度も達成していない D/C/B ランクのミッションを優先して受注します。
+so the completion count needed to unlock the next rank keeps growing.","レリック経験値で選ぶ前に、一度も達成していない D/C/B ランクのミッションを優先して受注します。
 次のランク解放に必要な達成数を積み上げるためです。"
 "ICE","","","","The job to swap to while the tool is upgraded (the tool must not be equipped).
 ""Auto"" picks any other job that has a gearset (battle jobs first). It does not have to be a battle job.
 In Relic Grind mode the swap happens automatically even if the checkbox above is off.","主道具を強化する間に切り替えるジョブです（主道具を装備したままでは強化できません）。
 「自動」はギアセットのある他の任意のジョブを選びます（戦闘職を優先）。戦闘職である必要はありません。
-リレック周回モードでは上のチェックが外れていても自動で切り替えます。"
+レリック周回モードでは上のチェックが外れていても自動で切り替えます。"
 "ICE","","","","If Stylist is not installed, the game's recommended gear is equipped instead. The gearset is updated afterwards either way.","Stylist が入っていない場合はゲームのおすすめ装備を装備します。どちらの場合もその後にギアセットを更新します。"
-"ICE","","","","When the tool's analysis reaches the required value, the plugin returns to the hub, swaps to another job, upgrades the tool at Researchingway, swaps back, equips the best gear and resumes (Mission Settings: ""Relic Mode: Auto Upgrade Tool"").","主道具の分析が規定値に達すると、拠点に戻り、別のジョブに切り替え、リサーチングウェイで主道具を強化し、元のジョブに戻って最強装備を行い、再開します（ミッション設定: 「リレックモード: 主道具を自動強化」）。"
-"ICE","","","","D/C/B rank missions you have never completed are taken first so the next rank keeps unlocking (Mission Settings: ""Relic Mode: Prioritize Incomplete D-B"").","一度も達成していない D/C/B ランクのミッションを優先して受注し、次のランクが解放され続けるようにします（ミッション設定: 「リレックモード: D〜B未達成ミッションを優先」）。"
+"ICE","","","","When the tool's analysis reaches the required value, the plugin returns to the hub, swaps to another job, upgrades the tool at Researchingway, swaps back, equips the best gear and resumes (Mission Settings: ""Relic Mode: Auto Upgrade Tool"").","主道具の分析が規定値に達すると、拠点に戻り、別のジョブに切り替え、リサーチングウェイで主道具を強化し、元のジョブに戻って最強装備を行い、再開します（ミッション設定: 「レリックモード: 主道具を自動強化」）。"
+"ICE","","","","D/C/B rank missions you have never completed are taken first so the next rank keeps unlocking (Mission Settings: ""Relic Mode: Prioritize Incomplete D-B"").","一度も達成していない D/C/B ランクのミッションを優先して受注し、次のランクが解放され続けるようにします（ミッション設定: 「レリックモード: D〜B未達成ミッションを優先」）。"
 "ICE","","","","Buy Leveling Gear","レベリング装備を購入"
 "ICE","","","","No","いいえ"
 "ICE","","","","Items to buy","購入予定の装備"
@@ -755,3 +755,102 @@ This applies to both Hub Return and Hub + Aethernet travel methods.","有効に�
 "ICE","","","","Item Details","アイテム詳細"
 "ICE","","","","Dropdown Detail","設定項目"
 "ICE","","","","Dropdown Selection","選択"
+"ICE","","","","Carpenter (CRP)","木工師 (CRP)"
+"ICE","","","","Blacksmith (BSM)","鍛冶師 (BSM)"
+"ICE","","","","Armorer (ARM)","甲冑師 (ARM)"
+"ICE","","","","Goldsmith (GSM)","彫金師 (GSM)"
+"ICE","","","","Leatherworker (LTW)","革細工師 (LTW)"
+"ICE","","","","Weaver (WVR)","裁縫師 (WVR)"
+"ICE","","","","Alchemist (ALC)","錬金術師 (ALC)"
+"ICE","","","","Culinarian (CUL)","調理師 (CUL)"
+"ICE","","","","Miner (MIN)","採掘師 (MIN)"
+"ICE","","","","Botanist (BTN)","園芸師 (BTN)"
+"ICE","","","","Fisher (FSH)","漁師 (FSH)"
+"ICE","","","","Id","ID"
+"ICE","","","","Cosmo Credits","コスモクレジット"
+"ICE","","","","Lunar Credits","惑星クレジット"
+"ICE","","","","Exp I","経験値 I"
+"ICE","","","","Exp II","経験値 II"
+"ICE","","","","Exp III","経験値 III"
+"ICE","","","","Exp IV","経験値 IV"
+"ICE","","","","Exp V","経験値 V"
+"ICE","","","","Map Location","マップ位置"
+"ICE","","","","Expert Recipe Solver","エキスパートレシピソルバー"
+"ICE","","","","Artisan Macro","Artisan マクロ"
+"ICE","","","","Unknown","不明"
+"ICE","","","","Standard Mode","標準モード"
+"ICE","","","","Leveling Grind Mode","レベリング周回モード"
+"ICE","","","","Gold Completion Grind Mode","金評価周回モード"
+"ICE","","","","Cosmic Agenda Mode","コスモアジェンダモード"
+"ICE","","","","Gold Completion Mode","金評価モード"
+"ICE","","","","Selected Relic Level","指定したレリックLv"
+"ICE","","","","Credit Amount","コスモクレジット数"
+"ICE","","","","Planetary Credit Amount","惑星クレジット数"
+"ICE","","","","Planetary Dronebit Amount","惑星ドローンビット数"
+"ICE","","","","Class Level","クラスLv"
+"ICE","","","","All Missions Golded","全ミッション金評価達成"
+"ICE","","","","Max Tool Exp","ツール経験値MAX"
+"ICE","","","","Welcome","はじめに"
+"ICE","","","","Unknown Job","不明なジョブ"
+"ICE","","","","Settings","設定"
+"ICE","","","","Max use","最大使用回数"
+"ICE","","","","Increases the number of items obtained when gathering by 2
+Will only apply when the gathering node has full durability","採集時の獲得数を 2 増やします
+採集ノードの耐久が最大のときのみ適用されます"
+"ICE","","","","Increases the number of items obtained when gathering by 1
+Will only apply when the gathering node has full durability","採集時の獲得数を 1 増やします
+採集ノードの耐久が最大のときのみ適用されます"
+"ICE","","","","What's the minimum durability a node can have before this action is activated?
+Mainly used for missions where you can chain durability refresh","このアクションを使う条件となる、ノードの最低耐久値です
+主に耐久回復を連鎖できるミッションで使います"
+"ICE","","","","Increase the Integrity by 1
+50% chance to grant Eureka Moment","耐久を 1 回復します
+50% の確率でユリイカモーメントが付与されます"
+"ICE","","","","Increases the gather chance by 50%
+Please note: You can have multiple enabled, but only the one that will get you the closest to 100% the cheapest will be applied","採集率を 50% 上げます
+注意: 複数有効にできますが、最も安く 100% に近づけられるものだけが使われます"
+"ICE","","","","Increases the gather chance by 15%
+Please note: You can have multiple enabled, but only the one that will get you the closest to 100% the cheapest will be applied","採集率を 15% 上げます
+注意: 複数有効にできますが、最も安く 100% に近づけられるものだけが使われます"
+"ICE","","","","Increases the gather chance by 5%
+Please note: You can have multiple enabled, but only the one that will get you the closest to 100% the cheapest will be applied","採集率を 5% 上げます
+注意: 複数有効にできますが、最も安く 100% に近づけられるものだけが使われます"
+"ICE","","","","Increases the gather chance by 15%
+This can be applied with normal field mastery, but will only apply per hit","採集率を 15% 上げます
+通常のフィールドマスタリーと併用できますが、1 回の採集ごとにしか適用されません"
+"ICE","","","","Automatically removes the Star Contributor visual effect (the glow you get for being a top contributor).
+The buff restores itself when you re-enter the zone.","スターコントリビューターの視覚効果(上位貢献者になると付く光)を自動で消します。
+エリアに入り直すとバフは元に戻ります。"
+"ICE","","","","This will check to see if you're on a gathering/crafting class upon first entering the moon.
+If you are, it will automatically start as if you had pressed the start button yourself
+Really useful if you have a tool to auto-log you in/if you just want to enter the moon and go
+This will ONLY run upon first entry.","月に入った直後、ギャザラー/クラフターのクラスかどうかを確認します。
+そうであれば、スタートボタンを押したのと同じように自動で開始します
+自動ログインツールを使っている場合や、月に入ってすぐ動かしたい場合に便利です
+最初に入ったときにのみ動作します。"
+"ICE","","","","This does abosolutely nothing
+But I know there's going to be people who enable this and don't read, so it's a tehe.
+Thanks for using my plugin though, it means a lot <3","これは何もしません
+説明を読まずに有効にする人がいるだろうと思って入れた、ちょっとした遊びです。
+プラグインを使ってくれてありがとう <3"
+"ICE","","","","Order you would like to do the actions. It will work from the top down.
+So if you Have Red Arert -> Drone Search, if a red alert isn't available, it will proceed to use a drone box if it can","行動の優先順です。上から順に処理します。
+例えば 緊急ミッション → ドローン探索 の順なら、緊急ミッションが無いときにドローン探索を行います"
+"ICE","","","","When do you wanna buy drones from the vendor?
+Set in incriments of 200, max of 5,000","ドローンをいくつ以下になったら店で買いますか?
+200 刻みで設定します(最大 5,000)"
+"ICE","","","","What's the maximum amount of drones you wanna keep?
+0 = will just keep buying
+Anything above 0 will just be a hard cap and will stop buying if it reaches this","保持するドローンの上限はいくつですか?
+0 = 買い続けます
+0 より大きい値は上限になり、その数に達したら購入を止めます"
+"ICE","","","","Do you want to run the automated drone finding? If yes, enable this
+PLEASE NOTE. DO. NOT. LEAVE. THIS. ALONE. This is still being worked on heavily","ドローンの自動探索を行いますか? 行うなら有効にしてください
+注意: 放置しないでください。この機能はまだ開発中です"
+"ICE","","","","A way for you to save your own positions if you choose to not use a randomized spot that's included in the plugin
+You don't have to use this, it will just use a random spot if:
+1: A position is saved:
+2: A random spot even is saved","プラグイン内蔵のランダム地点を使いたくない場合に、自分の位置を保存するための機能です
+使わなくても構いません。次の場合はランダム地点が使われます:
+1: 位置が保存されていない
+2: ランダム地点が保存されている"
