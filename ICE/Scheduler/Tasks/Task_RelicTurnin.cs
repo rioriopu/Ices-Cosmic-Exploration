@@ -316,6 +316,28 @@ namespace ICE.Scheduler.Tasks
             return true;
         }
 
+        /// <summary>
+        /// 現在のジョブで最強装備を行うタスクを末尾に積む(Stylist があれば /stylist、無ければゲームのおすすめ装備)。
+        /// どちらの場合もその後にギアセットを更新する。レベリング中のミッション後や装備購入後に使う。
+        /// </summary>
+        public static void EnqueueEquipBestGear()
+        {
+            uint jobId = (uint)Player.Job;
+            if (Utils.HasPlugin("Stylist"))
+            {
+                if (CosmicHelper.CrafterJobList.Contains(jobId))
+                    P.TaskManager.Enqueue(() => Task_TurninMission.ExecuteCommand("/stylist crafter"), "Stylist: crafter");
+                else if (CosmicHelper.GatheringJobList.Contains(jobId))
+                    P.TaskManager.Enqueue(() => Task_TurninMission.ExecuteCommand("/stylist gatherer"), "Stylist: gatherer");
+                P.TaskManager.EnqueueDelay(1000);
+                P.TaskManager.Enqueue(() => SaveGearsetTask(), "Updating the gearset with the equipped gear", Utils.TaskConfig);
+            }
+            else
+            {
+                P.TaskManager.Enqueue(() => EquipRecommendedGear(), "Equipping recommended gear", Utils.TaskConfig);
+            }
+        }
+
         private static int _recommendStep = 0;
         private static long _recommendTick = 0;
 

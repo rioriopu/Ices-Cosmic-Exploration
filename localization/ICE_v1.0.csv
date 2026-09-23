@@ -657,3 +657,13 @@ In Relic Grind mode the swap happens automatically even if the checkbox above is
 "ICE","","","","If Stylist is not installed, the game's recommended gear is equipped instead. The gearset is updated afterwards either way.","Stylist が入っていない場合はゲームのおすすめ装備を装備します。どちらの場合もその後にギアセットを更新します。"
 "ICE","","","","When the tool's analysis reaches the required value, the plugin returns to the hub, swaps to another job, upgrades the tool at Researchingway, swaps back, equips the best gear and resumes (Mission Settings: ""Relic Mode: Auto Upgrade Tool"").","主道具の分析が規定値に達すると、拠点に戻り、別のジョブに切り替え、リサーチングウェイで主道具を強化し、元のジョブに戻って最強装備を行い、再開します（ミッション設定: 「リレックモード: 主道具を自動強化」）。"
 "ICE","","","","D/C/B rank missions you have never completed are taken first so the next rank keeps unlocking (Mission Settings: ""Relic Mode: Prioritize Incomplete D-B"").","一度も達成していない D/C/B ランクのミッションを優先して受注し、次のランクが解放され続けるようにします（ミッション設定: 「リレックモード: D〜B未達成ミッションを優先」）。"
+"ICE","","","","Buy Leveling Gear","レベリング装備を購入"
+"ICE","","","","No","いいえ"
+"ICE","","","","Items to buy","購入予定の装備"
+"ICE","","","","Purchase in progress","購入処理中です"
+"ICE","","","","Leveling: Auto Equip Best Gear","レベリング: 自動で最強装備を行う"
+"ICE","","","","After each leveling mission and after buying leveling gear, equip the best gear
+(Stylist if installed, otherwise the game's recommended gear) and update the gearset.
+Turned on automatically when you press ""Buy Leveling Gear"".","レベリングミッションの後とレベリング装備の購入後に最強装備を行い
+（Stylist があればそれを、無ければゲームのおすすめ装備）、ギアセットを更新します。
+「レベリング装備を購入」を押すと自動で ON になります。"

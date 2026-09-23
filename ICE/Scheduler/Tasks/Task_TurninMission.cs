@@ -488,21 +488,12 @@ namespace ICE.Scheduler.Tasks
         {
             string tag = "Turnin Mission: Command Check";
 
-            if (Mission_Settings.Mode == ModeSelect.LevelMode && Utils.HasPlugin("Stylist"))
+            // レベリング中はミッションごとに最強装備を行う(Stylist があれば /stylist、無ければゲームのおすすめ装備)。
+            // レベルが上がって購入済みの上位装備が着けられるようになった時点で自動で更新するため。
+            if (Mission_Settings.Mode == ModeSelect.LevelMode && C.LevelingGear_AutoEquipBest)
             {
-                var jobId = (uint)Player.Job;
-
-                if (CosmicHelper.CrafterJobList.Contains(jobId))
-                {
-                    IceLogging.Info("Executing command [/stylist crafter]");
-                    ExecuteCommand("/stylist crafter");
-                }
-                else if (CosmicHelper.GatheringJobList.Contains(jobId))
-                {
-                    IceLogging.Info("Executing command [/stylist gatherer]");
-                    ExecuteCommand("/stylist gatherer");
-                }
-                P.TaskManager.EnqueueDelay(500);
+                IceLogging.Info("Leveling: equipping the best gear after the mission", tag);
+                Task_RelicTurnin.EnqueueEquipBestGear();
             }
 
             foreach (var task in C.PostMissionCommands)

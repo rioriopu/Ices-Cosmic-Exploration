@@ -51,6 +51,73 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
         private static int ItemCount = 0;
         private static string newListName = string.Empty;
 
+        // 「レベリング装備を購入」の確認ダイアログ。文面は動的なので、クライアント言語が日本語なら日本語で直接描く。
+        private static void DrawBuyLevelingGearPopup()
+        {
+            var plan = Task_BuyLevelingGear.Current;
+            bool jp = Task_BuyLevelingGear.IsJapanese;
+            if (plan == null)
+            {
+                ImGui.CloseCurrentPopup();
+                return;
+            }
+
+            if (!string.IsNullOrEmpty(plan.Error))
+            {
+                ImGui.TextColored(new Vector4(1f, 0.4f, 0.4f, 1f), plan.Error);
+                if (ImGui.Button("No"))
+                    ImGui.CloseCurrentPopup();
+                return;
+            }
+
+            ImGui.PushTextWrapPos(ImGui.GetCursorPosX() + 520 * ImGuiHelpers.GlobalScale);
+            ImGui.TextUnformatted(jp
+                ? $"現在のジョブ【{plan.JobName}】のLv{Task_BuyLevelingGear.MinLevel}～Lv{Task_BuyLevelingGear.MaxLevel}までの装備品をNPC購入します。約Lv{Task_BuyLevelingGear.Step}毎に購入するので、消費ギルは【{plan.TotalGil:N0}ギル】掛かりますが宜しいですか？"
+                : $"Buy Lv{Task_BuyLevelingGear.MinLevel}–Lv{Task_BuyLevelingGear.MaxLevel} gear for your current job [{plan.JobName}] from the NPC. Gear is bought about every {Task_BuyLevelingGear.Step} levels, so this will cost [{plan.TotalGil:N0} gil]. Proceed?");
+            ImGui.TextDisabled(jp
+                ? $"購入 {plan.ToBuy.Count} 点（所持済み {plan.OwnedSkipped} 点は除外） / 所持ギル {plan.PlayerGil:N0}"
+                : $"{plan.ToBuy.Count} items to buy ({plan.OwnedSkipped} already owned) / gil on hand {plan.PlayerGil:N0}");
+
+            if (plan.PlayerGil < plan.TotalGil)
+                ImGui.TextColored(new Vector4(1f, 0.8f, 0.2f, 1f), jp
+                    ? $"所持ギルが {plan.TotalGil - plan.PlayerGil:N0} ギル足りません"
+                    : $"You are {plan.TotalGil - plan.PlayerGil:N0} gil short");
+
+            if (plan.Shortage.Count > 0)
+            {
+                ImGui.TextColored(new Vector4(1f, 0.4f, 0.4f, 1f), jp
+                    ? "以下の部位（アーマリーチェスト）に空き枠が足りないため購入出来ません。"
+                    : "Not enough free Armoury Chest slots in the following slots, so nothing will be bought:");
+                foreach (var kv in plan.Shortage)
+                    ImGui.BulletText(jp ? $"{LevelingGearShop.SlotNameJp(kv.Key)}：{kv.Value}枠不足" : $"{kv.Key}: {kv.Value} slot(s) short");
+            }
+            ImGui.PopTextWrapPos();
+
+            if (plan.ToBuy.Count > 0 && ImGui.CollapsingHeader("Items to buy"))
+            {
+                using var list = ImRaii.Child("##lgear_list", new Vector2(520 * ImGuiHelpers.GlobalScale, 200 * ImGuiHelpers.GlobalScale), true);
+                if (list.Success)
+                    foreach (var e in plan.ToBuy)
+                        ImGui.TextUnformatted($"Lv{e.StepLevel,2}  {LevelingGearShop.SlotNameJp(e.Item.Slot)}  {e.Item.Name} (Lv{e.Item.LevelEquip})  {e.Item.Price:N0}g");
+            }
+
+            if (ImGui.Button("Yes", new Vector2(120 * ImGuiHelpers.GlobalScale, 0)))
+            {
+                if (plan.Shortage.Count > 0)
+                    IceLogging.ChatInfo(jp ? "アーマリーチェストに空き枠が足りないため、購入を中止しました" : "Purchase cancelled: not enough free Armoury Chest slots", "[I.C.E.]");
+                else if (plan.PlayerGil < plan.TotalGil)
+                    IceLogging.ChatInfo(jp ? "所持ギルが足りないため、購入を中止しました" : "Purchase cancelled: not enough gil", "[I.C.E.]");
+                else if (plan.ToBuy.Count == 0)
+                    IceLogging.ChatInfo(jp ? "購入する装備はありません（すべて所持済みです）" : "Nothing to buy: all gear is already owned", "[I.C.E.]");
+                else
+                    Task_BuyLevelingGear.Enqueue(plan);
+                ImGui.CloseCurrentPopup();
+            }
+            ImGui.SameLine();
+            if (ImGui.Button("No", new Vector2(120 * ImGuiHelpers.GlobalScale, 0)))
+                ImGui.CloseCurrentPopup();
+        }
+
         public static void Draw()
         {
             using var style = ImRaii.PushStyle(ImGuiStyleVar.ChildRounding, 10).Push(ImGuiStyleVar.ChildBorderSize, 1);
@@ -338,6 +405,17 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                     ImGuiEx.HelpMarker("Take D/C/B rank missions you have never completed before picking by relic exp,\n" +
                                        "so the completion count needed to unlock the next rank keeps growing.");
 
+                    ImGui.Separator();
+                    bool autoEquipBest = C.LevelingGear_AutoEquipBest;
+                    if (ImGui.Checkbox("Leveling: Auto Equip Best Gear", ref autoEquipBest))
+                    {
+                        C.LevelingGear_AutoEquipBest = autoEquipBest;
+                        C.Save();
+                    }
+                    ImGuiEx.HelpMarker("After each leveling mission and after buying leveling gear, equip the best gear\n" +
+                                       "(Stylist if installed, otherwise the game's recommended gear) and update the gearset.\n" +
+                                       "Turned on automatically when you press \"Buy Leveling Gear\".");
+
                     if (ImGui.Button("Open Job Swap Settings"))
                     {
                         C.SelectedTab = WindowSelection.CharacterSettings;
@@ -458,6 +536,28 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
 
 
                 ImGui.EndPopup();
+                }
+
+                // レベリング装備の購入: 現在ジョブの Lv10〜95 の装備をゴッドギスから自動購入する(確認ダイアログ付き)
+                ImGui.SameLine(0, 10 * scale);
+                ImGui.SetCursorPosY(ImGui.GetCursorPosY() + yOffset);
+                using (ImRaii.Disabled(SchedulerMain.State != IceState.Idle || Task_BuyLevelingGear.Running || !usingSupportedJob))
+                {
+                    if (ImGui.Button("Buy Leveling Gear"))
+                    {
+                        // ボタンを押したら最強装備の自動化を ON にする(購入後にすぐ着替えられるように)
+                        C.LevelingGear_AutoEquipBest = true;
+                        C.Save();
+                        Task_BuyLevelingGear.BuildPlan(currentJobId);
+                        ImGui.OpenPopup("Buy Leveling Gear: Confirm");
+                    }
+                }
+                if (ImGui.IsItemHovered() && Task_BuyLevelingGear.Running)
+                    ImGui.SetTooltip("Purchase in progress");
+                if (ImGui.BeginPopup("Buy Leveling Gear: Confirm"))
+                {
+                    DrawBuyLevelingGearPopup();
+                    ImGui.EndPopup();
                 }
             }
 
