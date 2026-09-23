@@ -50,38 +50,50 @@ namespace ICE.Scheduler
 
         /// <summary>
         /// 必要な種類のコスモデータを得られるミッションが、いまのランク解放状況・レベルでは1つも受けられないか。
-        /// true のとき、最も条件の緩いミッションのランクと必要レベルを返す。
+        /// 「受けられる」= レリックモードの候補(selectable: ミッションライブラリに残った通常ミッション。緊急/暫定は除く)に
+        /// その種類を与えるものがあり、かつ掲示板に出ているランク以下で、受注レベルを満たしている。
+        /// true のとき、最も条件の緩いミッション(通常ミッションのみ)のランクと必要レベルを返す。
         /// </summary>
-        public static bool IsBlocked(uint job, int jobLv, uint highestRank, IEnumerable<int> neededTypes,
-            out uint reqRank, out uint reqLevel, out string types)
+        public static bool IsBlocked(uint job, int jobLv, uint highestRank, IEnumerable<int> neededTypes, IEnumerable<uint> selectable,
+            out uint reqRank, out uint reqLevel, out string types, out string detail)
         {
-            reqRank = 0; reqLevel = 0; types = "";
+            reqRank = 0; reqLevel = 0; types = ""; detail = "";
             var territory = Player.Territory.RowId;
             bool anyObtainable = false;
             uint minRank = uint.MaxValue, minLevel = uint.MaxValue;
             var blocked = new List<string>();
+            var lines = new List<string>();
+            var selectableSet = new HashSet<uint>(selectable ?? Array.Empty<uint>());
 
             foreach (var type in neededTypes)
             {
+                string typeName = CosmicHelper.ExpDictionary.TryGetValue(type, out var n) ? n : type.ToString();
+                // 緊急(赤警報)は散発的でレリックの候補選択にも乗らないため、得られる手段として数えない
                 var givers = CosmicHelper.SheetMissionDict.Values
-                    .Where(m => m.TerritoryId == territory && m.Jobs.Contains(job) && !m.IsProvisional
-                                && (!m.IsCritical || C.Relic_IncludeCriticals)
+                    .Where(m => m.TerritoryId == territory && m.Jobs.Contains(job) && !m.IsProvisional && !m.IsCritical
                                 && m.RelicXpInfo.TryGetValue(type, out var xp) && xp > 0)
                     .ToList();
                 if (givers.Count == 0)
-                    continue; // この惑星では得られない種類。判定対象外(別の理由で進まない)
+                {
+                    lines.Add($"{typeName}: この惑星の通常ミッションでは得られない");
+                    continue; // 判定対象外(別の理由で進まない)
+                }
 
-                if (givers.Any(m => m.Rank <= highestRank && m.Level <= jobLv))
+                var obtainable = givers.Where(m => selectableSet.Contains(m.MissionId) && m.Rank <= highestRank && m.Level <= jobLv).ToList();
+                if (obtainable.Count > 0)
                 {
                     anyObtainable = true;
+                    lines.Add($"{typeName}: 受注可 {string.Join(",", obtainable.Take(5).Select(m => $"{m.MissionId}({RankName(m.Rank)}/Lv{m.Level})"))}");
                     continue;
                 }
                 var easiest = givers.OrderBy(m => m.Rank).ThenBy(m => m.Level).First();
                 minRank = Math.Min(minRank, easiest.Rank);
                 minLevel = Math.Min(minLevel, easiest.Level);
-                blocked.Add(CosmicHelper.ExpDictionary.TryGetValue(type, out var n) ? n : type.ToString());
+                blocked.Add(typeName);
+                lines.Add($"{typeName}: 受注不可(最低 {RankName(easiest.Rank)}クラス/Lv{easiest.Level}、候補{givers.Count}件、うちライブラリ内{givers.Count(m => selectableSet.Contains(m.MissionId))}件)");
             }
 
+            detail = string.Join(" | ", lines);
             if (anyObtainable || blocked.Count == 0)
                 return false;
             reqRank = minRank;

@@ -661,8 +661,17 @@ namespace ICE.Scheduler.Tasks
                                 .Where(e => e.Value.Needed > 0 && e.Value.Current < e.Value.Needed)
                                 .Select(e => e.Key)
                                 .ToList();
-                            if (neededTypes.Count > 0
-                                && RelicFallback.IsBlocked(job, jobLv, highestRank, neededTypes, out var reqRank, out var reqLevel, out var blockedTypes))
+                            // 候補 = レリックモードのライブラリに残った通常ミッション(緊急/暫定を除く)。ここに無いものは選ばれない
+                            var selectable = MissionLibrary
+                                .Where(kv => kv.Key is MissionKind.D or MissionKind.C or MissionKind.B or MissionKind.A or MissionKind.Ex)
+                                .SelectMany(kv => kv.Value)
+                                .ToList();
+                            uint reqRank = 0, reqLevel = 0;
+                            string blockedTypes = "", detail = "";
+                            bool blocked = neededTypes.Count > 0
+                                && RelicFallback.IsBlocked(job, jobLv, highestRank, neededTypes, selectable, out reqRank, out reqLevel, out blockedTypes, out detail);
+                            IceLogging.Info($"レリック判定 v{P.GetType().Assembly.GetName().Version}: 必要種類=[{string.Join(",", neededTypes.Select(t => CosmicHelper.ExpDictionary.TryGetValue(t, out var n) ? n : t.ToString()))}] Lv{jobLv} 掲示板最高ランク={RelicFallback.RankName(highestRank)} 候補{selectable.Count}件 → {(blocked ? "受注できるミッションが無い → レベリングへ" : "続行")} {detail}", tag);
+                            if (blocked)
                             {
                                 IceLogging.Info($"レリックモード: 必要なコスモデータ{blockedTypes}を得られるミッションは{RelicFallback.RankName(reqRank)}クラス(Lv{reqLevel})以上で、現在は Lv{jobLv}/解放ランク{RelicFallback.RankName(highestRank)}。レベリングモードへ切り替えます", tag);
                                 RelicFallback.Begin(job, reqRank, reqLevel, blockedTypes);

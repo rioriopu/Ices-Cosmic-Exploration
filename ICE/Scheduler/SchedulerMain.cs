@@ -10,7 +10,7 @@ namespace ICE.Scheduler
         internal static bool EnablePlugin()
         {
             State = Start;
-            IceLogging.Info($"Setting State to: {State} / Enabling Plugin");
+            IceLogging.Info($"Setting State to: {State} / Enabling Plugin (ICE {P.GetType().Assembly.GetName().Version}, mode {C.SelectedMode})");
             Mission_Settings.SelectedJob = (uint)Player.Job;
             RelicFallback.Reset(); // 開始時はレリックモードの一時レベリングを解除(必要なら再判定される)
             IceLogging.Info($"Player starting job upon pressing the start: {Mission_Settings.SelectedJob}");
