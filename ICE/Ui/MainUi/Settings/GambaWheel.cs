@@ -1,4 +1,4 @@
-﻿using Dalamud.Interface.Utility;
+using Dalamud.Interface.Utility;
 using ECommons.GameHelpers;
 using ICE.Utilities.Cosmic_Helper;
 using Lumina.Excel.Sheets;
@@ -8,6 +8,8 @@ namespace ICE.Ui.MainUi.Settings
 {
     internal class GambaWheel
     {
+        private static string _wheelScanMessage = string.Empty; // 輪の取込/再判定ボタンの結果表示
+
         private static bool gambaEnabled = C.GambaEnabled;
         private static int gambaDelay = C.GambaDelay;
         private static int gambaCreditsMinimum = C.GambaCreditsMinimum;
@@ -88,6 +90,22 @@ namespace ICE.Ui.MainUi.Settings
             {
                 Task_Gamba.EnsureGambaWeightsInitialized(true);
             }
+            ImGui.SameLine();
+            if (ImGui.Button("Scan Open Wheel"))
+            {
+                var (open, added) = Task_Gamba.ScanOpenWheel();
+                _wheelScanMessage = open ? $"輪から {added} 件を登録しました" : "ガンブルの輪が開いていません";
+            }
+            ImGui.SameLine();
+            if (ImGui.Button("Recategorize"))
+            {
+                _wheelScanMessage = $"{Task_Gamba.RecategorizeAll()} 件のカテゴリを更新しました";
+            }
+            if (!string.IsNullOrEmpty(_wheelScanMessage))
+            {
+                ImGui.SameLine();
+                ImGui.TextDisabled(_wheelScanMessage);
+            }
         }
 
         public static unsafe void Draw()
@@ -142,6 +160,22 @@ namespace ICE.Ui.MainUi.Settings
             if (ImGui.Button("Reset Weights"))
             {
                 Task_Gamba.EnsureGambaWeightsInitialized(true);
+            }
+            ImGui.SameLine();
+            if (ImGui.Button("Scan Open Wheel"))
+            {
+                var (open, added) = Task_Gamba.ScanOpenWheel();
+                _wheelScanMessage = open ? $"輪から {added} 件を登録しました" : "ガンブルの輪が開いていません";
+            }
+            ImGui.SameLine();
+            if (ImGui.Button("Recategorize"))
+            {
+                _wheelScanMessage = $"{Task_Gamba.RecategorizeAll()} 件のカテゴリを更新しました";
+            }
+            if (!string.IsNullOrEmpty(_wheelScanMessage))
+            {
+                ImGui.SameLine();
+                ImGui.TextDisabled(_wheelScanMessage);
             }
 
             if (ImGui.BeginTabBar("Gamba Item Tabs"))

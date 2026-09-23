@@ -93,6 +93,10 @@ public sealed partial class ICE : IDalamudPlugin
         Init();
         Svc.Framework.Update += Tick;
         Svc.Chat.ChatMessage += OnChatMessage;
+
+        // ガンブルの輪(WKSLottery)が開いたら、その時点の景品を自動で設定へ取り込む(カテゴリ推定付き)。
+        // 景品プールはシートに無くバイナリ内のため、輪を開いた時にしか取得できない。
+        Svc.AddonLifecycle.RegisterListener(Dalamud.Game.Addon.Lifecycle.AddonEvent.PostSetup, "WKSLottery", OnWheelOpened);
         Svc.PluginInterface.UiBuilder.Draw += OnDraw;
 
         TaskManager = new(new(showDebug: false, timeLimitMS: 10 * 60 * 3000));
@@ -123,6 +127,21 @@ public sealed partial class ICE : IDalamudPlugin
         _ = Sounds.SoundPlayer.InitializeAsync();
 
         UpdateMissingGathering();
+    }
+
+    // ガンブルの輪が開いたら景品を自動取込する。PostSetup 直後はデータが未充填のことがあるため、少し遅らせて走査する。
+    private void OnWheelOpened(Dalamud.Game.Addon.Lifecycle.AddonEvent ev, Dalamud.Game.Addon.Lifecycle.AddonArgTypes.AddonArgs args)
+    {
+        GenericHelpers.Safe(() => Svc.Framework.RunOnTick(() =>
+        {
+            try
+            {
+                var (open, added) = Scheduler.Tasks.Task_Gamba.ScanOpenWheel();
+                if (added > 0)
+                    IceLogging.Info($"[Gamba] 輪を開いたので新景品 {added} 件を自動登録しました");
+            }
+            catch { }
+        }, TimeSpan.FromMilliseconds(500)));
     }
 
     // 「魚たちに警戒されてしまったようだ…少し場所を変えたほうがいいだろう」のログを検知し、釣り場の移動を要求する。
@@ -211,6 +230,7 @@ public sealed partial class ICE : IDalamudPlugin
 
     public void Dispose()
     {
+        GenericHelpers.Safe(() => Svc.AddonLifecycle.UnregisterListener(OnWheelOpened));
         GenericHelpers.Safe(() => Svc.Framework.Update -= Tick);
         GenericHelpers.Safe(() => Svc.PluginInterface.UiBuilder.Draw -= OnDraw);
         GenericHelpers.Safe(() => Svc.PluginInterface.UiBuilder.Draw -= windowSystem.Draw);
