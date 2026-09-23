@@ -56,7 +56,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
 
             uint job = (uint)Player.Job;
             var items = data.AllItems
-                .Where(x => !_onlyCurrentJob || x.Jobs.Contains(job))
+                .Where(x => !_onlyCurrentJob || (x.Jobs.Contains(job) && KindMatchesJob(x.Kind, job)))
                 .Where(x => !_onlyMissing || (x.ArmouryCount == 0 && !x.IsEquipped))
                 .OrderBy(x => x.LevelEquip).ThenBy(x => x.Slot).ThenBy(x => x.ItemId)
                 .ToList();
@@ -92,7 +92,7 @@ namespace ICE.Ui.Debug_Tabs.Debug_Ui
                 ImGui.TableNextColumn(); ImGui.Text($"{item.Name}{(item.IsHQ ? " (HQ)" : "")} [{item.ItemId}]");
                 ImGui.TableNextColumn(); ImGui.Text(item.LevelEquip.ToString());
                 ImGui.TableNextColumn(); ImGui.Text(item.ItemLevel.ToString());
-                ImGui.TableNextColumn(); ImGui.Text($"{item.Slot} ({SlotNameJp(item.Slot)})");
+                ImGui.TableNextColumn(); ImGui.Text($"{item.Slot} ({SlotNameJp(item.Slot)}) {item.Kind}");
                 ImGui.TableNextColumn(); ImGui.Text(string.Join(",", item.Jobs.Select(j => CosmicHelper.GetJobName(j))));
                 ImGui.TableNextColumn(); ImGui.Text(item.RuntimePrice >= 0 ? $"{item.RuntimePrice:N0} (sheet {item.Price:N0})" : $"{item.Price:N0}");
                 ImGui.TableNextColumn(); ImGui.Text(item.ArmouryCount.ToString());

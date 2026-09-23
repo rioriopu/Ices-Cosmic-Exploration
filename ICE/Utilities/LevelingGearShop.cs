@@ -28,6 +28,12 @@ public static class LevelingGearShop
     /// <summary>装備部位。アーマリーチェストの格納先と1対1で対応する。</summary>
     public enum GearSlot { Unknown, MainHand, OffHand, Head, Body, Hands, Legs, Feet, Ears, Neck, Wrists, Ring }
 
+    /// <summary>
+    /// 装備の用途。防具/アクセサリは「クラフター向け」「ギャザラー向け」がどちらも全 DoH/DoL で装備できるため、
+    /// 基本パラメータ(作業精度/加工精度/CP か 獲得力/識質力/GP か)で見分ける。
+    /// </summary>
+    public enum GearKind { Neutral, Crafter, Gatherer, Both }
+
     public class ShopGearItem
     {
         public uint ItemId { get; set; }
@@ -35,6 +41,7 @@ public static class LevelingGearShop
         public byte LevelEquip { get; set; }
         public uint ItemLevel { get; set; }
         public GearSlot Slot { get; set; }
+        public GearKind Kind { get; set; }
         public uint Price { get; set; }          // シート上のギル価格(PriceMid)。実測値は RuntimePrice
         public int RuntimePrice { get; set; } = -1; // 開いているショップから取り込んだ実売価格(未取得は -1)
         public bool IsHQ { get; set; }
@@ -173,6 +180,7 @@ public static class LevelingGearShop
                     LevelEquip = item.LevelEquip,
                     ItemLevel = item.LevelItem.RowId,
                     Slot = slot,
+                    Kind = KindOf(item),
                     Price = item.PriceMid,
                     IsHQ = row.IsHQ,
                     Jobs = jobs,
@@ -212,6 +220,25 @@ public static class LevelingGearShop
         if (c.Wrists == 1) return GearSlot.Wrists;
         if (c.FingerL == 1 || c.FingerR == 1) return GearSlot.Ring;
         return GearSlot.Unknown;
+    }
+
+    // 基本パラメータ(BaseParam: 70=作業精度 71=加工精度 11=CP / 72=獲得力 73=識質力 10=GP)から用途を判定する
+    private static GearKind KindOf(Item item)
+    {
+        bool crafter = false, gatherer = false;
+        foreach (var p in item.BaseParam)
+        {
+            if (p.RowId is 70 or 71 or 11) crafter = true;
+            if (p.RowId is 72 or 73 or 10) gatherer = true;
+        }
+        return crafter && gatherer ? GearKind.Both : crafter ? GearKind.Crafter : gatherer ? GearKind.Gatherer : GearKind.Neutral;
+    }
+
+    /// <summary>ジョブに合った用途か(クラフターにはクラフター向け/中立、ギャザラーにはギャザラー向け/中立)。</summary>
+    public static bool KindMatchesJob(GearKind kind, uint jobId)
+    {
+        bool isGatherer = CosmicHelper.GatheringJobList.Contains(jobId);
+        return kind is GearKind.Neutral or GearKind.Both || (isGatherer ? kind == GearKind.Gatherer : kind == GearKind.Crafter);
     }
 
     // ClassJobCategory からクラフター/ギャザラー(8〜18)のうち装備できるジョブを列挙する
@@ -359,6 +386,7 @@ public static class LevelingGearShop
                 LevelEquip = item.LevelEquip,
                 ItemLevel = item.LevelItem.RowId,
                 Slot = slot,
+                Kind = KindOf(item),
                 Price = item.PriceMid,
                 RuntimePrice = entryPrice,
                 Jobs = jobs,
