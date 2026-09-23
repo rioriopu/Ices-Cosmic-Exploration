@@ -854,3 +854,21 @@ You don't have to use this, it will just use a random spot if:
 使わなくても構いません。次の場合はランダム地点が使われます:
 1: 位置が保存されていない
 2: ランダム地点が保存されている"
+"ICE","","","","Appraise Ancient Records after the search","探索後、古代の記録を自動鑑定する"
+"ICE","","","","When enabled, once every energy pack has been used the plugin goes to the drone NPC (Kaede) and appraises all the Ancient Records.
+When disabled, it skips the appraisal and only returns to the hub with Stellar Return.","有効にすると、エネルギーパックを使い切ったあとにドローンNPC(カエデ)へ向かい、古代の記録をすべて鑑定します。
+無効にすると鑑定は行わず、コスモデジョンで拠点へ戻るだけになります。"
+"ICE","","","","Appraise now","すぐに自動鑑定する"
+"ICE","","","","Stop appraisal","鑑定を停止"
+"ICE","","","","Appraise now: walks to the drone NPC (Kaede), talks to it and appraises the Ancient Records one after another.
+Stop appraisal: aborts the appraisal (and anything else ICE is doing) and closes the appraisal windows.","すぐに自動鑑定する: ドローンNPC(カエデ)へ向かって話しかけ、古代の記録を連続で鑑定します。
+鑑定を停止: 鑑定(および ICE の動作)を中止し、鑑定ウィンドウを閉じます。"
+"ICE","","","","Appraising...","鑑定中..."
+"ICE","","","","Available only on planets that have a drone NPC (Oizys / Auxesia).","ドローンNPCのいる惑星(オイジュス / アウクセシア)でのみ使えます。"
+"ICE","","","","There is no drone NPC on this planet, so nothing can be appraised here.","この惑星にはドローンNPCがいないため、鑑定できません。"
+"ICE","","","","ICE is busy. Stop the current run before starting the appraisal.","ICE が動作中です。鑑定を始める前に現在の動作を停止してください。"
+"ICE","","","","Heading to the drone NPC to appraise the Ancient Records.","ドローンNPCへ向かい、古代の記録を鑑定します。"
+"ICE","","","","Appraisal finished.","鑑定が完了しました。"
+"ICE","","","","Appraisal stopped.","鑑定を停止しました。"
+"ICE","","","","Stopped.","停止しました。"
+"ICE","","","","The appraisal kept failing, so it was stopped.","鑑定が繰り返し失敗したため停止しました。"

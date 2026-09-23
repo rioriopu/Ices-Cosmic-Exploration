@@ -110,6 +110,7 @@ namespace ICE.Scheduler
                     case DualClass: Task_DualClass.Enqueue(); break;
                     case ManualMode: Task_Manual.Enqueue(); break;
                     case ArtifactSearch: Task_ArtifactSearch.Enqueue_DroneCheck(); break;
+                    case Appraisal: Task_ArtifactSearch.Enqueue_ManualAppraisal(); break;
                     default: DisablePlugin(); break;
                 }
             }

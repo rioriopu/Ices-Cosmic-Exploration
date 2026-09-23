@@ -297,23 +297,33 @@ namespace ICE.Scheduler.Tasks
                 }
 
                 // パックが尽きた → 収集済み(未鑑定)があればドローンNPCに話しかけて鑑定する。
+                // 「探索後、古代の記録を自動鑑定する」が無効なら鑑定はせず、そのまま完了扱いにする。
                 if (_hadDroneMarkers)
                 {
                     _hadDroneMarkers = false;
-                    IceLogging.Info("エネルギーパックが尽きたので、ドローンNPCに話しかけて鑑定します", tag);
-                    // 先行して積まれたタスクをクリアし、鑑定(NPCへ移動→鑑定)を確実に走らせる。
-                    P.TaskManager.Tasks.Clear();
-                    EnqueueAppraisal();
-                    return true;
+                    if (C.Cosmodrone_AutoAppraise)
+                    {
+                        IceLogging.Info("エネルギーパックが尽きたので、ドローンNPCに話しかけて鑑定します", tag);
+                        // 先行して積まれたタスクをクリアし、鑑定(NPCへ移動→鑑定)を確実に走らせる。
+                        P.TaskManager.Tasks.Clear();
+                        EnqueueAppraisal();
+                        return true;
+                    }
+                    IceLogging.Info("エネルギーパックが尽きました。自動鑑定は無効なので、鑑定せずに探索を完了します", tag);
                 }
 
-                // パックも無く鑑定も済んだ → 通常処理へ復帰する。
-                // Idle にするとドローン探索後に拠点へ帰らず棒立ちになるため、Start に遷移してループを再開する。
-                IceLogging.Info("ドローン探索を完了しました。通常処理(拠点帰還→ミッション)へ復帰します", tag);
+                // パックも無く鑑定も済んだ(または鑑定しない) → 完了。
+                // 手動(ドローン探索ボタン)で始めた場合は、コスモデジョンで拠点へ戻ってから停止する。
+                // ミッションループ内から呼ばれた場合(State は GrabMission 等)は、そのまま通常処理に戻る。
                 if (SchedulerMain.State == IceState.ArtifactSearch)
                 {
-                    SchedulerMain.State = IceState.Start;
+                    IceLogging.Info("ドローン探索を完了しました。拠点へ戻って停止します", tag);
                     P.TaskManager.Tasks.Clear();
+                    Enqueue_FinishManualSearch();
+                }
+                else
+                {
+                    IceLogging.Info("ドローン探索を完了しました。通常処理へ復帰します", tag);
                 }
                 return true;
             }
@@ -501,10 +511,7 @@ namespace ICE.Scheduler.Tasks
         /// <summary>ドローンNPCへ戻って鑑定(精選)を行う一連のタスクを積む。完了後は通常のドローン処理へ復帰する。</summary>
         public static void EnqueueAppraisal()
         {
-            _appraiseGraceStart = 0;
-            _iilAloneSince = 0;
-            _lastResultActivity = 0;
-            _resultNextCount = 0;
+            ResetAppraisalCounters();
             P.TaskManager.EnqueueMulti
                 (
                     new(Drone_PathToVendor, "Drone Appraise: Path to NPC"),
@@ -513,6 +520,142 @@ namespace ICE.Scheduler.Tasks
                     new(ProcessAppraisal, "Drone Appraise: Process windows"),
                     new(CloseDroneMenu, "Drone Appraise: Close menu")
                 );
+        }
+
+        private static void ResetAppraisalCounters()
+        {
+            _appraiseGraceStart = 0;
+            _iilAloneSince = 0;
+            _lastResultActivity = 0;
+            _resultNextCount = 0;
+        }
+
+        /// <summary>手動のドローン探索(ボタン)完了時: 拠点から離れていればコスモデジョンで戻り、その後停止(Idle)する。</summary>
+        private static void Enqueue_FinishManualSearch()
+        {
+            Task_BuyLevelingGear.ResetReturnStart();
+            P.TaskManager.EnqueueMulti
+                (
+                    new(Task_BuyLevelingGear.ReturnToHub, "Drone Search: Stellar Return to the hub"),
+                    new(WalkToHubIfFar, "Drone Search: Walk to the hub"),
+                    new(FinishAndIdle, "Drone Search: Finish")
+                );
+        }
+
+        /// <summary>
+        /// コスモデジョンが無効(AvoidStellarReturn)/発動できずタイムアウトした場合、ReturnToHub は「徒歩に任せる」として true を返す。
+        /// その場合にまだ拠点から遠ければ、徒歩(ボード等も含む経路)でドローンNPC付近まで戻る。Enqueue_NavmeshTask は InsertMulti なので
+        /// 移動タスクは FinishAndIdle の前に差し込まれ、到着後に Idle になる。
+        /// </summary>
+        private static bool? WalkToHubIfFar()
+        {
+            const string tag = "[Drone Search]";
+            if (!CosmicMoonRegistry.TryGetHubCenter(Player.Territory.RowId, out var hub)
+                || Player.DistanceTo(hub) < C.HubReturn_Distance)
+                return true; // 既に拠点付近(コスモデジョンで戻れた)
+            if (!NpcData.TryGetNpc(Player.Territory.RowId, NpcData.NpcType.Drone, out var npc))
+                return true; // 目的地が無ければ諦める(無限ループ防止)
+            IceLogging.Info($"コスモデジョンで戻れなかったため、徒歩で拠点へ戻ります(距離 {Player.DistanceTo(hub):F0}m)", tag);
+            Task_NavmeshMove.Enqueue_NavmeshTask(NpcData.GetRandomPointInCircle(npc.Location_Circle, 0.5f), false, 3f);
+            return true;
+        }
+
+        private static bool? FinishAndIdle()
+        {
+            if (P.Navmesh.Installed && P.Navmesh.IsRunning())
+                P.Navmesh.Stop();
+            SchedulerMain.State = IceState.Idle;
+            return true;
+        }
+
+        // ---- 手動の「すぐに自動鑑定する」 ----
+
+        /// <summary>この惑星に鑑定を行うドローンNPC(カエデ)がいるか。</summary>
+        public static bool CanAppraiseHere()
+            => NpcData.TryGetNpc(Player.Territory.RowId, NpcData.NpcType.Drone, out _);
+
+        /// <summary>手動鑑定を開始する(設定画面のボタンから)。他の処理が動いていない(Idle)ときだけ受け付ける。</summary>
+        public static void StartManualAppraisal()
+        {
+            const string tag = "[Drone Appraise]";
+            if (!Player.Available)
+                return;
+            if (!CanAppraiseHere())
+            {
+                IceLogging.ChatError(Loc.T("There is no drone NPC on this planet, so nothing can be appraised here."), tag);
+                return;
+            }
+            if (SchedulerMain.State != IceState.Idle || P.TaskManager.NumQueuedTasks > 0)
+            {
+                IceLogging.ChatError(Loc.T("ICE is busy. Stop the current run before starting the appraisal."), tag);
+                return;
+            }
+            IceLogging.ChatInfo(Loc.T("Heading to the drone NPC to appraise the Ancient Records."), tag);
+            // タスクは SchedulerMain.Tick が Appraisal 状態を見て Enqueue_ManualAppraisal を積む
+            _manualAppraisalRuns = 0;
+            SchedulerMain.State = IceState.Appraisal;
+        }
+
+        private static int _manualAppraisalRuns = 0; // タスク列が途中で落ちて Tick から再投入された回数(暴走防止)
+
+        /// <summary>手動鑑定の一連のタスク(拠点へ帰還→NPCへ移動→会話→鑑定を選択→鑑定を連続処理→メニューを閉じる→停止)。</summary>
+        public static void Enqueue_ManualAppraisal()
+        {
+            // 例外などでタスク列が途中で消えると Tick が再投入する。何度も繰り返すなら諦めて停止する。
+            if (++_manualAppraisalRuns > 3)
+            {
+                IceLogging.ChatError(Loc.T("The appraisal kept failing, so it was stopped."), "[Drone Appraise]");
+                SchedulerMain.DisablePlugin(); // navmesh も止めてから Idle にする(移動中に落ちた場合の走り続け防止)
+                return;
+            }
+            ResetAppraisalCounters();
+            Task_BuyLevelingGear.ResetReturnStart();
+            P.TaskManager.EnqueueMulti
+                (
+                    new(Task_BuyLevelingGear.ReturnToHub, "Manual Appraise: Stellar Return to the hub"),
+                    new(Drone_PathToVendor, "Manual Appraise: Path to NPC"),
+                    new(TalkToDroneNpc, "Manual Appraise: Talk"),
+                    new(SelectAppraisalOption, "Manual Appraise: Select appraisal"),
+                    new(ProcessAppraisal, "Manual Appraise: Process windows"),
+                    new(CloseDroneMenu, "Manual Appraise: Close menu"),
+                    new(FinishManualAppraisal, "Manual Appraise: Finish")
+                );
+        }
+
+        private static bool? FinishManualAppraisal()
+        {
+            IceLogging.ChatInfo(Loc.T("Appraisal finished."), "[Drone Appraise]");
+            SchedulerMain.State = IceState.Idle;
+            return true;
+        }
+
+        /// <summary>鑑定の停止ボタン。タスクを全て破棄し、開いている鑑定ウィンドウ/NPCメニューを閉じる。</summary>
+        public static unsafe void StopAppraisal()
+        {
+            const string tag = "[Drone Appraise]";
+            bool wasAppraising = SchedulerMain.State == IceState.Appraisal;
+            SchedulerMain.DisablePlugin();
+            _hadDroneMarkers = false;
+            ResetAppraisalCounters();
+            try
+            {
+                // 「鑑定しますか?」の確認ダイアログが出ていたら、先に「いいえ」で閉じる(下の一覧だけ閉じると取り残される)
+                if (GenericHelpers.TryGetAddonMaster<SelectYesno>("SelectYesno", out var yesno) && yesno.IsAddonReady)
+                    yesno.No();
+                if (GenericHelpers.TryGetAddonMaster<ItemInspectionResult>("ItemInspectionResult", out var iiResult) && iiResult.IsAddonReady)
+                    iiResult.Close();
+                if (GenericHelpers.TryGetAddonByName<AtkUnitBase>("ItemInspectionList", out var iiList) && iiList->IsVisible)
+                    ECommons.Automation.Callback.Fire(iiList, true, -1);
+                if (GenericHelpers.TryGetAddonByName<AtkUnitBase>("PurifyItemSelector", out var purify) && purify->IsVisible)
+                    ECommons.Automation.Callback.Fire(purify, true, -1);
+                if (GenericHelpers.TryGetAddonMaster<SelectString>("SelectString", out var ss) && ss.IsAddonReady)
+                    GenericHandlers.FireCallback("SelectString", true, -1);
+            }
+            catch (Exception ex)
+            {
+                IceLogging.Debug($"鑑定ウィンドウを閉じる際にエラー: {ex.Message}", tag);
+            }
+            IceLogging.ChatInfo(wasAppraising ? Loc.T("Appraisal stopped.") : Loc.T("Stopped."), tag);
         }
 
         // ドローンNPCのメニュー(SelectString)から鑑定/精選の項目を選ぶ。買い物はEntries[0]なのでテキストで特定する。

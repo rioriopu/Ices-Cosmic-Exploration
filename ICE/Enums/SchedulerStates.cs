@@ -20,6 +20,7 @@ namespace ICE.Enums
         Spiritbond = 14,
         Shopping = 15,
         ArtifactSearch = 16,
+        Appraisal = 17,        // 手動の「すぐに自動鑑定する」(ドローンNPCで古代の記録を連続鑑定)
 
         Craft = 20,
         Gather = 21,

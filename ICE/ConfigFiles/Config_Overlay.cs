@@ -4,7 +4,10 @@ namespace ICE.ConfigFiles;
 
 public partial class Config
 {
-    public bool ShowOverlay { get; set; } = false;
+    /// <summary>オーバーレイを自動で開く(既定 true)。宇宙探査エリアに入ったとき/プラグイン読み込み時に開く。</summary>
+    public bool ShowOverlay { get; set; } = true;
+    /// <summary>ShowOverlay の既定値を true に変えた際の一回限りの移行フラグ(旧設定の false を一度だけ true に引き上げる)。</summary>
+    public bool Overlay_AutoOpenDefaultApplied { get; set; } = false;
     public bool ShowSeconds { get; set; } = false;
     public bool ShowCurrentScore { get; set; } = true;
     public bool ShowTotalScore { get; set; } = true;

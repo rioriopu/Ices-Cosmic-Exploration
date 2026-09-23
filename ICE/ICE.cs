@@ -64,6 +64,14 @@ public sealed partial class ICE : IDalamudPlugin
         // プラグイン内蔵の日本語化(CSV 辞書)。ウィンドウを作る前に読み込む
         GenericHelpers.Safe(() => global::ICE.Localization.Loc.Initialize());
 
+        // オーバーレイは既定で自動表示にする(1.0.0.18)。旧設定で false のままの場合も一度だけ true に引き上げる。
+        if (!config.Overlay_AutoOpenDefaultApplied)
+        {
+            config.ShowOverlay = true;
+            config.Overlay_AutoOpenDefaultApplied = true;
+            config.Save();
+        }
+
         //IPC's that are used
         Lifestream = new();
         Navmesh = new();
@@ -115,6 +123,9 @@ public sealed partial class ICE : IDalamudPlugin
         };
 
         Svc.ClientState.TerritoryChanged += OnTerritoryChange;
+        // プラグインの読み込み/更新(Reload)直後はエリア移動イベントが来ないため、ここでも同じ判定でオーバーレイを開く。
+        // これが無いと更新のたびにオーバーレイが閉じたままになる。
+        GenericHelpers.Safe(() => OnTerritoryChange(Svc.ClientState.TerritoryType));
 
         // timer stuff
         MissionTimer = new MissionTimer();

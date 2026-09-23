@@ -95,7 +95,8 @@ public static class ConfigMigration
 
     private static void MigrateOverlay(MissionConfigs old)
     {
-        C.ShowOverlay = old.ShowOverlay;
+        // ShowOverlay は 1.0.0.18 から既定で自動表示(true)にする方針のため、旧 YAML の値(既定 false)は引き継がない。
+        // 引き継ぐと ICE.Load() 冒頭の一回限りの引き上げ(Overlay_AutoOpenDefaultApplied)が同じロード内で上書きされる。
         C.ShowSeconds = old.ShowSeconds;
         C.ShowTotalScore = old.ShowTotalScore;
         C.ShowExpBars = old.ShowExpBars;
