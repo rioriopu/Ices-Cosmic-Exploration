@@ -154,10 +154,11 @@ public static partial class CosmicHelper
         var wksManagerPtr = WKSManager.Instance();
         if (wksManagerPtr == null)
         {
+            // エリアに入った直後はまだ生成されていないことがある(オーバーレイの描画が先に走る)。一時的な状態なので Debug に留める。
             if (PlayerHelper.IsInCosmicZone())
             {
                 if (EzThrottler.Throttle("Throttling log message", 3000))
-                    IceLogging.Error("WKSManager returned null");
+                    IceLogging.Debug("WKSManager がまだ生成されていません(読み込み待ち)", "[Cosmic Info]");
             }
             return cosmicClassInfo;
         }
@@ -167,8 +168,9 @@ public static partial class CosmicHelper
 
         if (researchModule == null || !researchModule->IsLoaded)
         {
+            // 同上: エリア入場直後の読み込み待ち。数秒後には揃うので Error にはしない。
             if (EzThrottler.Throttle("Throttling log message", 3000))
-                IceLogging.Error("Research Module has returned null");
+                IceLogging.Debug("研究モジュールがまだ読み込まれていません(読み込み待ち)", "[Cosmic Info]");
             return cosmicClassInfo;
         }
 
