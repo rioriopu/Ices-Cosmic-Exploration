@@ -3,6 +3,7 @@ using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using ICE.Utilities.Cosmic_Helper;
+using Lumina.Excel.Sheets;
 using System.Collections.Generic;
 using static ECommons.UIHelpers.AddonMasterImplementations.AddonMaster;
 
@@ -31,14 +32,22 @@ namespace ICE.Scheduler.Tasks
         // 単一の製作アクションがロックし始めた時刻(アニメーションロック検知用)。MinValue=未計測。
         private static DateTime _craftActionLockSince = DateTime.MinValue;
 
-        // Artisan が「動作中(IsBusy)」なのに製作状態(Crafting/PreparingToCraft 等)に一度も入らない時間の起点。
-        // Artisan 側がレシピ選択や開始に失敗して固まると IsBusy=true のまま何も起きず、ICE も無言で待ち続けてしまう
-        // (実機: 「Telling Artisan to craft」の直後にログが途切れて停止)。一定時間で Artisan を止めて製作をやり直す。
-        private static DateTime _artisanNotCraftingSince = DateTime.MinValue;
-        private static int _artisanStallRecoveries = 0;      // 同一ミッション内での復旧回数(上限を超えたら放棄)
-        private static uint _artisanStallMission = 0;         // 復旧回数を数えているミッション
-        private const double ArtisanStallSeconds = 60;       // 通常は指示後 10 秒以内に製作が始まる(x3 製作の合間も数秒)
+        // ---- Artisan 停止監視 ----
+        // Artisan が「動作中(IsBusy)」を返し続けているのに、製作アクション(ExecutingCraftingAction)が一定時間まったく出ない
+        // 状態を「停止」とみなす。製作が進んでいれば数秒おきに必ずアクションが出るので、Artisan 内部の状態や
+        // 製作スタンスの有無に関係なく検知できる。
+        // 1.0.0.19 の監視は「製作スタンス(Crafting/PreparingToCraft)に入っていない時間」を数えていたため、
+        // レシピ帳を開いたまま(スタンスに入ったまま)Artisan が製作を始められないケースを検知できなかった
+        // (実機: 前工程 x2 の直後に主製作へレシピを切り替えるところで、ログが「Telling Artisan to craft」で途切れて停止)。
+        private static DateTime _artisanWaitSince = DateTime.MinValue;    // 今回の待機の開始時刻(MinValue=待機していない)
+        private static DateTime _lastCraftActionAt = DateTime.MinValue;   // 最後に製作アクションを観測した時刻(待機開始時に初期化)
+        private static int _artisanStallRecoveries = 0;                   // 同一ミッション内での復旧回数(上限を超えたら放棄)
+        private static uint _artisanStallMission = 0;                     // 復旧回数を数えているミッション
+        private const double ArtisanStallSeconds = 60;                    // 製作画面が開いていないときの許容秒数(レシピ選択・食事・開始は通常 10 秒以内)
+        private const double ArtisanStallInCraftSeconds = 180;            // 製作画面(Synthesis)が開いているときの許容秒数(ソルバーの計算待ちを考慮)
         private const int ArtisanStallMaxRecoveries = 2;
+        // 復旧時の後始末(製作の中止・スタンス解除)は、失敗しても次へ進めるよう時間制限付き・打ち切り無しで実行する
+        private static readonly ECommons.Automation.NeoTaskManager.TaskManagerConfiguration CleanupTaskConfig = new(timeLimitMS: 20000, abortOnTimeout: false);
 
         private static bool? WaitingForArtisan()
         {
@@ -47,69 +56,48 @@ namespace ICE.Scheduler.Tasks
             if (!P.Artisan.IsBusy())
             {
                 _craftActionLockSince = DateTime.MinValue;
-                _artisanNotCraftingSince = DateTime.MinValue;
+                ResetArtisanWatch();
                 IceLogging.Info("Artisan is no longer running, continuing the process", tag);
                 return true;
             }
             else
             {
-                // Artisan が動作中なのに製作が始まらない状態の監視
-                bool craftingNow = Svc.Condition[ConditionFlag.Crafting]
-                                   || Svc.Condition[ConditionFlag.PreparingToCraft]
-                                   || Svc.Condition[ConditionFlag.ExecutingCraftingAction];
-                if (craftingNow)
+                var now = DateTime.Now;
+                if (_artisanWaitSince == DateTime.MinValue)
                 {
-                    _artisanNotCraftingSince = DateTime.MinValue;
-                    // 実際に製作できているので復旧回数はリセット
+                    _artisanWaitSince = now;
+                    _lastCraftActionAt = now;
+                }
+
+                bool executing = Svc.Condition[ConditionFlag.ExecutingCraftingAction];
+                bool synthOpen = AddonHelper.IsAddonActive("Synthesis");
+                if (executing)
+                {
+                    _lastCraftActionAt = now;
+                    // 実際に製作が進んでいるので、このミッションの復旧回数はリセット
                     if (_artisanStallMission == CosmicHelper.CurrentLunarMission)
                         _artisanStallRecoveries = 0;
                 }
-                else
-                {
-                    if (_artisanNotCraftingSince == DateTime.MinValue)
-                        _artisanNotCraftingSince = DateTime.Now;
-                    double idle = (DateTime.Now - _artisanNotCraftingSince).TotalSeconds;
-                    if (idle >= 20 && EzThrottler.Throttle("Artisan stall verbose", 20000))
-                        IceLogging.Verbose($"Artisan 待機中 {idle:F0} 秒: busy=true, endurance={SafeArtisan(P.Artisan.GetEnduranceStatus)}, list={SafeArtisan(P.Artisan.IsListRunning)}, 製作状態=なし", tag);
-                    if (idle >= ArtisanStallSeconds)
-                    {
-                        _artisanNotCraftingSince = DateTime.MinValue;
-                        if (_artisanStallMission != CosmicHelper.CurrentLunarMission)
-                        {
-                            _artisanStallMission = CosmicHelper.CurrentLunarMission;
-                            _artisanStallRecoveries = 0;
-                        }
-                        _artisanStallRecoveries++;
-                        bool endurance = SafeArtisan(P.Artisan.GetEnduranceStatus);
-                        bool list = SafeArtisan(P.Artisan.IsListRunning);
-                        if (_artisanStallRecoveries <= ArtisanStallMaxRecoveries)
-                        {
-                            IceLogging.Warning($"Artisan が {ArtisanStallSeconds:F0} 秒以上「動作中」のまま製作を始めません(endurance={endurance}, list={list})。Artisan を停止して製作をやり直します({_artisanStallRecoveries}/{ArtisanStallMaxRecoveries})", tag);
-                            IceLogging.ChatInfo(Loc.T("Artisan did not start crafting, so ICE stopped it and will retry the craft."), "[I.C.E.]");
-                            StopArtisan(endurance, list);
-                            // 次のフレームで IsBusy=false になれば上の分岐で「no longer running」→ スコア確認 → 材料確認 → 再指示、と流れる
-                            return false;
-                        }
-                        IceLogging.Warning($"Artisan の停止・再指示を {ArtisanStallMaxRecoveries} 回行っても製作が始まらないため、ミッションを放棄して復帰します", tag);
-                        IceLogging.ChatError(Loc.T("Artisan kept failing to start crafting, so the mission was abandoned."), "[I.C.E.]");
-                        StopArtisan(endurance, list);
-                        _artisanStallRecoveries = 0;
-                        SchedulerMain.State = IceState.AbandonMission;
-                        P.TaskManager.Tasks.Clear();
-                        return true;
-                    }
-                }
+
+                double idle = (now - _lastCraftActionAt).TotalSeconds;
+                double limit = synthOpen ? ArtisanStallInCraftSeconds : ArtisanStallSeconds;
+                if (idle >= 20 && EzThrottler.Throttle("Artisan stall log", 20000))
+                    IceLogging.Debug($"Artisan 待機中: 最後の製作アクションから {idle:F0} 秒(上限 {limit:F0} 秒) {ArtisanStateSummary(synthOpen)}", tag);
+
+                if (idle >= limit)
+                    return HandleArtisanStall(idle, synthOpen, tag);
 
                 // 単一の製作アクションが異常に長くロックしている状態からの脱出。通常1アクションは数秒なので、
                 // 20秒以上続く場合はハングとみなしてミッションを放棄し、棒立ちのまま止まるのを防ぐ。
-                if (Svc.Condition[ConditionFlag.ExecutingCraftingAction])
+                if (executing)
                 {
                     if (_craftActionLockSince == DateTime.MinValue)
-                        _craftActionLockSince = DateTime.Now;
-                    else if ((DateTime.Now - _craftActionLockSince).TotalSeconds >= 20)
+                        _craftActionLockSince = now;
+                    else if ((now - _craftActionLockSince).TotalSeconds >= 20)
                     {
                         IceLogging.Warning("製作アクションが20秒以上ロックしています(アニメーションロックの可能性)。ミッションを放棄して復帰します", tag);
                         _craftActionLockSince = DateTime.MinValue;
+                        ResetArtisanWatch();
                         SchedulerMain.State = IceState.AbandonMission;
                         P.TaskManager.Tasks.Clear();
                         return true;
@@ -134,29 +122,174 @@ namespace ICE.Scheduler.Tasks
             return false;
         }
 
+        private static void ResetArtisanWatch()
+        {
+            _artisanWaitSince = DateTime.MinValue;
+            _lastCraftActionAt = DateTime.MinValue;
+        }
+
+        // 停止を検知したときの復旧。上限回数までは Artisan を止めて後始末をしてから通常の流れ(スコア確認→材料確認→再指示)に戻し、
+        // 超えたらミッションを放棄する。どちらも製作画面・レシピ帳を閉じてからでないと次の操作(再指示・放棄)ができない。
+        private static bool? HandleArtisanStall(double idle, bool synthOpen, string tag)
+        {
+            if (_artisanStallMission != CosmicHelper.CurrentLunarMission)
+            {
+                _artisanStallMission = CosmicHelper.CurrentLunarMission;
+                _artisanStallRecoveries = 0;
+            }
+            _artisanStallRecoveries++;
+            string state = ArtisanStateSummary(synthOpen);
+            ResetArtisanWatch();
+            _craftActionLockSince = DateTime.MinValue;
+
+            if (_artisanStallRecoveries <= ArtisanStallMaxRecoveries)
+            {
+                IceLogging.Warning($"Artisan が {idle:F0} 秒間製作アクションを出していません。Artisan を停止して製作をやり直します({_artisanStallRecoveries}/{ArtisanStallMaxRecoveries}) {state}", tag);
+                IceLogging.ChatInfo(Loc.T(synthOpen
+                    ? "Artisan stopped making progress in the middle of a craft, so ICE cancelled it and will retry."
+                    : "Artisan did not start crafting, so ICE stopped it and will retry the craft."), "[I.C.E.]");
+                StopArtisan();
+                // 後始末のあと待機タスクを終える。キューが空になると Tick が Craft 状態を再度組み立て、
+                // スコア確認→材料確認→再指示(スタンス解除済みなので Artisan は最初からレシピ帳を開き直す)と流れる
+                P.TaskManager.InsertMulti(
+                    new(() => CancelSynthesisIfOpen(), "Cancelling stalled synthesis", CleanupTaskConfig),
+                    new(() => ExitCraftingStance(), "Exiting crafting stance", CleanupTaskConfig),
+                    new(() => WaitArtisanSettled(), "Waiting for Artisan to settle", CleanupTaskConfig));
+                return true;
+            }
+
+            IceLogging.Warning($"Artisan の停止・再指示を {ArtisanStallMaxRecoveries} 回行っても製作が進まないため、ミッションを放棄して復帰します {state}", tag);
+            IceLogging.ChatError(Loc.T("Artisan kept failing to start crafting, so the mission was abandoned."), "[I.C.E.]");
+            StopArtisan();
+            _artisanStallRecoveries = 0;
+            P.TaskManager.Tasks.Clear();
+            SchedulerMain.State = IceState.AbandonMission;
+            // 製作画面やレシピ帳が開いたままだと放棄できないので、先に閉じてから Tick に放棄させる
+            P.TaskManager.EnqueueMulti(
+                new(() => CancelSynthesisIfOpen(), "Cancelling stalled synthesis", CleanupTaskConfig),
+                new(() => ExitCraftingStance(), "Exiting crafting stance", CleanupTaskConfig));
+            return true;
+        }
+
+        // ログ用: Artisan と製作関連の状態を一行にまとめる
+        private static string ArtisanStateSummary(bool synthOpen)
+        {
+            return $"[busy={SafeArtisan(P.Artisan.IsBusy)}, endurance={SafeArtisan(P.Artisan.GetEnduranceStatus)}, list={SafeArtisan(P.Artisan.IsListRunning)}, stopReq={SafeArtisan(P.Artisan.GetStopRequest)}, "
+                 + $"Crafting={Svc.Condition[ConditionFlag.Crafting]}, Preparing={Svc.Condition[ConditionFlag.PreparingToCraft]}, Executing={Svc.Condition[ConditionFlag.ExecutingCraftingAction]}, "
+                 + $"製作画面={synthOpen}, レシピ帳={AddonHelper.IsAddonActive("WKSRecipeNotebook")}, 選択中={SelectedNotebookItem() ?? "-"}]";
+        }
+
+        // コスモレシピ帳で現在選択されているアイテム名(取得できなければ null)
+        private static string SelectedNotebookItem()
+        {
+            try
+            {
+                if (GenericHelpers.TryGetAddonMaster<WKSRecipeNotebook>("WKSRecipeNotebook", out var notebook) && notebook.IsAddonReady)
+                    return notebook.SelectedCraftingItem;
+            }
+            catch { }
+            return null;
+        }
+
         // Artisan の IPC 問い合わせ(Func<bool>)を安全に評価する(Artisan 未ロード時は false)
         private static bool SafeArtisan(Func<bool> f)
         {
             try { return f != null && f(); } catch { return false; }
         }
 
-        // 固まった Artisan を止める。Endurance(CraftX)を無効化し、リストが走っていれば停止要求を出す。
-        private static void StopArtisan(bool endurance, bool list)
+        // 固まった Artisan を止める。
+        // 1) Endurance(CraftX の繰り返し)を無効化: Artisan 側で前処理タスク(レシピ選択など)も一緒に破棄される
+        // 2) 停止要求→解除: 停止要求で Artisan は残った前処理を捨ててレシピ帳を閉じる(スタンス解除)。
+        //    Endurance を先に止めているので、解除しても Artisan が勝手に再開することはない
+        private static void StopArtisan()
         {
             try
             {
-                if (endurance)
-                    P.Artisan.SetEnduranceStatus(false);
-                if (list)
-                {
-                    P.Artisan.SetStopRequest(true);
-                    P.Artisan.SetStopRequest(false);
-                }
+                P.Artisan.SetEnduranceStatus(false);
+                P.Artisan.SetStopRequest(true);
+                P.Artisan.SetStopRequest(false);
             }
             catch (Exception ex)
             {
                 IceLogging.Debug($"Artisan の停止に失敗: {ex.Message}", "Craft: Waiting for Artisan");
             }
+        }
+
+        // 製作画面(Synthesis)が開いたままなら中止する(中止確認の SelectYesno は「はい」)。閉じていれば即完了。
+        private static bool? CancelSynthesisIfOpen()
+        {
+            string tag = "Craft: Cancel synthesis";
+            if (GenericHelpers.TryGetAddonMaster<SelectYesno>("SelectYesno", out var yesno) && yesno.IsAddonReady)
+            {
+                if (EzThrottler.Throttle("Craft stall cancel yesno", 500))
+                    yesno.Yes();
+                return false;
+            }
+            if (!AddonHelper.IsAddonActive("Synthesis"))
+                return true;
+            if (Svc.Condition[ConditionFlag.ExecutingCraftingAction])
+                return false; // アクション中は操作できない
+            if (EzThrottler.Throttle("Craft stall cancel synthesis", 1000))
+            {
+                IceLogging.Warning("製作が進まないため製作画面を中止します", tag);
+                GenericHandlers.FireCallback("Synthesis", true, -1);
+            }
+            return false;
+        }
+
+        // 製作スタンス(Crafting/PreparingToCraft)を抜ける。レシピ帳を閉じれば抜けられる。抜けていれば即完了。
+        private static bool? ExitCraftingStance()
+        {
+            if (!Svc.Condition[ConditionFlag.Crafting] && !Svc.Condition[ConditionFlag.PreparingToCraft])
+                return true;
+            if (Svc.Condition[ConditionFlag.ExecutingCraftingAction])
+                return false;
+            if (AddonHelper.IsAddonActive("WKSRecipeNotebook"))
+            {
+                if (EzThrottler.Throttle("Craft exit stance", 1000))
+                    GenericHandlers.FireCallback("WKSRecipeNotebook", true, -1);
+            }
+            else if (AddonHelper.IsAddonActive("RecipeNote"))
+            {
+                if (EzThrottler.Throttle("Craft exit stance", 1000))
+                    GenericHandlers.FireCallback("RecipeNote", true, -1);
+            }
+            return false;
+        }
+
+        // Artisan が停止処理を終えて IsBusy=false になるのを待つ(時間制限は CleanupTaskConfig)
+        private static bool? WaitArtisanSettled()
+        {
+            return !P.Artisan.IsBusy();
+        }
+
+        // レシピ切り替え前にスタンスを抜け始めた時刻(MinValue=未実施)
+        private static DateTime _stanceExitSince = DateTime.MinValue;
+        private const double StanceExitMaxSeconds = 15;
+
+        // 製作スタンスに入ったまま(レシピ帳が開いたまま)別のレシピを Artisan に指示するべきかどうか。
+        // 実機で前工程→主製作の切り替え時に Artisan がレシピ帳内での選択・開始に失敗して固まったため、
+        // レシピが変わるときは一度スタンスを抜け、Artisan に最初(レシピ帳を開くところ)からやらせる。
+        // 同じレシピの続き(スコア用の追加製作など)はそのままで問題ないので抜けない。
+        private static bool NeedsFreshCraftStance(uint itemId)
+        {
+            if (!Svc.Condition[ConditionFlag.PreparingToCraft] && !Svc.Condition[ConditionFlag.Crafting])
+                return false;
+            if (!AddonHelper.IsAddonActive("WKSRecipeNotebook"))
+                return false;
+            var selected = SelectedNotebookItem();
+            if (string.IsNullOrEmpty(selected))
+                return true; // 何が選ばれているか分からないので安全側(開き直す)
+            string targetName = "";
+            try
+            {
+                if (Svc.Data.GetExcelSheet<Item>().TryGetRow(itemId, out var item))
+                    targetName = item.Name.ToString();
+            }
+            catch { }
+            if (string.IsNullOrEmpty(targetName))
+                return true;
+            return !string.Equals(selected.Trim(), targetName.Trim(), StringComparison.Ordinal);
         }
 
         private static uint throttleCounter = 0;
@@ -203,6 +336,23 @@ namespace ICE.Scheduler.Tasks
 
             if (throttleCounter >= 3)
             {
+                // レシピを切り替えるときは製作スタンスを一度抜けてから指示する(上限秒数を過ぎたらそのまま続行)
+                if (!P.Artisan.IsBusy() && NeedsFreshCraftStance(itemId))
+                {
+                    if (_stanceExitSince == DateTime.MinValue)
+                    {
+                        _stanceExitSince = DateTime.Now;
+                        IceLogging.Info($"レシピ帳の選択({SelectedNotebookItem() ?? "-"})と製作対象({itemId})が異なるため、製作スタンスを一度抜けてから Artisan に指示します", "[Task Craft]");
+                    }
+                    if ((DateTime.Now - _stanceExitSince).TotalSeconds < StanceExitMaxSeconds)
+                    {
+                        ExitCraftingStance();
+                        return false;
+                    }
+                    if (EzThrottler.Throttle("Stance exit give up", 5000))
+                        IceLogging.Warning($"{StanceExitMaxSeconds:F0} 秒以内に製作スタンスを抜けられなかったため、そのまま Artisan に指示します", "[Task Craft]");
+                }
+
                 if (EzThrottler.Throttle("Artisan Crafting Task"))
                 {
                     IceLogging.Debug($"Telling Artisan to craft: {itemId} -> {amount} times");
@@ -212,6 +362,7 @@ namespace ICE.Scheduler.Tasks
                 if (P.TaskManager.IsBusy)
                 {
                     throttleCounter = 0;
+                    _stanceExitSince = DateTime.MinValue;
                     return true;
                 }
             }

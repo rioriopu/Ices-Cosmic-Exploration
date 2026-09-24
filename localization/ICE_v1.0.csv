@@ -872,5 +872,6 @@ Stop appraisal: aborts the appraisal (and anything else ICE is doing) and closes
 "ICE","","","","Appraisal stopped.","鑑定を停止しました。"
 "ICE","","","","Stopped.","停止しました。"
 "ICE","","","","The appraisal kept failing, so it was stopped.","鑑定が繰り返し失敗したため停止しました。"
-"ICE","","","","Artisan did not start crafting, so ICE stopped it and will retry the craft.","Artisan が製作を開始しなかったため、Artisan を停止して製作をやり直します。"
-"ICE","","","","Artisan kept failing to start crafting, so the mission was abandoned.","Artisan が製作を開始できない状態が続いたため、ミッションを放棄しました。"
+"ICE","","","","Artisan did not start crafting, so ICE stopped it and will retry the craft.","Artisan が製作を進めなかったため、Artisan を停止して製作をやり直します。"
+"ICE","","","","Artisan kept failing to start crafting, so the mission was abandoned.","Artisan が製作を進められない状態が続いたため、ミッションを放棄しました。"
+"ICE","","","","Artisan stopped making progress in the middle of a craft, so ICE cancelled it and will retry.","Artisan が製作の途中で進まなくなったため、製作を中止してやり直します。"
