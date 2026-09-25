@@ -320,7 +320,9 @@ namespace ICE.Scheduler.Tasks
                 if (EzThrottler.Throttle("Applying Config States", 1000))
                 {
                     IceLogging.Info($"Applying config states for the following recipeID: {recipeId}");
-                    P.Artisan.CheckArtisanSettings((ushort)recipeId, CosmicHelper.CurrentLunarMission, expert, Mission_Settings.Mode == ModeSelect.LevelMode);
+                    // レベリング中に Progress Only へ切り替えるのは設定で選んだときだけ(既定は ICE で設定したソルバーをそのまま使う)
+                    bool levelingProgressOnly = Mission_Settings.Mode == ModeSelect.LevelMode && C.Leveling_UseProgressOnlySolver;
+                    P.Artisan.CheckArtisanSettings((ushort)recipeId, CosmicHelper.CurrentLunarMission, expert, levelingProgressOnly);
                 }
             }
             else

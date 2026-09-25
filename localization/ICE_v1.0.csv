@@ -902,3 +902,7 @@ AutoRetainer の「Action on accessing retainer bell if any ventures available�
 "ICE","","","","Collected","回収済み"
 "ICE","","","","retry in","再試行まで"
 "ICE","","","","min","分"
+"ICE","","","","Leveling: Use Progress Only Solver","レベリング中は Progress Only Solver を使う"
+"ICE","","","","While leveling (Leveling mode, or the temporary leveling that Relic mode falls back to), ignore the Artisan solver chosen in ICE and craft with Artisan's ""Progress Only Solver"" for speed.
+Off: use the solver configured in ICE (e.g. Raphael) even while leveling.","レベリング中(レベリングモード、およびレリックモードから一時的にレベリングへ切り替わっている間)は、ICE で選んだ Artisan のソルバーを無視して Artisan の「Progress Only Solver」で製作します(速度優先)。
+OFF: レベリング中も ICE で設定したソルバー(Raphael など)を使います。"

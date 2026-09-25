@@ -478,6 +478,15 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                                        "(Stylist if installed, otherwise the game's recommended gear) and update the gearset.\n" +
                                        "Turned on automatically when you press \"Buy Leveling Gear\"."));
 
+                    bool levelingProgressOnly = C.Leveling_UseProgressOnlySolver;
+                    if (ImGui.Checkbox(Loc.T("Leveling: Use Progress Only Solver"), ref levelingProgressOnly))
+                    {
+                        C.Leveling_UseProgressOnlySolver = levelingProgressOnly;
+                        C.Save();
+                    }
+                    ImGuiEx.HelpMarker(Loc.T("While leveling (Leveling mode, or the temporary leveling that Relic mode falls back to), ignore the Artisan solver chosen in ICE and craft with Artisan's \"Progress Only Solver\" for speed.\n" +
+                                       "Off: use the solver configured in ICE (e.g. Raphael) even while leveling."));
+
                     if (ImGui.Button(Loc.T("Open Job Swap Settings")))
                     {
                         C.SelectedTab = WindowSelection.CharacterSettings;
