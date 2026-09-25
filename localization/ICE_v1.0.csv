@@ -906,3 +906,5 @@ AutoRetainer の「Action on accessing retainer bell if any ventures available�
 "ICE","","","","While leveling (Leveling mode, or the temporary leveling that Relic mode falls back to), ignore the Artisan solver chosen in ICE and craft with Artisan's ""Progress Only Solver"" for speed.
 Off: use the solver configured in ICE (e.g. Raphael) even while leveling.","レベリング中(レベリングモード、およびレリックモードから一時的にレベリングへ切り替わっている間)は、ICE で選んだ Artisan のソルバーを無視して Artisan の「Progress Only Solver」で製作します(速度優先)。
 OFF: レベリング中も ICE で設定したソルバー(Raphael など)を使います。"
+"ICE","","","","Artisan could not build a rotation for this craft. Updating gear and retrying once.","Artisan がこの製作の手順を組めませんでした。最強装備へ更新してから一度だけやり直します。"
+"ICE","","","","This craft cannot be completed with the current stats. The mission was abandoned and will be skipped until your level or gear changes.","この製作は現在の能力値では完成できません。ミッションを放棄し、レベルか装備が変わるまでこのミッションは受けません。"

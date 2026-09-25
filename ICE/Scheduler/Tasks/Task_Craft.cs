@@ -1,5 +1,8 @@
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Plugin.Services;
+using ECommons.GameHelpers;
+using FFXIVClientStructs.FFXIV.Client.Game;
+using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using ICE.Utilities.Cosmic_Helper;
@@ -24,9 +27,120 @@ namespace ICE.Scheduler.Tasks
             }
             else
             {
+                // ミッション中にレベルが上がっていたら、次の製作の前に最強装備へ更新する(製作スタンスを抜けてから)。
+                // コスモレシピは製作者のレベルに応じて難易度が上がるため、装備が追いつかないと Artisan が手順を組めない。
+                if (C.LevelingGear_AutoEquipBest && Task_RelicTurnin.NeedsEquipForLevel((uint)Player.Job))
+                {
+                    IceLogging.Info($"レベルが上がっているため、製作の前に最強装備を行います(Lv{Player.GetLevel(Player.Job)})", "[Task Craft]");
+                    P.TaskManager.Enqueue(() => ExitCraftingStance(), "Exiting crafting stance before equipping", CleanupTaskConfig);
+                    Task_RelicTurnin.EnqueueEquipBestGear();
+                }
                 P.TaskManager.Enqueue(() => Task_CheckScore.Enqueue(), "Checking Score");
                 P.TaskManager.Enqueue(() => CheckMaterials(), "Checking materials", Utils.TaskConfig);
             }
+        }
+
+        // ---- Artisan のソルバー(Raphael)が手順を組めなかった場合 ----
+        // Artisan はチャットに「Raphael ... NoSolution」「Raphael has timed out or cancelled ...」を出したあと、
+        // 製作画面を開いたまま無効状態で止まる(IsBusy=true のまま)。180 秒の監視を待たずに即座に対処するため、
+        // ICE.cs のチャット監視から通知を受ける。
+        private static DateTime _raphaelFailedAt = DateTime.MinValue;
+        private static string _raphaelFailureText = "";
+        private static DateTime _craftIssuedAt = DateTime.MinValue;   // 最後に CraftItem を呼んだ時刻
+        private static uint _lastRecipeId = 0;
+        private static uint _equipRetryMission = 0;                    // このミッションで「装備更新→再試行」を行ったか
+
+        public static void NotifyRaphaelFailure(string text)
+        {
+            _raphaelFailedAt = DateTime.Now;
+            _raphaelFailureText = text;
+        }
+
+        /// <summary>
+        /// Raphael が解を出せなかった製作への対処。1 回目は最強装備へ更新して再試行(ミッション中のレベルアップで
+        /// 装備が追いついていない典型例)、2 回目は「現在の能力値では作れない」と判断してミッションを放棄し、
+        /// レベルか装備(作業精度)が変わるまでそのミッションを候補から外す。
+        /// </summary>
+        private static bool? HandleUnsolvableCraft(string tag)
+        {
+            var mission = CosmicHelper.CurrentLunarMission;
+            uint job = (uint)Player.Job;
+            string diag = DescribeCraftFeasibility(_lastRecipeId);
+            IceLogging.Warning($"Artisan(Raphael)がこの製作の手順を組めませんでした: 「{_raphaelFailureText}」 {diag}", tag);
+            _raphaelFailedAt = DateTime.MinValue;
+            ResetArtisanWatch();
+            _craftActionLockSince = DateTime.MinValue;
+            StopArtisan();
+
+            bool retryWithGear = C.LevelingGear_AutoEquipBest && _equipRetryMission != mission;
+            P.TaskManager.Tasks.Clear();
+            P.TaskManager.EnqueueMulti(
+                new(() => CancelSynthesisIfOpen(), "Cancelling unsolvable synthesis", CleanupTaskConfig),
+                new(() => ExitCraftingStance(), "Exiting crafting stance", CleanupTaskConfig),
+                new(() => WaitArtisanSettled(), "Waiting for Artisan to settle", CleanupTaskConfig));
+            if (retryWithGear)
+            {
+                _equipRetryMission = mission;
+                IceLogging.Info("最強装備へ更新してから製作をやり直します", tag);
+                IceLogging.ChatInfo(Loc.T("Artisan could not build a rotation for this craft. Updating gear and retrying once."), "[I.C.E.]");
+                Task_RelicTurnin.EnqueueEquipBestGear();
+                // キューが空になると Tick が Craft 状態を組み直し、スコア確認→材料確認→再指示(新しい能力値で Raphael が再計算)となる
+                return true;
+            }
+
+            AbandonAsInfeasible(mission, job, tag);
+            return true;
+        }
+
+        // 現在の能力値では完成できない製作として、ミッションを放棄し候補から外す
+        private static void AbandonAsInfeasible(uint mission, uint job, string tag)
+        {
+            int craftsmanship = GetCraftsmanship();
+            Task_CheckMissions.MarkInfeasible(mission, job, Player.GetLevel((Job)job), craftsmanship);
+            IceLogging.Warning($"ミッション {mission} は現在の能力値(Lv{Player.GetLevel((Job)job)} 作業精度 {craftsmanship})では完成できないと判断し、放棄して候補から外します(レベルか装備が変わるまで)", tag);
+            IceLogging.ChatError(Loc.T("This craft cannot be completed with the current stats. The mission was abandoned and will be skipped until your level or gear changes."), "[I.C.E.]");
+            _artisanStallRecoveries = 0;
+            SchedulerMain.State = IceState.AbandonMission;
+        }
+
+        // ログ用: 製作者の能力値・レベル、Artisan がコスモレシピに当てはめるレベル表、レシピの実効値、ステディハンドの残り回数
+        private static unsafe string DescribeCraftFeasibility(uint recipeId)
+        {
+            try
+            {
+                int lv = Player.GetLevel(Player.Job);
+                int cs = GetCraftsmanship();
+                var ps = UIState.Instance()->PlayerState;
+                int ctl = ps.Attributes[71];
+                int cp = ps.Attributes[11];
+                string recipeInfo = "";
+                if (ExcelHelper.RecipeSheet.TryGetRow(recipeId, out var recipe))
+                {
+                    var own = recipe.RecipeLevelTable.Value;
+                    // Artisan はコスモレシピ(recipe.Number == 0)で製作者レベル < 100 なら、そのレベルに対応する最初の RecipeLevelTable を使う
+                    var lt = lv < 100 && recipe.Number == 0
+                        ? Svc.Data.GetExcelSheet<RecipeLevelTable>().First(x => x.ClassJobLevel == lv)
+                        : own;
+                    int progress = lt.Difficulty * recipe.DifficultyFactor / 100;
+                    int quality = (int)(lt.Quality * recipe.QualityFactor / 100);
+                    int durability = own.Durability * recipe.DurabilityFactor / 100;
+                    recipeInfo = $"レシピ {recipeId}(rlvl {own.RowId}→Lv{lv} 用の表 {lt.RowId}: 推奨作業精度 {lt.SuggestedCraftsmanship}) 必要工数 {progress} 品質上限 {quality} 耐久 {durability}";
+                }
+                string steady = "不明";
+                var dam = DutyActionManager.GetInstanceIfReady();
+                if (dam != null)
+                    steady = $"{dam->ActionId[0]}:{dam->CurCharges[0]} / {dam->ActionId[1]}:{dam->CurCharges[1]}";
+                return $"[Lv{lv} 作業精度 {cs} 加工精度 {ctl} CP {cp} | {recipeInfo} | 特殊アクション(ID:残回数) {steady}]";
+            }
+            catch (Exception ex)
+            {
+                return $"[診断情報の取得に失敗: {ex.Message}]";
+            }
+        }
+
+        private static unsafe int GetCraftsmanship()
+        {
+            try { return UIState.Instance()->PlayerState.Attributes[70]; } catch { return 0; }
         }
 
         // 単一の製作アクションがロックし始めた時刻(アニメーションロック検知用)。MinValue=未計測。
@@ -68,6 +182,10 @@ namespace ICE.Scheduler.Tasks
                     _artisanWaitSince = now;
                     _lastCraftActionAt = now;
                 }
+
+                // Artisan(Raphael)が「解なし」を出した → 待っても始まらないので即座に対処する
+                if (_raphaelFailedAt != DateTime.MinValue && _raphaelFailedAt >= _craftIssuedAt)
+                    return HandleUnsolvableCraft(tag);
 
                 bool executing = Svc.Condition[ConditionFlag.ExecutingCraftingAction];
                 bool synthOpen = AddonHelper.IsAddonActive("Synthesis");
@@ -158,16 +276,16 @@ namespace ICE.Scheduler.Tasks
                 return true;
             }
 
-            IceLogging.Warning($"Artisan の停止・再指示を {ArtisanStallMaxRecoveries} 回行っても製作が進まないため、ミッションを放棄して復帰します {state}", tag);
+            IceLogging.Warning($"Artisan の停止・再指示を {ArtisanStallMaxRecoveries} 回行っても製作が進まないため、ミッションを放棄して復帰します {state} {DescribeCraftFeasibility(_lastRecipeId)}", tag);
             IceLogging.ChatError(Loc.T("Artisan kept failing to start crafting, so the mission was abandoned."), "[I.C.E.]");
             StopArtisan();
-            _artisanStallRecoveries = 0;
             P.TaskManager.Tasks.Clear();
-            SchedulerMain.State = IceState.AbandonMission;
             // 製作画面やレシピ帳が開いたままだと放棄できないので、先に閉じてから Tick に放棄させる
             P.TaskManager.EnqueueMulti(
                 new(() => CancelSynthesisIfOpen(), "Cancelling stalled synthesis", CleanupTaskConfig),
                 new(() => ExitCraftingStance(), "Exiting crafting stance", CleanupTaskConfig));
+            // 同じ能力値で同じミッションを取り直しても同じ結果になるので、レベルか装備が変わるまで候補から外す
+            AbandonAsInfeasible(CosmicHelper.CurrentLunarMission, (uint)Player.Job, tag);
             return true;
         }
 
@@ -358,6 +476,9 @@ namespace ICE.Scheduler.Tasks
                 if (EzThrottler.Throttle("Artisan Crafting Task"))
                 {
                     IceLogging.Debug($"Telling Artisan to craft: {itemId} -> {amount} times");
+                    _lastRecipeId = recipeId;
+                    _craftIssuedAt = DateTime.Now;
+                    _raphaelFailedAt = DateTime.MinValue;
                     P.Artisan.CraftItem(craftId, amount);
                 }
 

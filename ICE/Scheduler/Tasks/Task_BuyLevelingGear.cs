@@ -21,7 +21,9 @@ namespace ICE.Scheduler.Tasks
     internal static class Task_BuyLevelingGear
     {
         // 購入する装備Lvの段階。丁度の Lv の装備が無い段階は、その Lv 以下で最も高い Lv の装備を買う(例: Lv75 → Lv74/73)。
-        public static readonly int[] Steps = { 10, 20, 30, 40, 50, 52, 55, 60, 65, 70, 75, 80, 85, 90, 95 };
+        // コスモレシピは製作者のレベルに応じて難易度が上がり、特に Lv90→91 で要求値が大きく跳ねるため、
+        // ゴッドギスにある Lv91(il610)/Lv94(il650)/Lv97(il670) の段階を入れている。
+        public static readonly int[] Steps = { 10, 20, 30, 40, 50, 52, 55, 60, 65, 70, 75, 80, 85, 90, 91, 94, 97 };
         public static int MinLevel => Steps[0];
         public static int MaxLevel => Steps[^1];
         public static string StepsText => string.Join("→", Steps);

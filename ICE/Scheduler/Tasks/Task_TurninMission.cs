@@ -490,9 +490,13 @@ namespace ICE.Scheduler.Tasks
 
             // レベリング中はミッションごとに最強装備を行う(Stylist があれば /stylist、無ければゲームのおすすめ装備)。
             // レベルが上がって購入済みの上位装備が着けられるようになった時点で自動で更新するため。
-            if (Mission_Settings.Mode == ModeSelect.LevelMode && C.LevelingGear_AutoEquipBest)
+            // レリックモード等でも、前回の装備更新からレベルが上がっていれば更新する(実機: レリックモード中に Lv91 になっても
+            // Lv90 装備のままで、Lv91 相当に上がった製作難易度に届かず Artisan が手順を組めなかった)。
+            if (C.LevelingGear_AutoEquipBest && (Mission_Settings.Mode == ModeSelect.LevelMode || Task_RelicTurnin.NeedsEquipForLevel((uint)Player.Job)))
             {
-                IceLogging.Info("Leveling: equipping the best gear after the mission", tag);
+                IceLogging.Info(Mission_Settings.Mode == ModeSelect.LevelMode
+                    ? "Leveling: equipping the best gear after the mission"
+                    : $"レベルが上がったので最強装備を行います(Lv{Player.GetLevel(Player.Job)})", tag);
                 Task_RelicTurnin.EnqueueEquipBestGear();
             }
 

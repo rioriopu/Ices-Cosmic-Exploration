@@ -320,6 +320,17 @@ namespace ICE.Scheduler.Tasks
         /// 現在のジョブで最強装備を行うタスクを末尾に積む(Stylist があれば /stylist、無ければゲームのおすすめ装備)。
         /// どちらの場合もその後にギアセットを更新する。レベリング中のミッション後や装備購入後に使う。
         /// </summary>
+        // ジョブごとに「最後に最強装備を行ったときのレベル」。レベルが上がったら(モードを問わず)装備を更新するために使う。
+        // 未記録のジョブは「更新が必要」とみなす(セッション開始後の最初の区切りで一度だけ /stylist が走る)。
+        private static readonly System.Collections.Generic.Dictionary<uint, int> _lastEquipLevel = new();
+
+        /// <summary>最後に最強装備を行ってからレベルが上がっているか(未記録なら true)</summary>
+        public static bool NeedsEquipForLevel(uint jobId)
+        {
+            int lv = Player.GetLevel((Job)jobId);
+            return !_lastEquipLevel.TryGetValue(jobId, out var last) || lv > last;
+        }
+
         public static void EnqueueEquipBestGear()
         {
             uint jobId = (uint)Player.Job;
@@ -336,6 +347,7 @@ namespace ICE.Scheduler.Tasks
             {
                 P.TaskManager.Enqueue(() => EquipRecommendedGear(), "Equipping recommended gear", Utils.TaskConfig);
             }
+            P.TaskManager.Enqueue(() => { _lastEquipLevel[jobId] = Player.GetLevel((Job)jobId); return true; }, "Recording the equip level");
         }
 
         private static int _recommendStep = 0;

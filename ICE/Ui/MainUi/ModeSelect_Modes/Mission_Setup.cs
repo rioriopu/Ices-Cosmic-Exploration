@@ -75,8 +75,8 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                 ? $"レベリング装備品（{plan.Items.Count}）を自動売却します。本当によろしいですか？※全{category}がLv100か確認してください"
                 : $"Sell {plan.Items.Count} leveling gear item(s) automatically. Are you sure? *Make sure all {category} are Lv100 first");
             ImGui.TextDisabled(jp
-                ? $"対象: {(plan.IsGatherer ? "ギャザラー" : "クラフター")}用のレベリング装備（ゴッドギスで買える Lv10〜95、アーマリーチェスト内の NQ 品のみ。HQ は売りません） / 見込み {plan.TotalGil:N0} ギル"
-                : $"Target: {category}' leveling gear (Lv10–95 sold by the vendor, NQ items in the Armoury Chest only; HQ is never sold) / about {plan.TotalGil:N0} gil");
+                ? $"対象: {(plan.IsGatherer ? "ギャザラー" : "クラフター")}用のレベリング装備（ゴッドギスで買える Lv10〜{Task_BuyLevelingGear.MaxLevel}、アーマリーチェスト内の NQ 品のみ。HQ は売りません） / 見込み {plan.TotalGil:N0} ギル"
+                : $"Target: {category}' leveling gear (Lv10–{Task_BuyLevelingGear.MaxLevel} sold by the vendor, NQ items in the Armoury Chest only; HQ is never sold) / about {plan.TotalGil:N0} gil");
             ImGui.PopTextWrapPos();
 
             if (plan.Items.Count > 0 && ImGui.CollapsingHeader(Loc.T("Items to sell")))

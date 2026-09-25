@@ -1,4 +1,5 @@
 using ECommons.GameHelpers;
+using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using FFXIVClientStructs.FFXIV.Client.Game.WKS;
 using FFXIVClientStructs.FFXIV.Client.UI.Agent;
 using ICE.Sounds;
@@ -571,7 +572,7 @@ namespace ICE.Scheduler.Tasks
                 }
                 if (lockedBasic.Count > 0 && EzThrottler.Throttle("Locked missions log", 10000))
                     IceLogging.Info($"掲示板のロック中ミッション(受注不可): [{string.Join(",", lockedBasic)}] ロック中ランク: [{string.Join(",", lockedRanks.Select(RelicFallback.RankName))}]", tag);
-                basicMissionList = basicMissionList.Where(x => !lockedBasic.Contains(x) && !IsUnacceptable(x)).ToList();
+                basicMissionList = basicMissionList.Where(x => !lockedBasic.Contains(x) && !IsUnacceptable(x) && !IsInfeasible(x, filterJob)).ToList();
                 var specialMissionList = CosmicHandler.Provisional_AvailableMissions();
                 var criticalMissions = CosmicHandler.Critical_AvailableMissions();
                 var masteryMissions = CosmicHandler.Mastery_AvailableMissions();
@@ -686,7 +687,7 @@ namespace ICE.Scheduler.Tasks
                             var selectable = MissionLibrary
                                 .Where(kv => kv.Key is MissionKind.D or MissionKind.C or MissionKind.B or MissionKind.A or MissionKind.Ex)
                                 .SelectMany(kv => kv.Value)
-                                .Where(x => !lockedBasic.Contains(x) && !IsUnacceptable(x)
+                                .Where(x => !lockedBasic.Contains(x) && !IsUnacceptable(x) && !IsInfeasible(x, job)
                                             && !(CosmicHelper.SheetMissionDict.TryGetValue(x, out var sx) && lockedRanks.Contains(sx.Rank)))
                                 .ToList();
                             uint reqRank = 0, reqLevel = 0;
@@ -698,6 +699,23 @@ namespace ICE.Scheduler.Tasks
                             {
                                 // レベルもランクも満たしているのに候補に入らない(受注失敗で除外中、設定で無効 等)ならレベリングでは解決しない。
                                 // 往復ループにせず、理由を通知して停止する
+                                if (jobLv >= reqLevel && highestRank >= reqRank && HasInfeasible(job))
+                                {
+                                    // 候補が消えた理由が「現在の能力値では完成できない製作」なら、1 レベル上がるまでレベリングで能力値を上げる
+                                    // (レベルが上がると装備の更新と再判定が入る)。停止せず自動で続ける
+                                    uint retryLevel = (uint)jobLv + 1;
+                                    IceLogging.Info($"レリックモード: {RelicFallback.RankName(reqRank)}クラスの製作が現在の能力値では完成できないため、Lv{retryLevel} までレベリングモードで動きます", tag);
+                                    if (!RelicFallback.Begin(job, reqRank, retryLevel, blockedTypes + "(能力値不足)"))
+                                    {
+                                        SchedulerMain.State = IceState.Idle;
+                                        P.TaskManager.Tasks.Clear();
+                                        return true;
+                                    }
+                                    Mission_Settings.Mode = ModeSelect.LevelMode;
+                                    P.TaskManager.Tasks.Clear();
+                                    SchedulerMain.State = IceState.Start;
+                                    return true;
+                                }
                                 if (jobLv >= reqLevel && highestRank >= reqRank)
                                 {
                                     IceLogging.ChatError(Task_BuyLevelingGear.IsJapanese
@@ -1209,6 +1227,43 @@ namespace ICE.Scheduler.Tasks
         // 受注を試みても受注できなかったミッション(ランク未解放・レベル不足など)。一定時間は候補から外す。
         private static readonly Dictionary<uint, DateTime> _unacceptable = new();
         private const double UnacceptableExpireMinutes = 30;
+
+        // 「現在の能力値では完成できない」と判定した製作ミッション(Artisan の Raphael が解を出せなかった等)。
+        // 同じジョブで、レベルも作業精度も上がっていない間は候補から外す。レベルか装備が変われば自動で再挑戦する。
+        private sealed class InfeasibleEntry { public uint Job; public int Level; public int Craftsmanship; public DateTime At; }
+        private static readonly Dictionary<uint, InfeasibleEntry> _infeasible = new();
+
+        internal static void MarkInfeasible(uint missionId, uint job, int level, int craftsmanship)
+        {
+            if (missionId == 0) return;
+            _infeasible[missionId] = new InfeasibleEntry { Job = job, Level = level, Craftsmanship = craftsmanship, At = DateTime.Now };
+        }
+
+        internal static unsafe bool IsInfeasible(uint missionId, uint job)
+        {
+            if (!_infeasible.TryGetValue(missionId, out var e) || e.Job != job)
+                return false;
+            int lv = Player.GetLevel((Job)job);
+            if (lv > e.Level)
+            {
+                _infeasible.Remove(missionId);
+                return false;
+            }
+            // 作業精度(能力値は現在のジョブのものしか読めない)が上がっていれば装備が変わったとみなして再挑戦する
+            if ((uint)Player.Job == job)
+            {
+                int cs = 0;
+                try { cs = UIState.Instance()->PlayerState.Attributes[70]; } catch { }
+                if (cs > e.Craftsmanship)
+                {
+                    _infeasible.Remove(missionId);
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        internal static bool HasInfeasible(uint job) => _infeasible.Values.Any(e => e.Job == job);
         private static int _initiateAttempts = 0;
         private static uint _initiateMissionId = 0;
         private const int MaxInitiateAttempts = 5;
