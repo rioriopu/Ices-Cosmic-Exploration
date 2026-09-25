@@ -655,19 +655,24 @@ namespace ICE.Scheduler.Tasks
                 }
             }
 
-            if (BuyDrones || GambaWheel || BuyItems || RepairVendor || TurninRelic)
+            // リテイナーのベンチャーが回収可能(AutoRetainer に問い合わせ)なら拠点の呼び鈴で回収する
+            bool CollectVenture = Task_VentureCollect.ShouldCollect();
+
+            if (BuyDrones || GambaWheel || BuyItems || RepairVendor || TurninRelic || CollectVenture)
             {
                 IceLogging.Info("We have some reason to return back to the base so... we're doing so.\n" +
                                   $"Can Buy Drones: {BuyDrones}\n" +
                                   $"Gamba Wheel: {GambaWheel}\n" +
                                   $"Buying Cosmocredit/Mount Items: {BuyItems}\n" +
                                   $"Repair At Vendor: {RepairVendor}\n" +
-                                  $"Turnin Relic: {TurninRelic}", tag);
+                                  $"Turnin Relic: {TurninRelic}\n" +
+                                  $"Collect Ventures: {CollectVenture}", tag);
                 Task_HubActivities.CanBuyDrones = BuyDrones;
                 Task_HubActivities.CanGamba = GambaWheel;
                 Task_HubActivities.CosmoBuy = BuyItems;
                 Task_HubActivities.RepairNpc = RepairVendor;
                 Task_HubActivities.RelicTurnin = TurninRelic;
+                Task_HubActivities.CollectVenture = CollectVenture;
                 SchedulerMain.State = IceState.HubReturn;
             }
             else

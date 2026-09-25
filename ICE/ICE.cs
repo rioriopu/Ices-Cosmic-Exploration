@@ -46,6 +46,7 @@ public sealed partial class ICE : IDalamudPlugin
     internal ArtisanIPC Artisan;
     internal VislandIPC Visland;
     internal AutoHookIPC AutoHook;
+    internal AutoRetainerIPC AutoRetainer;
     internal IceCosmicExplorationIPC IceIpc;
     internal GlamourerIPC GlamourIpc;
 
@@ -79,6 +80,7 @@ public sealed partial class ICE : IDalamudPlugin
         Artisan = new();
         Visland = new();
         AutoHook = new();
+        AutoRetainer = new();
         IceIpc = new();
         GlamourIpc = new(Svc.PluginInterface);
 

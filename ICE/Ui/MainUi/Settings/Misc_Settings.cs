@@ -26,6 +26,8 @@ namespace ICE.Ui.MainUi.Settings
             Separator();
             TimeRecords();
             Separator();
+            VentureSettings();
+            Separator();
             PostMissionCommands();
             Separator();
             FunSettings();
@@ -33,6 +35,44 @@ namespace ICE.Ui.MainUi.Settings
             Separator();
             DebugTab.Draw();
 #endif
+        }
+
+        // リテイナーのベンチャー回収(拠点の呼び鈴。回収そのものは AutoRetainer に任せる)。
+        // 宇宙探査エリアにいるときだけ操作できる(エリア外では無効表示)。初期値は OFF。
+        public static void VentureSettings()
+        {
+            ImGuiEx.IconWithText(FontAwesomeIcon.Bell, Loc.T("Retainer Ventures"));
+            ImGui.Dummy(new(0, 5));
+
+            bool inCosmic = PlayerHelper.IsInCosmicZone();
+            bool collect = C.Venture_Collect;
+            using (ImRaii.Disabled(!inCosmic))
+            {
+                if (ImGui.Checkbox(Loc.T("Auto-collect ventures at the hub summoning bell when they are ready"), ref collect))
+                {
+                    C.Venture_Collect = collect;
+                    C.Save();
+                }
+            }
+            ImGuiEx.HelpMarker(Loc.T("Between missions, when AutoRetainer reports that a venture can be collected, ICE returns to the hub, walks to the summoning bell and opens it. AutoRetainer collects and resends the ventures; ICE closes the window and continues with missions.\n" +
+                                     "Only works inside Cosmic Exploration areas. Requires AutoRetainer (with the retainers enabled there) and vnavmesh.\n" +
+                                     "In AutoRetainer, keep \"Action on accessing retainer bell if any ventures available\" set to \"Enable AutoRetainer\" (the default)."));
+            if (!inCosmic)
+                ImGui.TextDisabled(Loc.T("Available only inside Cosmic Exploration areas."));
+            if (collect)
+            {
+                int cooldown = C.Venture_RetryCooldownMinutes;
+                ImGui.SetNextItemWidth(150);
+                if (ImGui.SliderInt(Loc.T("Retry wait after repeated failures (min)"), ref cooldown, 5, 120))
+                {
+                    C.Venture_RetryCooldownMinutes = cooldown;
+                    C.SaveDebounced();
+                }
+                if (!P.AutoRetainer.Installed)
+                    ImGuiEx.Text(EColor.Red, Loc.T("AutoRetainer is not installed."));
+                if (!string.IsNullOrEmpty(Task_VentureCollect.LastResult))
+                    ImGui.TextDisabled($"{Loc.T("Last result")}: {Task_VentureCollect.LastResult}");
+            }
         }
 
         // UI の表示言語。辞書はプラグイン同梱の localization\ICE_v1.0.csv(と設定フォルダの localization\*.csv)

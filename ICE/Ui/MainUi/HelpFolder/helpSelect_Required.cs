@@ -32,6 +32,11 @@ namespace ICE.Ui.MainUi.HelpFolder
             HasPlugin("https://puni.sh/api/repository/veyn", "vnavmesh");
 
             ImGui.Separator();
+            ImGuiEx.IconWithText(FontAwesomeIcon.Bell, Loc.T("Collecting retainer ventures"));
+            ImGui.Text(Loc.T("Only if you enable it in Misc settings"));
+            HasPlugin("https://love.puni.sh/ment.json", "AutoRetainer");
+
+            ImGui.Separator();
             ImGui.TextWrapped(Loc.T("This isn't required, but highly recommended for leveling up characters. It will auto equip gear from your armory/inventory, and swap it out when running Leveling Grind Mode"));
             ImGuiEx.IconWithText(FontAwesomeIcon.Leaf, Loc.T("Stylist"));
             HasPlugin("https://raw.githubusercontent.com/NightmareXIV/MyDalamudPlugins/main/pluginmaster.json", "Stylist");

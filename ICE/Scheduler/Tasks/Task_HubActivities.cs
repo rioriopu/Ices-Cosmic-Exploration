@@ -15,12 +15,18 @@ namespace ICE.Scheduler
         public static bool CosmoBuy = false;
         public static bool CanGamba = false;
         public static bool CanBuyDrones = false;
+        public static bool CollectVenture = false;   // リテイナーのベンチャーを拠点の呼び鈴で回収する
         private static Vector3 craftingSpot = Vector3.Zero;
 
         public static void Enqueue()
         {
             P.TaskManager.Enqueue(RegisterCraftingPosition, "Registering crafting position for later");
             P.TaskManager.Enqueue(Task_Repair.HubCheck, "Checking to see if we're in hub area");
+            if (CollectVenture)
+            {
+                P.TaskManager.Enqueue(() => IceLogging.Info("Starting venture collection at the summoning bell", "Task_HubActivities"));
+                Task_VentureCollect.Enqueue();
+            }
             if (RepairNpc)
             {
                 P.TaskManager.EnqueueMulti
@@ -99,6 +105,7 @@ namespace ICE.Scheduler
             CosmoBuy = false;
             CanGamba = false;
             CanBuyDrones = false;
+            CollectVenture = false;
             CosmicHelper.Task_UpdateRelicMissionInfo();
 
             return true;
