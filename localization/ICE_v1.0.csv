@@ -908,3 +908,4 @@ Off: use the solver configured in ICE (e.g. Raphael) even while leveling.","レ�
 OFF: レベリング中も ICE で設定したソルバー(Raphael など)を使います。"
 "ICE","","","","Artisan could not build a rotation for this craft. Updating gear and retrying once.","Artisan がこの製作の手順を組めませんでした。最強装備へ更新してから一度だけやり直します。"
 "ICE","","","","This craft cannot be completed with the current stats. The mission was abandoned and will be skipped until your level or gear changes.","この製作は現在の能力値では完成できません。ミッションを放棄し、レベルか装備が変わるまでこのミッションは受けません。"
+"ICE","","","","Artisan's Raphael CLI is missing, so ICE will craft with the Standard solver until you restart ICE. Reinstall Artisan or whitelist raphael-cli.bin.","Artisan の Raphael CLI が見つからないため、ICE を再開するまで標準ソルバーで製作します。Artisan を再インストールするか raphael-cli.bin をウイルス対策の除外に追加してください。"

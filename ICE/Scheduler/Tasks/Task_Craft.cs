@@ -57,6 +57,23 @@ namespace ICE.Scheduler.Tasks
         }
 
         /// <summary>
+        /// Artisan が「Raphael CLI not found」を出した(raphael-cli.bin が読めない。Artisan 更新直後やウイルス対策の隔離)。
+        /// Raphael は使えないので、以降は標準ソルバーへ置き換えて製作を続け、止まっている製作はやり直す。
+        /// </summary>
+        public static void NotifyRaphaelUnavailable(string text)
+        {
+            if (!P.Artisan.RaphaelUnavailable)
+            {
+                P.Artisan.RaphaelUnavailable = true;
+                P.Artisan.ClearSettingsCache();
+                IceLogging.Warning($"Artisan の Raphael CLI が見つかりません(「{text}」)。この Start の間は標準ソルバーへ置き換えて製作します。Artisan を再インストール(または raphael-cli.bin をウイルス対策の除外に)してください", "[Task Craft]");
+                IceLogging.ChatError(Loc.T("Artisan's Raphael CLI is missing, so ICE will craft with the Standard solver until you restart ICE. Reinstall Artisan or whitelist raphael-cli.bin."), "[I.C.E.]");
+            }
+            _raphaelFailedAt = DateTime.Now;
+            _raphaelFailureText = text;
+        }
+
+        /// <summary>
         /// Raphael が解を出せなかった製作への対処。1 回目は最強装備へ更新して再試行(ミッション中のレベルアップで
         /// 装備が追いついていない典型例)、2 回目は「現在の能力値では作れない」と判断してミッションを放棄し、
         /// レベルか装備(作業精度)が変わるまでそのミッションを候補から外す。
@@ -78,6 +95,12 @@ namespace ICE.Scheduler.Tasks
                 new(() => CancelSynthesisIfOpen(), "Cancelling unsolvable synthesis", CleanupTaskConfig),
                 new(() => ExitCraftingStance(), "Exiting crafting stance", CleanupTaskConfig),
                 new(() => WaitArtisanSettled(), "Waiting for Artisan to settle", CleanupTaskConfig));
+            if (P.Artisan.RaphaelUnavailable)
+            {
+                // Raphael 自体が使えない(CLI 不在)。能力値の問題ではないので、標準ソルバーに置き換えてそのままやり直す
+                IceLogging.Info("Raphael CLI が無いため、標準ソルバーで製作をやり直します", tag);
+                return true;
+            }
             if (retryWithGear)
             {
                 _equipRetryMission = mission;

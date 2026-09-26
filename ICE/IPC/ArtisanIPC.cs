@@ -154,6 +154,15 @@ namespace ICE.IPC
 
         private Dictionary<ushort, ArtisanSettings> CraftSettings = new();
 
+        /// <summary>
+        /// Artisan が「Raphael CLI not found」を出した(raphael-cli.bin が読めない)状態。true の間は Raphael 指定を
+        /// 標準ソルバーに置き換えて製作を続ける。ICE の Start で解除される(Artisan の更新直後などの一時的な状態に備える)。
+        /// </summary>
+        public bool RaphaelUnavailable { get; set; } = false;
+
+        /// <summary>送信済み設定のキャッシュを捨てる(次の製作で必ず Artisan へ設定を送り直す)</summary>
+        public void ClearSettingsCache() => CraftSettings.Clear();
+
         public void CheckArtisanSettings(ushort recipeId, uint missionId, bool isExpert, bool isLeveling = false)
         {
             if (!C.MissionConfig.TryGetValue(missionId, out var configInfo))
@@ -187,6 +196,10 @@ namespace ICE.IPC
 
             if (isLeveling)
                 effectiveSettings.ArtisanSolverType = ArtisanCraftType.ProgressOnly;
+
+            // Raphael が使えない(CLI 不在)間は標準ソルバーで製作する
+            if (RaphaelUnavailable && effectiveSettings.ArtisanSolverType == ArtisanCraftType.Raphael)
+                effectiveSettings.ArtisanSolverType = ArtisanCraftType.Standard;
 
             if (CraftSettings.TryGetValue(recipeId, out var cached) && ArtisanSettingsEqual(cached, effectiveSettings))
                 return;

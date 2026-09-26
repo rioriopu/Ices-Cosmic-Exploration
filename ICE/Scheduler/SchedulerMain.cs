@@ -13,6 +13,7 @@ namespace ICE.Scheduler
             IceLogging.Info($"Setting State to: {State} / Enabling Plugin (ICE {P.GetType().Assembly.GetName().Version}, mode {C.SelectedMode})");
             Mission_Settings.SelectedJob = (uint)Player.Job;
             RelicFallback.Reset(); // 開始時はレリックモードの一時レベリングを解除(必要なら再判定される)
+            P.Artisan.RaphaelUnavailable = false; // Raphael CLI 不在の暫定措置は Start で解除(Artisan 側が直っていれば通常どおり Raphael を使う)
             IceLogging.Info($"Player starting job upon pressing the start: {Mission_Settings.SelectedJob}");
             GenericManager.StorePandoraStates();
             return true;

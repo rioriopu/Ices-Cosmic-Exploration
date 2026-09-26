@@ -334,6 +334,11 @@ namespace ICE.Scheduler.Tasks
         public static void EnqueueEquipBestGear()
         {
             uint jobId = (uint)Player.Job;
+            // 「どのレベルの前提で装備を選んだか」を記録する。実行後のレベルを記録すると、装備選択の直後にレベルアップが届いた場合に
+            // 旧レベル基準の装備のまま「更新済み」扱いになってしまう(実機: Lv91 到達直後に Lv90 装備のままだった)
+            int levelAtDecision = Player.GetLevel((Job)jobId);
+            int csBefore = 0;
+            P.TaskManager.Enqueue(() => { csBefore = ReadCraftsmanship(); return true; }, "Recording stats before equipping");
             if (Utils.HasPlugin("Stylist"))
             {
                 if (CosmicHelper.CrafterJobList.Contains(jobId))
@@ -347,7 +352,18 @@ namespace ICE.Scheduler.Tasks
             {
                 P.TaskManager.Enqueue(() => EquipRecommendedGear(), "Equipping recommended gear", Utils.TaskConfig);
             }
-            P.TaskManager.Enqueue(() => { _lastEquipLevel[jobId] = Player.GetLevel((Job)jobId); return true; }, "Recording the equip level");
+            P.TaskManager.Enqueue(() =>
+            {
+                _lastEquipLevel[jobId] = levelAtDecision;
+                int csAfter = ReadCraftsmanship();
+                IceLogging.Info($"最強装備の更新: Lv{levelAtDecision} 基準、作業精度 {csBefore} → {csAfter}(現在 Lv{Player.GetLevel((Job)jobId)})", "[Task_Relic]");
+                return true;
+            }, "Recording the equip level");
+        }
+
+        private static unsafe int ReadCraftsmanship()
+        {
+            try { return FFXIVClientStructs.FFXIV.Client.Game.UI.UIState.Instance()->PlayerState.Attributes[70]; } catch { return 0; }
         }
 
         private static int _recommendStep = 0;
