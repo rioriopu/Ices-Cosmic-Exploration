@@ -38,6 +38,10 @@ public partial class Config
     // レベリング中(Leveling モード、およびレリックモードからの一時レベリング中)の製作で、ICE のソルバー設定を無視して
     // Artisan の「Progress Only Solver」を使うか。本家は常にこの動作だったが、設定した Raphael 等が効かず品質が付かないため既定 OFF(設定どおり)。
     public bool Leveling_UseProgressOnlySolver { get; set; } = false;
+    // レリックモードで Lv90 のジョブは、コスモデータ(金賞)を狙わずレベリング(ブロンズ)で Lv91 まで上げる。
+    // Lv90 の製作難易度は Lv90 用の表(推奨作業精度 2805)に跳ね、Lv91 からは新しい装備が着けられるため、
+    // Lv90 は通過点として扱い、Lv91 で最強装備してから B クラスに挑む(ユーザー方針 2026-09-26)。
+    public bool Relic_BronzeThroughLv90 { get; set; } = true;
     // UI の表示言語(Auto=クライアント言語に従う)。日本語なら同梱の CSV 辞書でプラグイン自身が翻訳する
     public global::ICE.Localization.UiLanguage UiLanguage { get; set; } = global::ICE.Localization.UiLanguage.Auto;
     public float HubReturn_Distance { get; set; } = 75f;

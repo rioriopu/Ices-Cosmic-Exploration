@@ -674,6 +674,24 @@ namespace ICE.Scheduler.Tasks
 
                         var highestRank = basicMissionList.Max(x => CosmicHelper.SheetMissionDict[x].Rank);
 
+                        // Lv90 は通過点として扱う: コスモデータ(金賞)を狙わず、レベリング(ブロンズ)で Lv91 まで上げる。
+                        // Lv90 の製作は Lv90 用の表(推奨作業精度 2805)で難易度が跳ね、Lv91 から新しい装備が着けられるため、
+                        // Lv91 で最強装備してから B クラスに挑む方が確実(ユーザー方針 2026-09-26)。
+                        if (C.Relic_BronzeThroughLv90 && C.SelectedMode == ModeSelect.RelicMode && jobLv == 90)
+                        {
+                            IceLogging.Info("レリックモード: Lv90 はコスモデータを狙わず、レベリング(ブロンズ)で Lv91 まで上げます。Lv91 で最強装備を行ってから B クラスのミッションに戻ります", tag);
+                            if (!RelicFallback.BeginLevelPass(job, 91))
+                            {
+                                SchedulerMain.State = IceState.Idle;
+                                P.TaskManager.Tasks.Clear();
+                                return true;
+                            }
+                            Mission_Settings.Mode = ModeSelect.LevelMode;
+                            P.TaskManager.Tasks.Clear();
+                            SchedulerMain.State = IceState.Start;
+                            return true;
+                        }
+
                         // 必要なコスモデータの種類が、未解放ランク(またはレベル不足)のミッションでしか得られないなら、
                         // そのミッションを受けに行こうとせず、条件を満たすまで一時的にレベリングモードへ切り替える。
                         if (C.SelectedMode == ModeSelect.RelicMode && classInfo.Stage_Current != classInfo.Stage_Next)

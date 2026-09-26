@@ -131,6 +131,43 @@ namespace ICE.Scheduler
             return true;
         }
 
+        /// <summary>
+        /// 「Lv90 はブロンズで通過」の一時レベリングを開始する。ランクの条件は付けず、targetLevel(通常 91)に到達したら戻る。
+        /// Lv90 の製作は Lv90 用の表(推奨作業精度 2805)で難易度が跳ね、Lv91 から新しい装備が着けられるため、
+        /// Lv90 ではコスモデータ(金賞)を狙わず、レベリングのミッションをブロンズで回して Lv91 へ上げる。
+        /// Lv91 到達後は装備更新(NeedsEquipForLevel)が走ってから B クラスの製作に入る。
+        /// </summary>
+        public static bool BeginLevelPass(uint job, uint targetLevel)
+        {
+            string key = $"{job}:0:{targetLevel}:Lv90pass";
+            if (_lastEndKey == key && (DateTime.Now - _lastEndAt).TotalSeconds < 60)
+            {
+                IceLogging.ChatError(IsJapanese
+                    ? $"レリックモード: Lv90 通過のレベリングとの切替が短時間に繰り返されています。条件判定が噛み合っていないため停止します。ログを確認してください"
+                    : $"Relic mode: switching back and forth with the Lv90 pass-through leveling repeatedly. Stopping; check the log", "[I.C.E.]");
+                return false;
+            }
+            Active = true;
+            Job = job;
+            RequiredRank = 0;
+            RequiredLevel = targetLevel;
+            NeededTypes = "Lv90pass";
+            IceLogging.ChatInfo(IsJapanese
+                ? $"レリックモード: Lv90 はコスモデータを狙わず、レベリング（ブロンズ）で Lv{targetLevel} まで上げます。Lv{targetLevel} で最強装備を行ってから B クラスのミッションに戻ります"
+                : $"Relic mode: at Lv90 ICE levels with bronze results until Lv{targetLevel} instead of farming relic data, then equips the best gear and returns to rank B missions", "[I.C.E.]");
+            return true;
+        }
+
+        /// <summary>レベリングを終えて戻るときの理由文(ApplyAtStart 用)。ランク条件なしの Lv90 通過ではレベルだけを書く。</summary>
+        private static string ReturnReason()
+        {
+            if (RequiredRank == 0)
+                return IsJapanese ? $"Lv{RequiredLevel}に到達" : $"reached Lv{RequiredLevel}";
+            return IsJapanese
+                ? $"Lv{RequiredLevel}に到達し{RankName(RequiredRank)}クラスが解放された"
+                : $"reached Lv{RequiredLevel} and rank {RankName(RequiredRank)} is unlocked";
+        }
+
         public static void End(string reason)
         {
             if (!Active) return;
@@ -166,7 +203,7 @@ namespace ICE.Scheduler
             }
             if (ShouldStay(job))
                 return ModeSelect.LevelMode;
-            End(IsJapanese ? $"Lv{RequiredLevel}に到達し{RankName(RequiredRank)}クラスが解放された" : $"reached Lv{RequiredLevel} and rank {RankName(RequiredRank)} is unlocked");
+            End(ReturnReason());
             return ModeSelect.RelicMode;
         }
     }

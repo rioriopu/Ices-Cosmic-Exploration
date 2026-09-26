@@ -911,3 +911,11 @@ OFF: レベリング中も ICE で設定したソルバー(Raphael など)を使
 "ICE","","","","Artisan's Raphael CLI is missing, so ICE will craft with the Standard solver until you restart ICE. Reinstall Artisan or whitelist raphael-cli.bin.","Artisan の Raphael CLI が見つからないため、ICE を再開するまで標準ソルバーで製作します。Artisan を再インストールするか raphael-cli.bin をウイルス対策の除外に追加してください。"
 "ICE","","","","Raphael cannot be used on this job because Manipulation is not unlocked. Complete the job's class quests (Lv65). ICE will craft with the Standard solver on this job.","このジョブは「マニピュレーション」を習得していないため Raphael が使えません。クラスクエスト(Lv65)を進めてください。このジョブは標準ソルバーで製作します。"
 "ICE","","","","ICE could not abandon or report the current mission for 90 seconds, so it stopped. Please abandon the mission manually and press Start again.","90 秒間ミッションを放棄/報告できなかったため、ICE を停止しました。手動でミッションを放棄してから、もう一度 Start を押してください。"
+"ICE","","","","Relic Mode: Bronze through Lv90","レリックモード: Lv90 はブロンズで通過"
+"ICE","","","","At Lv90, do not farm relic data (gold). Run leveling missions for bronze until Lv91,
+then equip the best gear (Lv91 gear) and return to rank B missions.
+Lv90 recipes use the Lv90 table (recommended craftsmanship 2805) and Lv91 gear is much stronger,
+so Lv90 is treated as a pass-through level.","Lv90 ではコスモデータ(金賞)を狙わず、レベリングのミッションをブロンズで回して Lv91 まで上げます。
+Lv91 で最強装備(Lv91 装備)を行ってから B クラスのミッションに戻ります。
+Lv90 の製作は Lv90 用の表(推奨作業精度 2805)で難易度が跳ね、Lv91 装備の方が大きく強いため、
+Lv90 は通過点として扱います。"

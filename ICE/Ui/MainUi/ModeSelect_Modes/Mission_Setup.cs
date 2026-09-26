@@ -467,6 +467,17 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                     ImGuiEx.HelpMarker(Loc.T("Take D/C/B rank missions you have never completed before picking by relic exp,\n" +
                                        "so the completion count needed to unlock the next rank keeps growing."));
 
+                    bool relicBronzeLv90 = C.Relic_BronzeThroughLv90;
+                    if (ImGui.Checkbox(Loc.T("Relic Mode: Bronze through Lv90"), ref relicBronzeLv90))
+                    {
+                        C.Relic_BronzeThroughLv90 = relicBronzeLv90;
+                        C.Save();
+                    }
+                    ImGuiEx.HelpMarker(Loc.T("At Lv90, do not farm relic data (gold). Run leveling missions for bronze until Lv91,\n" +
+                                       "then equip the best gear (Lv91 gear) and return to rank B missions.\n" +
+                                       "Lv90 recipes use the Lv90 table (recommended craftsmanship 2805) and Lv91 gear is much stronger,\n" +
+                                       "so Lv90 is treated as a pass-through level."));
+
                     ImGui.Separator();
                     bool autoEquipBest = C.LevelingGear_AutoEquipBest;
                     if (ImGui.Checkbox(Loc.T("Leveling: Auto Equip Best Gear"), ref autoEquipBest))
