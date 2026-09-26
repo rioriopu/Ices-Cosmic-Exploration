@@ -160,6 +160,12 @@ namespace ICE.IPC
         /// </summary>
         public bool RaphaelUnavailable { get; set; } = false;
 
+        /// <summary>
+        /// Raphael が「You haven't unlocked Manipulation」で解を出せなかったジョブ。マニピュレーション未習得(Lv65 クラスクエスト未達)の
+        /// ジョブでは Raphael は使えないので、そのジョブの製作は標準ソルバーへ置き換える。ICE の Start で解除される。
+        /// </summary>
+        public HashSet<uint> RaphaelBlockedJobs { get; } = new();
+
         /// <summary>送信済み設定のキャッシュを捨てる(次の製作で必ず Artisan へ設定を送り直す)</summary>
         public void ClearSettingsCache() => CraftSettings.Clear();
 
@@ -197,8 +203,9 @@ namespace ICE.IPC
             if (isLeveling)
                 effectiveSettings.ArtisanSolverType = ArtisanCraftType.ProgressOnly;
 
-            // Raphael が使えない(CLI 不在)間は標準ソルバーで製作する
-            if (RaphaelUnavailable && effectiveSettings.ArtisanSolverType == ArtisanCraftType.Raphael)
+            // Raphael が使えない(CLI 不在、またはこのジョブがマニピュレーション未習得)間は標準ソルバーで製作する
+            if ((RaphaelUnavailable || RaphaelBlockedJobs.Contains((uint)ECommons.GameHelpers.Player.Job))
+                && effectiveSettings.ArtisanSolverType == ArtisanCraftType.Raphael)
                 effectiveSettings.ArtisanSolverType = ArtisanCraftType.Standard;
 
             if (CraftSettings.TryGetValue(recipeId, out var cached) && ArtisanSettingsEqual(cached, effectiveSettings))

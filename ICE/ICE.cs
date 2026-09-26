@@ -174,6 +174,8 @@ public sealed partial class ICE : IDalamudPlugin
             // Artisan のソルバー(Raphael)が手順を組めなかった通知。製作画面を開いたまま止まるので、Task_Craft が即座に対処する
             if (text.Contains("Raphael CLI not found"))
                 Scheduler.Tasks.Task_Craft.NotifyRaphaelUnavailable(text);
+            else if (text.Contains("Raphael") && text.Contains("unlocked Manipulation"))
+                Scheduler.Tasks.Task_Craft.NotifyRaphaelNeedsManipulation(text);
             else if (text.Contains("Raphael") && (text.Contains("NoSolution") || text.Contains("timed out or cancelled") || text.Contains("unable to solve")))
                 Scheduler.Tasks.Task_Craft.NotifyRaphaelFailure(text);
             else if (text.Contains("Failed to solve"))

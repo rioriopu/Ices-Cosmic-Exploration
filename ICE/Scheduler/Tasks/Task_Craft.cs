@@ -74,6 +74,16 @@ namespace ICE.Scheduler.Tasks
         }
 
         /// <summary>
+        /// Artisan が「You haven't unlocked Manipulation」を出した(Raphael はマニピュレーション未習得のジョブでは手順を組めない)。
+        /// 能力値の問題ではなくジョブのクラスクエスト未達なので、そのジョブでは標準ソルバーへ置き換える。
+        /// </summary>
+        public static void NotifyRaphaelNeedsManipulation(string text)
+        {
+            _raphaelFailedAt = DateTime.Now;
+            _raphaelFailureText = text;
+        }
+
+        /// <summary>
         /// Raphael が解を出せなかった製作への対処。1 回目は最強装備へ更新して再試行(ミッション中のレベルアップで
         /// 装備が追いついていない典型例)、2 回目は「現在の能力値では作れない」と判断してミッションを放棄し、
         /// レベルか装備(作業精度)が変わるまでそのミッションを候補から外す。
@@ -84,6 +94,7 @@ namespace ICE.Scheduler.Tasks
             uint job = (uint)Player.Job;
             string diag = DescribeCraftFeasibility(_lastRecipeId);
             IceLogging.Warning($"Artisan(Raphael)がこの製作の手順を組めませんでした: 「{_raphaelFailureText}」 {diag}", tag);
+            bool manipulationMissing = _raphaelFailureText.Contains("Manipulation", StringComparison.OrdinalIgnoreCase);
             _raphaelFailedAt = DateTime.MinValue;
             ResetArtisanWatch();
             _craftActionLockSince = DateTime.MinValue;
@@ -100,6 +111,23 @@ namespace ICE.Scheduler.Tasks
                 // Raphael 自体が使えない(CLI 不在)。能力値の問題ではないので、標準ソルバーに置き換えてそのままやり直す
                 IceLogging.Info("Raphael CLI が無いため、標準ソルバーで製作をやり直します", tag);
                 return true;
+            }
+            if (manipulationMissing)
+            {
+                // マニピュレーション未習得(Lv65 クラスクエスト未達)。Raphael はこのジョブでは何度やっても解を出せないので、
+                // このジョブに限って標準ソルバーへ置き換える(Start で解除)。能力値が明らかに足りない場合はそのまま下の判定へ
+                if (P.Artisan.RaphaelBlockedJobs.Add(job))
+                {
+                    P.Artisan.ClearSettingsCache();
+                    IceLogging.Warning($"ジョブ {(Job)job} はマニピュレーション未習得のため Raphael が使えません。この Start の間はこのジョブを標準ソルバーで製作します", tag);
+                    IceLogging.ChatError(Loc.T("Raphael cannot be used on this job because Manipulation is not unlocked. Complete the job's class quests (Lv65). ICE will craft with the Standard solver on this job."), "[I.C.E.]");
+                }
+                if (!IsClearlyUnderGeared(_lastRecipeId, out var csNow, out var suggested))
+                {
+                    IceLogging.Info($"能力値は足りている(作業精度 {csNow} / 推奨 {suggested})ので、標準ソルバーで製作をやり直します", tag);
+                    return true;
+                }
+                IceLogging.Warning($"作業精度 {csNow} が推奨 {suggested} に大きく届いていないため、標準ソルバーでも完成できません。装備の判定へ進みます", tag);
             }
             if (retryWithGear)
             {
@@ -164,6 +192,59 @@ namespace ICE.Scheduler.Tasks
         private static unsafe int GetCraftsmanship()
         {
             try { return UIState.Instance()->PlayerState.Attributes[70]; } catch { return 0; }
+        }
+
+        // 作業精度が、Artisan が当てはめるレベル表の推奨値に大きく届いていないか(6 割未満)。
+        // 実機(2026-09-26): Lv90 で作業精度 867(推奨 2805)の裁縫師は、どのソルバーでも B ランクの製作を完成できなかった。
+        private static bool IsClearlyUnderGeared(uint recipeId, out int craftsmanship, out int suggested)
+        {
+            craftsmanship = GetCraftsmanship();
+            suggested = 0;
+            try
+            {
+                int lv = Player.GetLevel(Player.Job);
+                if (ExcelHelper.RecipeSheet.TryGetRow(recipeId, out var recipe))
+                {
+                    var lt = lv < 100 && recipe.Number == 0
+                        ? Svc.Data.GetExcelSheet<RecipeLevelTable>().First(x => x.ClassJobLevel == lv)
+                        : recipe.RecipeLevelTable.Value;
+                    suggested = lt.SuggestedCraftsmanship;
+                }
+            }
+            catch { }
+            return suggested > 0 && craftsmanship < suggested * 0.6;
+        }
+
+        /// <summary>
+        /// 製作に関わる状態(スタンス・製作画面・レシピ帳)が残っているか。
+        /// この状態ではミッションの放棄/報告がゲームに拒否される(「現在の状態では実行できません」)。
+        /// </summary>
+        internal static bool IsCraftingStateActive()
+            => Svc.Condition[ConditionFlag.Crafting]
+               || Svc.Condition[ConditionFlag.PreparingToCraft]
+               || Svc.Condition[ConditionFlag.ExecutingCraftingAction]
+               || AddonHelper.IsAddonActive("Synthesis")
+               || AddonHelper.IsAddonActive("WKSRecipeNotebook")
+               || AddonHelper.IsAddonActive("RecipeNote");
+
+        /// <summary>
+        /// 製作の状態から抜けるための 1 tick 分の後始末。毎 tick 呼ぶ。全部片付いていれば true。
+        /// Artisan の Endurance が生きていれば止める: CraftItem(CraftX)は「レシピ選択が終わったら Endurance を有効化する」タスクを
+        /// Artisan 側に遅延で積むため、こちらが一度止めた後に再び有効になり、レシピ帳を開き直してスタンスに戻ることがある
+        /// (実機 2026-09-26: 放棄が 23 分間・75,786 回拒否され続けた)。
+        /// </summary>
+        internal static bool TryLeaveCraftingState(string tag)
+        {
+            if (SafeArtisan(P.Artisan.GetEnduranceStatus) && EzThrottler.Throttle("Craft leave: endurance off", 1000))
+            {
+                IceLogging.Info("Artisan の Endurance が有効なままなので止めます", tag);
+                StopArtisan();
+            }
+            if (CancelSynthesisIfOpen() != true)
+                return false;
+            if (ExitCraftingStance() != true)
+                return false;
+            return !IsCraftingStateActive();
         }
 
         // 単一の製作アクションがロックし始めた時刻(アニメーションロック検知用)。MinValue=未計測。
@@ -379,9 +460,11 @@ namespace ICE.Scheduler.Tasks
         }
 
         // 製作スタンス(Crafting/PreparingToCraft)を抜ける。レシピ帳を閉じれば抜けられる。抜けていれば即完了。
+        // レシピ帳が見えているのにスタンスの条件が立っていない一瞬もあるので、レシピ帳が見えている間も閉じ続ける。
         private static bool? ExitCraftingStance()
         {
-            if (!Svc.Condition[ConditionFlag.Crafting] && !Svc.Condition[ConditionFlag.PreparingToCraft])
+            bool notebookOpen = AddonHelper.IsAddonActive("WKSRecipeNotebook") || AddonHelper.IsAddonActive("RecipeNote");
+            if (!Svc.Condition[ConditionFlag.Crafting] && !Svc.Condition[ConditionFlag.PreparingToCraft] && !notebookOpen)
                 return true;
             if (Svc.Condition[ConditionFlag.ExecutingCraftingAction])
                 return false;
@@ -395,12 +478,27 @@ namespace ICE.Scheduler.Tasks
                 if (EzThrottler.Throttle("Craft exit stance", 1000))
                     GenericHandlers.FireCallback("RecipeNote", true, -1);
             }
+            else if (EzThrottler.Throttle("Craft exit stance: waiting", 5000))
+            {
+                // レシピ帳は閉じたがスタンスの条件が残っている。通常は数秒で解除される
+                IceLogging.Debug($"製作スタンスの解除を待っています(Crafting={Svc.Condition[ConditionFlag.Crafting]}, Preparing={Svc.Condition[ConditionFlag.PreparingToCraft]})", "Craft: Exit stance");
+            }
             return false;
         }
 
-        // Artisan が停止処理を終えて IsBusy=false になるのを待つ(時間制限は CleanupTaskConfig)
+        // Artisan が停止処理を終えて IsBusy=false になるのを待つ(時間制限は CleanupTaskConfig)。
+        // 途中で Endurance が再び有効になっていたら止め直す(CraftX の遅延タスクが後から有効化する)
         private static bool? WaitArtisanSettled()
         {
+            if (SafeArtisan(P.Artisan.GetEnduranceStatus))
+            {
+                if (EzThrottler.Throttle("Craft settle: endurance off", 1000))
+                {
+                    IceLogging.Info("Artisan の Endurance が再び有効になっていたため止めます", "Craft: Waiting for Artisan");
+                    StopArtisan();
+                }
+                return false;
+            }
             return !P.Artisan.IsBusy();
         }
 
