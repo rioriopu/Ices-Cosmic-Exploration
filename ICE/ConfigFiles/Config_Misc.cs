@@ -42,6 +42,10 @@ public partial class Config
     // Lv90 の製作難易度は Lv90 用の表(推奨作業精度 2805)に跳ね、Lv91 からは新しい装備が着けられるため、
     // Lv90 は通過点として扱い、Lv91 で最強装備してから B クラスに挑む(ユーザー方針 2026-09-26)。
     public bool Relic_BronzeThroughLv90 { get; set; } = true;
+    // 「レベリング装備を売却」で対象にする種類。確認ダイアログのチェックで切り替え、次回も同じ選択を使う(ユーザー要望 2026-09-28)。
+    public bool SellGear_Armor { get; set; } = true;     // 防具(頭・胴・手・脚・足)
+    public bool SellGear_MainHand { get; set; } = true;  // 主道具
+    public bool SellGear_OffHand { get; set; } = true;   // 副道具
     // UI の表示言語(Auto=クライアント言語に従う)。日本語なら同梱の CSV 辞書でプラグイン自身が翻訳する
     public global::ICE.Localization.UiLanguage UiLanguage { get; set; } = global::ICE.Localization.UiLanguage.Auto;
     public float HubReturn_Distance { get; set; } = 75f;

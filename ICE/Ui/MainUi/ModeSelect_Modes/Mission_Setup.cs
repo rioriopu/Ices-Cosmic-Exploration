@@ -79,6 +79,41 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                 : $"Target: {category}' leveling gear (Lv10–{Task_BuyLevelingGear.MaxLevel} sold by the vendor, NQ items in the Armoury Chest only; HQ is never sold) / about {plan.TotalGil:N0} gil");
             ImGui.PopTextWrapPos();
 
+            // 売る種類を選ぶ(防具 / 主道具 / 副道具)。選択は設定に記憶して次回も使う
+            ImGui.Spacing();
+            ImGui.TextUnformatted(jp ? "売る種類:" : "Sell:");
+            ImGui.SameLine();
+            bool changed = false;
+            bool armor = plan.IncludeArmor;
+            if (ImGui.Checkbox((jp ? "防具" : "Armor") + $" ({plan.CountArmor})##lgear_sell_armor", ref armor))
+            {
+                plan.IncludeArmor = armor;
+                C.SellGear_Armor = armor;
+                changed = true;
+            }
+            ImGui.SameLine();
+            bool mainHand = plan.IncludeMainHand;
+            if (ImGui.Checkbox((jp ? "主道具" : "Main hand") + $" ({plan.CountMainHand})##lgear_sell_main", ref mainHand))
+            {
+                plan.IncludeMainHand = mainHand;
+                C.SellGear_MainHand = mainHand;
+                changed = true;
+            }
+            ImGui.SameLine();
+            bool offHand = plan.IncludeOffHand;
+            if (ImGui.Checkbox((jp ? "副道具" : "Off hand") + $" ({plan.CountOffHand})##lgear_sell_off", ref offHand))
+            {
+                plan.IncludeOffHand = offHand;
+                C.SellGear_OffHand = offHand;
+                changed = true;
+            }
+            if (changed)
+            {
+                C.Save();
+                plan.ApplyFilter();
+            }
+            ImGui.TextDisabled(jp ? "防具 = 頭・胴・手・脚・足。チェックを外した種類は売りません" : "Armor = head, body, hands, legs, feet. Unchecked categories are kept");
+
             if (plan.Items.Count > 0 && ImGui.CollapsingHeader(Loc.T("Items to sell")))
             {
                 using var list = ImRaii.Child("##lgear_sell_list", new Vector2(520 * ImGuiHelpers.GlobalScale, 200 * ImGuiHelpers.GlobalScale), true);

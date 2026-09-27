@@ -37,13 +37,50 @@ namespace ICE.Scheduler.Tasks
             public string JobName = "";
             public bool IsGatherer;
             public uint NpcId;
+            /// <summary>アーマリーチェストで見つかった売却候補(種類の絞り込み前)。</summary>
+            public List<SellEntry> Candidates = new();
+            /// <summary>実際に売る品(種類の絞り込み後)。</summary>
             public List<SellEntry> Items = new();
             public long TotalGil;
             public string Error = "";
             public int SoldCount;
             public long EarnedGil;
             public bool Aborted;
+
+            // 売る種類。確認ダイアログのチェックで切り替える(初期値は設定に記憶した前回の選択)
+            public bool IncludeArmor = true;     // 防具(頭・胴・手・脚・足)
+            public bool IncludeMainHand = true;  // 主道具
+            public bool IncludeOffHand = true;   // 副道具
+
+            public int CountArmor => Candidates.Count(e => CategoryOf(e.GearSlot) == GearCategory.Armor);
+            public int CountMainHand => Candidates.Count(e => CategoryOf(e.GearSlot) == GearCategory.MainHand);
+            public int CountOffHand => Candidates.Count(e => CategoryOf(e.GearSlot) == GearCategory.OffHand);
+
+            /// <summary>種類の選択を Items/TotalGil に反映する。</summary>
+            public void ApplyFilter()
+            {
+                Items = Candidates
+                    .Where(e => CategoryOf(e.GearSlot) switch
+                    {
+                        GearCategory.MainHand => IncludeMainHand,
+                        GearCategory.OffHand => IncludeOffHand,
+                        _ => IncludeArmor,
+                    })
+                    .OrderBy(x => x.GearSlot).ThenBy(x => x.LevelEquip)
+                    .ToList();
+                TotalGil = Items.Sum(x => (long)x.Price);
+            }
         }
+
+        /// <summary>売却対象の大まかな種類。ユーザーが「装備・主道具・副道具」を選んで売れるようにするための区分。</summary>
+        public enum GearCategory { Armor, MainHand, OffHand }
+
+        public static GearCategory CategoryOf(GearSlot slot) => slot switch
+        {
+            GearSlot.MainHand => GearCategory.MainHand,
+            GearSlot.OffHand => GearCategory.OffHand,
+            _ => GearCategory.Armor,
+        };
 
         public static SellPlan Current { get; private set; }
         public static bool Running { get; private set; }
@@ -80,7 +117,15 @@ namespace ICE.Scheduler.Tasks
             string jobName = CosmicHelper.GetJobName(job);
             if (Svc.Data.GetExcelSheet<Lumina.Excel.Sheets.ClassJob>().TryGetRow(job, out var cj) && !string.IsNullOrEmpty(cj.Name.ExtractText()))
                 jobName = cj.Name.ExtractText();
-            var plan = new SellPlan { Job = job, JobName = jobName, IsGatherer = CosmicHelper.GatheringJobList.Contains(job) };
+            var plan = new SellPlan
+            {
+                Job = job,
+                JobName = jobName,
+                IsGatherer = CosmicHelper.GatheringJobList.Contains(job),
+                IncludeArmor = C.SellGear_Armor,
+                IncludeMainHand = C.SellGear_MainHand,
+                IncludeOffHand = C.SellGear_OffHand,
+            };
             Current = plan;
 
             if (!CosmicHelper.CrafterJobList.Contains(job) && !CosmicHelper.GatheringJobList.Contains(job))
@@ -116,7 +161,7 @@ namespace ICE.Scheduler.Tasks
                     if (it == null || it->ItemId == 0 || !ids.Contains(it->ItemId)) continue;
                     if (it->Flags.HasFlag(InventoryItem.ItemFlags.HighQuality)) continue; // HQ は売らない
                     if (!itemSheet.TryGetRow(it->ItemId, out var row)) continue;
-                    plan.Items.Add(new SellEntry
+                    plan.Candidates.Add(new SellEntry
                     {
                         ItemId = it->ItemId,
                         Name = row.Name.ExtractText(),
@@ -126,10 +171,10 @@ namespace ICE.Scheduler.Tasks
                         LevelEquip = row.LevelEquip,
                         Price = row.PriceLow,
                     });
-                    plan.TotalGil += row.PriceLow;
                 }
             }
-            plan.Items = plan.Items.OrderBy(x => x.GearSlot).ThenBy(x => x.LevelEquip).ToList();
+            // 種類の選択(防具/主道具/副道具)を反映して Items と見込みギルを決める
+            plan.ApplyFilter();
             return plan;
         }
 
