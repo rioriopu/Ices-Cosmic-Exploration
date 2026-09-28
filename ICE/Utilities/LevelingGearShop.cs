@@ -354,6 +354,27 @@ public static class LevelingGearShop
     public static bool IsOwned(ShopGearItem item)
         => item.ArmouryCount > 0 || item.IsEquipped || CountInBags(item.ItemId) > 0;
 
+    /// <summary>
+    /// 所持数(アーマリーチェスト + 装備中 + かばん)。
+    /// 指輪は左右 2 つ着けるので、「持っているか」ではなく「いくつ持っているか」で購入数を決める。
+    /// </summary>
+    public static int OwnedCount(ShopGearItem item)
+        => item.ArmouryCount + CountEquipped(item.ItemId) + CountInBags(item.ItemId);
+
+    /// <summary>装備中の同じアイテムの数(指輪は最大 2)。</summary>
+    public static unsafe int CountEquipped(uint itemId)
+    {
+        var container = InventoryManager.Instance()->GetInventoryContainer(InventoryType.EquippedItems);
+        if (container == null) return 0;
+        int count = 0;
+        for (int i = 0; i < container->Size; i++)
+        {
+            var it = container->GetInventorySlot(i);
+            if (it != null && it->ItemId == itemId) count++;
+        }
+        return count;
+    }
+
     public static unsafe bool IsEquipped(uint itemId)
     {
         var container = InventoryManager.Instance()->GetInventoryContainer(InventoryType.EquippedItems);

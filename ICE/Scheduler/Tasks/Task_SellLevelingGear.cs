@@ -48,13 +48,15 @@ namespace ICE.Scheduler.Tasks
             public bool Aborted;
 
             // 売る種類。確認ダイアログのチェックで切り替える(初期値は設定に記憶した前回の選択)
-            public bool IncludeArmor = true;     // 防具(頭・胴・手・脚・足)
-            public bool IncludeMainHand = true;  // 主道具
-            public bool IncludeOffHand = true;   // 副道具
+            public bool IncludeArmor = true;      // 防具(頭・胴・手・脚・足)
+            public bool IncludeMainHand = true;   // 主道具
+            public bool IncludeOffHand = true;    // 副道具
+            public bool IncludeAccessory = true;  // アクセサリ(耳・首・腕輪・指)
 
             public int CountArmor => Candidates.Count(e => CategoryOf(e.GearSlot) == GearCategory.Armor);
             public int CountMainHand => Candidates.Count(e => CategoryOf(e.GearSlot) == GearCategory.MainHand);
             public int CountOffHand => Candidates.Count(e => CategoryOf(e.GearSlot) == GearCategory.OffHand);
+            public int CountAccessory => Candidates.Count(e => CategoryOf(e.GearSlot) == GearCategory.Accessory);
 
             /// <summary>種類の選択を Items/TotalGil に反映する。</summary>
             public void ApplyFilter()
@@ -64,6 +66,7 @@ namespace ICE.Scheduler.Tasks
                     {
                         GearCategory.MainHand => IncludeMainHand,
                         GearCategory.OffHand => IncludeOffHand,
+                        GearCategory.Accessory => IncludeAccessory,
                         _ => IncludeArmor,
                     })
                     .OrderBy(x => x.GearSlot).ThenBy(x => x.LevelEquip)
@@ -72,13 +75,14 @@ namespace ICE.Scheduler.Tasks
             }
         }
 
-        /// <summary>売却対象の大まかな種類。ユーザーが「装備・主道具・副道具」を選んで売れるようにするための区分。</summary>
-        public enum GearCategory { Armor, MainHand, OffHand }
+        /// <summary>売却対象の大まかな種類。ユーザーが「防具・主道具・副道具・アクセサリ」を選んで売れるようにするための区分。</summary>
+        public enum GearCategory { Armor, MainHand, OffHand, Accessory }
 
         public static GearCategory CategoryOf(GearSlot slot) => slot switch
         {
             GearSlot.MainHand => GearCategory.MainHand,
             GearSlot.OffHand => GearCategory.OffHand,
+            GearSlot.Ears or GearSlot.Neck or GearSlot.Wrists or GearSlot.Ring => GearCategory.Accessory,
             _ => GearCategory.Armor,
         };
 
@@ -125,6 +129,7 @@ namespace ICE.Scheduler.Tasks
                 IncludeArmor = C.SellGear_Armor,
                 IncludeMainHand = C.SellGear_MainHand,
                 IncludeOffHand = C.SellGear_OffHand,
+                IncludeAccessory = C.SellGear_Accessory,
             };
             Current = plan;
 

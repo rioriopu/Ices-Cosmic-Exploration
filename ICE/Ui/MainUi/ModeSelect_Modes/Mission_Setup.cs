@@ -107,12 +107,22 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                 C.SellGear_OffHand = offHand;
                 changed = true;
             }
+            ImGui.SameLine();
+            bool accessory = plan.IncludeAccessory;
+            if (ImGui.Checkbox((jp ? "アクセサリ" : "Accessories") + $" ({plan.CountAccessory})##lgear_sell_acc", ref accessory))
+            {
+                plan.IncludeAccessory = accessory;
+                C.SellGear_Accessory = accessory;
+                changed = true;
+            }
             if (changed)
             {
                 C.Save();
                 plan.ApplyFilter();
             }
-            ImGui.TextDisabled(jp ? "防具 = 頭・胴・手・脚・足。チェックを外した種類は売りません" : "Armor = head, body, hands, legs, feet. Unchecked categories are kept");
+            ImGui.TextDisabled(jp
+                ? "防具 = 頭・胴・手・脚・足、アクセサリ = 耳・首・腕輪・指。チェックを外した種類は売りません"
+                : "Armor = head, body, hands, legs, feet; Accessories = ears, neck, wrists, rings. Unchecked categories are kept");
 
             if (plan.Items.Count > 0 && ImGui.CollapsingHeader(Loc.T("Items to sell")))
             {
@@ -162,6 +172,9 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
             ImGui.TextDisabled(jp
                 ? $"購入 {plan.ToBuy.Count} 点（所持済み {plan.OwnedSkipped} 点は除外） / 所持ギル {plan.PlayerGil:N0}"
                 : $"{plan.ToBuy.Count} items to buy ({plan.OwnedSkipped} already owned) / gil on hand {plan.PlayerGil:N0}");
+            ImGui.TextDisabled(jp
+                ? "対象部位: 主道具・副道具・頭・胴・手・脚・足・耳・首・腕輪・指（指輪は 2 個）"
+                : "Slots: main hand, off hand, head, body, hands, legs, feet, ears, neck, wrists, rings (2 rings)");
 
             if (plan.PlayerGil < plan.TotalGil)
                 ImGui.TextColored(new Vector4(1f, 0.8f, 0.2f, 1f), jp

@@ -29,10 +29,15 @@ namespace ICE.Scheduler.Tasks
         public static string StepsText => string.Join("→", Steps);
         public const int KeepFreeSlots = 2; // 購入後にアーマリーチェストの各部位に残しておく空き枠
 
+        // 購入/売却の対象部位。アクセサリ(耳・首・腕輪・指)もゴッドギスに Lv5〜100 まで揃っているので含める(ユーザー要望 2026-09-28)。
         public static readonly GearSlot[] TargetSlots =
         {
             GearSlot.MainHand, GearSlot.OffHand, GearSlot.Head, GearSlot.Body, GearSlot.Hands, GearSlot.Legs, GearSlot.Feet,
+            GearSlot.Ears, GearSlot.Neck, GearSlot.Wrists, GearSlot.Ring,
         };
+
+        /// <summary>部位ごとに必要な個数。指輪は左右に 2 つ着けるので 2。</summary>
+        public static int NeedCount(GearSlot slot) => slot == GearSlot.Ring ? 2 : 1;
 
         public static bool IsJapanese => Svc.ClientState.ClientLanguage == ClientLanguage.Japanese;
 
@@ -107,7 +112,7 @@ namespace ICE.Scheduler.Tasks
             plan.StepsUsed.Add(currentStep);
             plan.StepsUsed.AddRange(Steps.Where(s => s > currentStep));
 
-            // 各段階・各部位で「そのLv以下で最高Lv」の装備を1点。同じアイテムは1度だけ、所持済みは買わない。
+            // 各段階・各部位で「そのLv以下で最高Lv」の装備を必要数(指輪は 2)。同じアイテムは1度だけ計画し、所持済みの分は買わない。
             var planned = new HashSet<uint>();
             foreach (int lv in plan.StepsUsed)
             {
@@ -121,13 +126,15 @@ namespace ICE.Scheduler.Tasks
                         .FirstOrDefault();
                     if (best == null || !planned.Add(best.ItemId))
                         continue;
-                    if (IsOwned(best))
+                    int need = NeedCount(slot);
+                    int owned = Math.Min(OwnedCount(best), need);
+                    plan.OwnedSkipped += owned;
+                    // 足りない分だけ買う(指輪を 1 つだけ持っていれば 1 つ)。同じ品が 2 件並ぶが、購入は 1 件ずつ所持数の増加で確認するので重複しない
+                    for (int n = owned; n < need; n++)
                     {
-                        plan.OwnedSkipped++;
-                        continue;
+                        plan.ToBuy.Add(new PlanEntry { Item = best, StepLevel = lv });
+                        plan.TotalGil += best.Price;
                     }
-                    plan.ToBuy.Add(new PlanEntry { Item = best, StepLevel = lv });
-                    plan.TotalGil += best.Price;
                 }
             }
 

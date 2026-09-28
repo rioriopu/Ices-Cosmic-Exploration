@@ -46,6 +46,7 @@ public partial class Config
     public bool SellGear_Armor { get; set; } = true;     // 防具(頭・胴・手・脚・足)
     public bool SellGear_MainHand { get; set; } = true;  // 主道具
     public bool SellGear_OffHand { get; set; } = true;   // 副道具
+    public bool SellGear_Accessory { get; set; } = true; // アクセサリ(耳・首・腕輪・指)
     // UI の表示言語(Auto=クライアント言語に従う)。日本語なら同梱の CSV 辞書でプラグイン自身が翻訳する
     public global::ICE.Localization.UiLanguage UiLanguage { get; set; } = global::ICE.Localization.UiLanguage.Auto;
     public float HubReturn_Distance { get; set; } = 75f;
