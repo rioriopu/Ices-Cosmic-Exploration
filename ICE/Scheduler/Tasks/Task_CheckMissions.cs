@@ -640,11 +640,36 @@ namespace ICE.Scheduler.Tasks
                             Insert_GrabMissionTask(missionId);
                             return true;
                         }
-                        else
+
+                        // レベリング用のミッション(上のランク)がまだ受けられず、ランク解放用の未達成ミッションも 1 つも受けられない
+                        // (機能未解放で受注できない、受注に失敗して除外中、など)。ここで何もせずに戻ると、掲示板を読み直して
+                        // リロールするだけの周回を延々と繰り返す(実機 2026-09-29: 調理師 Lv90 台で B 未解放、残りの C ランク 2 つが機能未解放)。
+                        // 止まっているより、今受けられる中で一番上のランクのミッションを回して経験値を稼ぐ方がよい。
+                        // 解放条件が満たされれば、次の周回で通常の流れ(上のランク)に戻る。
+                        var fallbackJob = Mission_Settings.SelectedJob;
+                        var fallback = basicMissionList
+                            .Where(x => CosmicHelper.SheetMissionDict.TryGetValue(x, out var s)
+                                        && s.Jobs.Contains(fallbackJob) && !s.IsProvisional && !s.IsCritical && !s.IsMaster
+                                        && s.Level <= level)
+                            .OrderByDescending(x => CosmicHelper.SheetMissionDict[x].Rank)
+                            .ThenByDescending(x => CosmicHelper.QuickLevelList.Contains(x) ? 1 : 0)
+                            .ThenBy(x => CosmicHelper.SheetMissionDict[x].CompletionStatus)
+                            .FirstOrDefault();
+                        if (fallback != 0)
                         {
-                            IceLogging.Verbose("For one reason or another, we seem to have reached the bottom. Which either means rerolling for specific mission or just rerolling for unlocking purposes", tag);
+                            var fb = CosmicHelper.SheetMissionDict[fallback];
+                            if (EzThrottler.Throttle("Leveling fallback log", 60000))
+                            {
+                                IceLogging.Info($"レベリング: 上のランクの解放に必要なミッションが受けられないため、受けられる {RelicFallback.RankName(fb.Rank)}ランクのミッション {fallback} で経験値を稼ぎます(解放ランク {RelicFallback.RankName(highestRank)}, Lv{level})", tag);
+                                IceLogging.ChatInfo(Loc.T("Leveling: the missions needed to unlock the next rank cannot be accepted right now, so ICE will run the available lower-rank missions for experience."), "[I.C.E.]");
+                            }
+                            LogInfo(fallback);
+                            Insert_GrabMissionTask(fallback);
                             return true;
                         }
+
+                        IceLogging.Verbose("For one reason or another, we seem to have reached the bottom. Which either means rerolling for specific mission or just rerolling for unlocking purposes", tag);
+                        return true;
                     }
                     else if (mode == ModeSelect.RelicMode)
                     {

@@ -919,3 +919,4 @@ so Lv90 is treated as a pass-through level.","Lv90 ではコスモデータ(金�
 Lv91 で最強装備(Lv91 装備)を行ってから B クラスのミッションに戻ります。
 Lv90 の製作は Lv90 用の表(推奨作業精度 2805)で難易度が跳ね、Lv91 装備の方が大きく強いため、
 Lv90 は通過点として扱います。"
+"ICE","","","","Leveling: the missions needed to unlock the next rank cannot be accepted right now, so ICE will run the available lower-rank missions for experience.","レベリング: 上のランクの解放に必要なミッションが今は受けられないため、受けられる下のランクのミッションで経験値を稼ぎます。"
