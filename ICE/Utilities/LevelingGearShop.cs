@@ -225,7 +225,8 @@ public static class LevelingGearShop
         _ => "Lv1~",
     };
 
-    private static GearSlot ToSlot(EquipSlotCategory? cat)
+    /// <summary>Lumina の EquipSlotCategory → 装備部位。装備品でなければ Unknown。(Task_GearStorage など他所からも使う)</summary>
+    public static GearSlot ToSlot(EquipSlotCategory? cat)
     {
         if (cat is not { } c) return GearSlot.Unknown;
         if (c.MainHand == 1) return GearSlot.MainHand;
@@ -261,8 +262,8 @@ public static class LevelingGearShop
         return kind is GearKind.Neutral or GearKind.Both || (isGatherer ? kind == GearKind.Gatherer : kind == GearKind.Crafter);
     }
 
-    // ClassJobCategory からクラフター/ギャザラー(8〜18)のうち装備できるジョブを列挙する
-    private static List<uint> CosmicJobs(ClassJobCategory? cat)
+    /// <summary>ClassJobCategory からクラフター/ギャザラー(8〜18)のうち装備できるジョブを列挙する。(Task_GearStorage など他所からも使う)</summary>
+    public static List<uint> CosmicJobs(ClassJobCategory? cat)
     {
         var list = new List<uint>();
         if (cat is not { } c) return list;

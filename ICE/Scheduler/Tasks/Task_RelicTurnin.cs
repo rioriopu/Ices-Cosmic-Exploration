@@ -282,8 +282,11 @@ namespace ICE.Scheduler.Tasks
                 {
                     // 元のジョブへ戻ってから最強装備を行う。Enqueue だと拠点作業(購入/ガンブル/帰還)の後ろに回り、
                     // 一時ジョブのまま拠点作業をしてしまうため、この直後に割り込ませる。
+                    // 強化で受け取った新しい主道具はかばんに入る。Stylist / おすすめ装備はアーマリーチェストしか見ないので、
+                    // 最強装備の前に納品ジョブの道具をアーマリーチェストへ移す(移さないと装備が見つからず止まる。実機 2026-09-28)。
                     P.TaskManager.InsertMulti
                     (
+                        new(Task_GearStorage.CreateTask(TurninJob, afterUpgrade: true), "Moving the upgraded tools from bags to the armoury", Utils.TaskConfig),
                         new(() => ReturnBackToJob(), "Returning back to the original job", Utils.TaskConfig),
                         new(() => EquipBestGear(), "Equipping best gear after the relic upgrade", Utils.TaskConfig)
                     );
@@ -338,6 +341,9 @@ namespace ICE.Scheduler.Tasks
             // 旧レベル基準の装備のまま「更新済み」扱いになってしまう(実機: Lv91 到達直後に Lv90 装備のままだった)
             int levelAtDecision = Player.GetLevel((Job)jobId);
             int csBefore = 0;
+            // かばんに残っている現在ジョブの主道具/副道具を先にアーマリーチェストへ移す。
+            // Stylist / おすすめ装備はかばんの中を候補にしないため、移さないと新しい道具が装備されない(レリック強化直後と同じ事情)。
+            Task_GearStorage.Enqueue(jobId);
             P.TaskManager.Enqueue(() => { csBefore = ReadCraftsmanship(); return true; }, "Recording stats before equipping");
             if (Utils.HasPlugin("Stylist"))
             {
