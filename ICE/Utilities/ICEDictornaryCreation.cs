@@ -63,6 +63,9 @@ public sealed partial class ICE
             // Sequential Requirements
             uint previousMissionId = entry.LockedBehind.RowId;
 
+            // 受注に必要な機能(施設)。実機(2026-09-28): 調理師 C ランクの 1544/1545 は WKSFunction 3 が未解放で受注できなかった
+            uint functionId = entry.WKSFunction.RowId;
+
             // Time | Weather Requirements
             uint timeAndWeather = entry.WKSMissionLotterySpecialCond.RowId;
             uint startTime = 0;
@@ -636,6 +639,7 @@ public sealed partial class ICE
                     CosmoCredit = Cosmo,
                     LunarCredit = Lunar,
                     PreviousMissionId = previousMissionId,
+                    FunctionId = functionId,
                     RelicXpInfo = relicXp,
                     BronzeScore = bronze,
                     SilverScore = silver,

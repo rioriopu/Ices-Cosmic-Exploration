@@ -131,6 +131,29 @@ namespace ICE.Utilities
         }
 
         /// <summary>
+        /// ミッションが要求する機能(WKSFunction: 開発グレードや前提クエストで解放される施設など)が解放されているか。要求が無ければ true。
+        /// 未解放のミッションは掲示板に並び、ロックのフラグも立たないのに、受注が黙って拒否される
+        /// (実機 2026-09-28: 調理師 C ランクの 1544/1545。受注失敗→30 分除外を繰り返していた)。
+        /// 読めないときは従来どおり候補に残す。
+        /// </summary>
+        internal unsafe static bool IsMissionFunctionUnlocked(uint missionId)
+        {
+            if (!CosmicHelper.SheetMissionDict.TryGetValue(missionId, out var info) || info.FunctionId == 0)
+                return true;
+            try
+            {
+                var wks = WKSManager.Instance();
+                if (wks == null)
+                    return true;
+                return wks->IsFunctionUnlocked((byte)info.FunctionId);
+            }
+            catch
+            {
+                return true;
+            }
+        }
+
+        /// <summary>
         /// 掲示板(通常タブ)に表示されているが受注できないミッション(ランク未解放・レベル不足などで Locked/ConditionLocked が立っているもの)。
         /// 掲示板には受注レベル未満の上位ランクも表示されるため、「表示されている」と「受けられる」は別に扱う必要がある。
         /// </summary>

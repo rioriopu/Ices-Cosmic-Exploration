@@ -78,6 +78,9 @@ public static unsafe partial class CosmicHelper
         public uint TokenItemAmount { get; set; } = 0;
         public uint DronebitReward { get; set; } = 0;
         public uint PreviousMissionId { get; set; } = new();
+        // 受注に必要な「機能」(WKSFunction: 開発グレードや前提クエストで解放される施設など)。0 なら要求なし。
+        // 未解放だと掲示板に並んでいても受注が黙って拒否される(ロックのフラグは立たない)
+        public uint FunctionId { get; set; } = 0;
         public Dictionary<int, int> RelicXpInfo { get; set; } = new();
         public uint BronzeScore { get; set; } = 0;
         public uint SilverScore { get; set; } = 0;

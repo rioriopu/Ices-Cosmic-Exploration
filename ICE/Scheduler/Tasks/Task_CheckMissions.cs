@@ -563,6 +563,15 @@ namespace ICE.Scheduler.Tasks
                 foreach (var id in basicMissionList)
                     if (CosmicHelper.SheetMissionDict.TryGetValue(id, out var si) && si.Level > filterLv)
                         lockedBasic.Add(id);
+                // 要求する機能(施設)が未解放のミッションも受注できない。フラグには出ないので ICE 側で除外する
+                // (実機 2026-09-28: レベリングで B ランク解放のために選んだ C ランク 1544/1545 が受注失敗→30 分除外を繰り返した)
+                var functionLocked = basicMissionList
+                    .Where(x => !lockedBasic.Contains(x) && !CosmicHandler.IsMissionFunctionUnlocked(x))
+                    .ToList();
+                foreach (var id in functionLocked)
+                    lockedBasic.Add(id);
+                if (functionLocked.Count > 0 && EzThrottler.Throttle("Function locked missions log", 60000))
+                    IceLogging.Info($"要求する機能が未解放のため受注できないミッション: [{string.Join(",", functionLocked.Select(x => $"{x}(機能{CosmicHelper.SheetMissionDict[x].FunctionId})"))}]", tag);
                 var lockedRanks = new HashSet<uint>();
                 foreach (var rank in basicMissionList.Select(x => CosmicHelper.SheetMissionDict.TryGetValue(x, out var s) ? s.Rank : 0u).Distinct())
                 {
