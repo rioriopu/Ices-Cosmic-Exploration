@@ -52,6 +52,9 @@ public static class LevelingGearShop
         public string MenuName { get; set; } = "";   // この店舗へ入る階層メニュー(TopicSelect)名。空なら NPC メニュー直下
         public int MenuIndex { get; set; } = -1;     // NPC メニュー内の位置(ENpcData の並び順)。文言で選べない時の代替
         public int ShopIndex { get; set; } = -1;     // 階層メニュー内の店舗の位置(TopicSelect.Shop の並び順)。直下の店舗は -1
+        // 店舗に並ぶ条件のクエスト(GilShopItem.QuestRequired)。未達成だとゲーム側が一覧から隠すので、
+        // 計画から除外しないと「店舗に品が無い」で購入が止まる(例: フィッシャーギグは潜水漁の解放クエストが必要)。
+        public List<uint> RequiredQuests { get; set; } = new();
         [JsonIgnore] public int ArmouryCount { get; set; }   // アーマリーチェスト内の所持数(実行時に更新)
         [JsonIgnore] public bool IsEquipped { get; set; }    // 現在装備中か(実行時に更新)
     }
@@ -207,12 +210,24 @@ public static class LevelingGearShop
                     MenuName = menuName,
                     MenuIndex = menuIndex,
                     ShopIndex = shopIndex,
+                    RequiredQuests = row.QuestRequired.Where(q => q.RowId != 0).Select(q => q.RowId).ToList(),
                 });
             }
         }
 
         if (shop.Items.Count > 0)
             data.Shops.Add(shop);
+    }
+
+    /// <summary>
+    /// 店舗に並ぶ条件のクエストを満たしているか。未達成の品はゲーム側が店舗一覧から隠すので、購入計画から外す。
+    /// </summary>
+    public static bool MeetsQuestRequirement(ShopGearItem item)
+    {
+        foreach (var quest in item.RequiredQuests)
+            if (!FFXIVClientStructs.FFXIV.Client.Game.QuestManager.IsQuestComplete(quest))
+                return false;
+        return true;
     }
 
     /// <summary>ショップの階層メニュー表記に合わせたレベル帯。</summary>

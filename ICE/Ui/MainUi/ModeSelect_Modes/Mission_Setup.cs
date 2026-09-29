@@ -175,6 +175,10 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
             ImGui.TextDisabled(jp
                 ? "対象部位: 主道具・副道具・頭・胴・手・脚・足・耳・首・腕輪・指（指輪は 2 個）"
                 : "Slots: main hand, off hand, head, body, hands, legs, feet, ears, neck, wrists, rings (2 rings)");
+            if (plan.QuestLocked.Count > 0)
+                ImGui.TextDisabled(jp
+                    ? $"解放クエスト未達成のため店舗に並ばない品は除外: {string.Join("、", plan.QuestLocked)}"
+                    : $"Excluded (unlock quest not completed, hidden by the vendor): {string.Join(", ", plan.QuestLocked)}");
 
             if (plan.PlayerGil < plan.TotalGil)
                 ImGui.TextColored(new Vector4(1f, 0.8f, 0.2f, 1f), jp

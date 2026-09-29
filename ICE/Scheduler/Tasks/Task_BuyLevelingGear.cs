@@ -59,6 +59,7 @@ namespace ICE.Scheduler.Tasks
             public uint NpcId;
             public List<PlanEntry> ToBuy = new();
             public int OwnedSkipped;
+            public List<string> QuestLocked = new(); // 店舗に並ぶ条件のクエストが未達成で除外した品(名前)
             public long TotalGil;
             public long PlayerGil;
             public Dictionary<GearSlot, int> Shortage = new(); // 部位 → 不足枠数
@@ -99,6 +100,16 @@ namespace ICE.Scheduler.Tasks
             var candidates = data.AllItems
                 .Where(x => x.Jobs.Contains(job) && KindMatchesJob(x.Kind, job) && TargetSlots.Contains(x.Slot))
                 .ToList();
+            // 店舗に並ぶ条件のクエスト(例: フィッシャーギグ=潜水漁の解放)が未達成の品は、ゲーム側が店舗一覧から隠すので計画から外す。
+            // 外さないと購入時に「店舗に品が無い」を繰り返して止まる(2026-09-30 漁師 Lv29 で発生)。
+            foreach (var locked in candidates.Where(x => !MeetsQuestRequirement(x)).ToList())
+            {
+                candidates.Remove(locked);
+                if (!plan.QuestLocked.Contains(locked.Name))
+                    plan.QuestLocked.Add(locked.Name);
+            }
+            if (plan.QuestLocked.Count > 0)
+                IceLogging.Info($"クエスト未達成のため店舗に並ばない品を計画から外しました: {string.Join(", ", plan.QuestLocked)}", "[Leveling Gear]");
             if (candidates.Count == 0)
             {
                 plan.Error = IsJapanese ? "ベンダーの品揃えを取得できませんでした" : "Could not read the vendor's inventory";
@@ -196,6 +207,7 @@ namespace ICE.Scheduler.Tasks
                 .OrderBy(g => MenuOrder(g.Key.MenuName))
                 .ThenBy(g => g.Key.ShopId)
                 .ToList();
+            TryGetCached(plan.NpcId, out var shopData);
             foreach (var g in groups)
             {
                 var entries = g.ToList();
@@ -203,9 +215,12 @@ namespace ICE.Scheduler.Tasks
                 string shopName = entries[0].Item.ShopName;
                 int menuIndex = entries[0].Item.MenuIndex;
                 int shopIndex = entries[0].Item.ShopIndex;
+                // この店舗にシート上並ぶ全装備の ID。開いた店舗が目的の店舗か(品が隠されているだけか)を見分けるのに使う
+                var shopItemIds = shopData?.Shops.FirstOrDefault(s => s.ShopId == g.Key.ShopId)?.Items.Select(x => x.ItemId).ToHashSet()
+                                  ?? entries.Select(e => e.Item.ItemId).ToHashSet();
                 // 無進捗タイマー(_lastProgress)は店舗ごとに起点し直す(帰還や徒歩の移動時間を「無進捗」に数えない)
                 P.TaskManager.Enqueue(() => { _groupStart = DateTime.Now; _lastProgress = DateTime.Now; _retry = 0; _verifyItem = 0; _menuCloses = 0; _lastMenuSig = ""; return true; }, "Leveling gear: next shop");
-                P.TaskManager.Enqueue(() => BuyGroup(menu, shopName, menuIndex, shopIndex, entries), $"Leveling gear: {menu} / {shopName}", Utils.TaskConfig);
+                P.TaskManager.Enqueue(() => BuyGroup(menu, shopName, menuIndex, shopIndex, entries, shopItemIds), $"Leveling gear: {menu} / {shopName}", Utils.TaskConfig);
             }
             P.TaskManager.Enqueue(() => { _groupStart = DateTime.Now; return true; });
             P.TaskManager.Enqueue(() => CloseAllMenus(), "Leveling gear: closing menus", Utils.TaskConfig);
@@ -346,7 +361,7 @@ namespace ICE.Scheduler.Tasks
             => InventoryManager.Instance()->GetInventoryItemCount(itemId, hq, true, true);
 
         // 1店舗分の購入。毎tick 状況を見て「メニューを辿る/購入する/反映を待つ」を進める。
-        private static unsafe bool? BuyGroup(string menu, string shopName, int menuIndex, int shopIndex, List<PlanEntry> entries)
+        private static unsafe bool? BuyGroup(string menu, string shopName, int menuIndex, int shopIndex, List<PlanEntry> entries, HashSet<uint> shopItemIds)
         {
             string tag = "[Leveling Gear]";
             if (_plan == null || _plan.Aborted || !Running)
@@ -430,10 +445,20 @@ namespace ICE.Scheduler.Tasks
                 int idx = Array.FindIndex(items, x => x.ItemId == next.Item.ItemId);
                 if (idx < 0)
                 {
+                    // 開いている店舗が目的の店舗(シート上の品揃えと大半が一致)なのに品が無い
+                    // → その品はゲーム側の条件(未達成クエスト等)で隠されている。飛ばして次の品へ進む(辿り直しても出てこない)
+                    int matched = items.Count(x => shopItemIds.Contains(x.ItemId));
+                    if (items.Length > 0 && matched >= Math.Max(1, items.Length / 2))
+                    {
+                        IceLogging.Warning($"{next.Item.Name} は目的の店舗({shopName})に並んでいません(条件未達成で非表示の可能性)。飛ばします [一致 {matched}/{items.Length} 件]", tag);
+                        next.Failed = true;
+                        _lastProgress = DateTime.Now;
+                        return false;
+                    }
                     // 目的の店舗ではない → 閉じて NPC から辿り直す
                     if (EzThrottler.Throttle("LGear close shop", 1500))
                     {
-                        IceLogging.Info($"開いている店舗に {next.Item.Name} が無いので閉じて辿り直します(品目 {items.Length} 件)", tag);
+                        IceLogging.Info($"開いている店舗に {next.Item.Name} が無いので閉じて辿り直します(品目 {items.Length} 件、目的の店舗との一致 {matched} 件)", tag);
                         ECommons.Automation.Callback.Fire(shop.Base, true, -1);
                         _menuDepth = -1;
                         _menuCloses++;
@@ -590,10 +615,11 @@ namespace ICE.Scheduler.Tasks
             if (!wasRunning || _plan.Aborted)
                 return true;
 
+            var notBought = _plan.ToBuy.Where(e => e.Failed || !e.Bought).Select(e => e.Item.Name).Distinct().ToList();
             int failed = _plan.ToBuy.Count(e => e.Failed || !e.Bought);
             IceLogging.ChatInfo(IsJapanese
-                ? $"レベリング装備の購入が終わりました: {_plan.BoughtCount} 点 / {_plan.SpentGil:N0} ギル" + (failed > 0 ? $"（未購入 {failed} 点）" : "")
-                : $"Leveling gear purchase finished: {_plan.BoughtCount} items / {_plan.SpentGil:N0} gil" + (failed > 0 ? $" ({failed} not bought)" : ""), "[I.C.E.]");
+                ? $"レベリング装備の購入が終わりました: {_plan.BoughtCount} 点 / {_plan.SpentGil:N0} ギル" + (failed > 0 ? $"（未購入 {failed} 点: {string.Join("、", notBought)}）" : "")
+                : $"Leveling gear purchase finished: {_plan.BoughtCount} items / {_plan.SpentGil:N0} gil" + (failed > 0 ? $" ({failed} not bought: {string.Join(", ", notBought)})" : ""), "[I.C.E.]");
 
             if (C.LevelingGear_AutoEquipBest && _plan.BoughtCount > 0)
                 Task_RelicTurnin.EnqueueEquipBestGear();
