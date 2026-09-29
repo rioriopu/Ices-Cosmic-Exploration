@@ -61,11 +61,7 @@ namespace ICE.IPC
             name = null;
             try
             {
-                if (!DalamudReflector.TryGetDalamudPlugin(Name, out var plugin, false, true) || plugin == null)
-                    return false;
-                var cfgType = plugin.GetType().Assembly.GetType("AutoHook.Configuration");
-                var cfg = cfgType?.GetProperty("C", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)?.GetValue(null);
-                var hookPresets = cfg?.GetFoP("HookPresets");
+                var hookPresets = GetHookPresets();
                 if (hookPresets == null)
                     return false;
                 var selected = hookPresets.GetFoP("SelectedPreset");
@@ -75,6 +71,59 @@ namespace ICE.IPC
             catch (Exception ex)
             {
                 ECommons.DalamudServices.Svc.Log.Debug($"[AutoHook] 選択中プリセットを読めませんでした: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// AutoHook の FishingPresets(Configuration.C.HookPresets)を反射で取り出す。無ければ null。
+        /// 設定クラスは名前空間が版で変わる(6.0.2 系は AutoHook.Presets.Config.Configuration)ので型名だけで探す。
+        /// </summary>
+        private object GetHookPresets()
+        {
+            if (!DalamudReflector.TryGetDalamudPlugin(Name, out var plugin, false, true) || plugin == null)
+                return null;
+            var asm = plugin.GetType().Assembly;
+            var cfgType = asm.GetType("AutoHook.Presets.Config.Configuration")
+                          ?? asm.GetType("AutoHook.Configuration")
+                          ?? asm.GetTypes().FirstOrDefault(t => t.Name == "Configuration" && t.GetProperty("C", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static) != null);
+            var cfg = cfgType?.GetProperty("C", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)?.GetValue(null);
+            return cfg?.GetFoP("HookPresets");
+        }
+
+        /// <summary>
+        /// AutoHook の PresetList キャッシュを捨てさせる。
+        /// AutoHook 6.0.2 系は SelectedPreset を「件数が変わった時だけ作り直すキャッシュ」から引くが、
+        /// IPC の DeleteAllAnonymousPresets(1 件削除)と CreateAndSelectAnonymousPreset(1 件追加)はキャッシュを更新しないため、
+        /// 件数が元に戻ると新しいプリセットが見つからず Global Preset で釣ってしまう(UI の一覧だけは「>」が付く)。
+        /// 匿名プリセットの削除/投入の後に呼ぶ。反射で私有メソッド/フィールドを触るので、無ければ何もしない。
+        /// </summary>
+        public bool InvalidatePresetCache()
+        {
+            try
+            {
+                var hookPresets = GetHookPresets();
+                if (hookPresets == null)
+                    return false;
+                var t = hookPresets.GetType();
+                var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance;
+                var method = t.GetMethod("InvalidatePresetListCache", flags);
+                if (method != null)
+                {
+                    method.Invoke(hookPresets, null);
+                    return true;
+                }
+                var cacheField = t.GetField("_presetListCache", flags);
+                var countField = t.GetField("_presetListCacheCount", flags);
+                if (cacheField == null && countField == null)
+                    return false;
+                cacheField?.SetValue(hookPresets, null);
+                countField?.SetValue(hookPresets, -1);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                ECommons.DalamudServices.Svc.Log.Debug($"[AutoHook] プリセットキャッシュを無効化できませんでした: {ex.Message}");
                 return false;
             }
         }

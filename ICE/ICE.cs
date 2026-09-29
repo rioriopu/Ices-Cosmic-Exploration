@@ -61,6 +61,9 @@ public sealed partial class ICE : IDalamudPlugin
     {
         EzConfig.Migrate<Config>();
         config = EzConfig.Init<Config>();
+        // 差分マージ保存の基準(読み込み直後のスナップショット)。複数クライアントで設定ファイルを共有していても、
+        // 各クライアントは自分が変えた項目だけをディスクへ反映する
+        global::ICE.ConfigFiles.EzConfigExtensions.CaptureBaseline();
 
         // プラグイン内蔵の日本語化(CSV 辞書)。ウィンドウを作る前に読み込む
         GenericHelpers.Safe(() => global::ICE.Localization.Loc.Initialize());

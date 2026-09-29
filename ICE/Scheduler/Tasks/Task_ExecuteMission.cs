@@ -213,6 +213,9 @@ namespace ICE.Scheduler.Tasks
             if (P.AutoHook.Installed)
             {
                 P.AutoHook.DeleteAllAnonymousPresets();
+                // AutoHook の PresetList キャッシュは件数でしか更新されないので、削除→投入で件数が戻ると
+                // 新しいプリセットが「選択中」として見つからず Global Preset で釣ってしまう。削除の直後にも捨てさせる
+                P.AutoHook.InvalidatePresetCache();
             }
             return true;
         }
@@ -234,6 +237,9 @@ namespace ICE.Scheduler.Tasks
                 IceLogging.Verbose("Basic Fishing preset (bless) single import it is", "AH Import");
                 P.AutoHook.CreateAndSelectAnonymousPreset(preset);
             }
+            // 投入直後にキャッシュを捨てさせ、AutoHook 内部の SelectedPreset が新しいプリセットを指すようにする
+            bool invalidated = P.AutoHook.InvalidatePresetCache();
+            IceLogging.Debug($"AutoHook のプリセットキャッシュを無効化: {(invalidated ? "成功" : "対象なし/失敗")}", "AH Import");
         }
     }
 }
