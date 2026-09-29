@@ -110,6 +110,102 @@ namespace ICE.Scheduler.Tasks
             P.TaskManager.Enqueue(() => ClearFishingPreset(), "Clearing All Fishing Presets");
             P.TaskManager.EnqueueDelay(150);
             P.TaskManager.Enqueue(() => ImportPresetsSequentially(missionId));
+            // 投入したプリセットが本当に「選択中」になったかを確かめる(なっていなければ再投入)。
+            // AutoHook は選択中プリセットで釣るが、画面中央の編集ビューは起動時の表示(Global Preset)が残るため、
+            // 何が使われているかをログ/チャットで示して混乱を防ぐ(2026-09-30 ユーザー報告)。
+            P.TaskManager.EnqueueDelay(300);
+            P.TaskManager.Enqueue(() => VerifyFishingPreset(missionId), "Verifying AutoHook preset");
+        }
+
+        public enum PresetCheck { Ok, Mismatch, Unknown }
+
+        private static uint _presetNotifiedMission = 0;
+        private static uint _presetRetryMission = 0;
+        private static int _presetRetry = 0;
+        private const int PresetMaxRetry = 2;
+
+        /// <summary>
+        /// AutoHook の選択中プリセットが、このミッションに期待するもの(内蔵=anon_[ミッションID]…、任意指定=設定名)か。
+        /// Unknown = 反射で読めない(AutoHook 未導入や内部構造の変更)。その場合は従来どおり信じて進める。
+        /// </summary>
+        public static PresetCheck CheckFishingPreset(uint missionId, out string selected, out string expected)
+        {
+            selected = null;
+            expected = "";
+            if (!P.AutoHook.Installed || !P.AutoHook.TryGetSelectedPresetName(out selected))
+                return PresetCheck.Unknown;
+
+            C.MissionConfig.TryGetValue(missionId, out var cfg);
+            bool builtin = cfg == null || cfg.Use_BuildinPreset;
+            if (builtin)
+            {
+                expected = $"anon_[{missionId}]";
+                // 内蔵プリセット名は "[ID] ミッション名" で、匿名化で anon_ が付く。フォルダ型は先頭プリセットが選ばれるので anon_ なら良しとする
+                if (selected != null && (selected.Contains($"[{missionId}]") || selected.StartsWith("anon_", StringComparison.Ordinal)))
+                    return PresetCheck.Ok;
+                return PresetCheck.Mismatch;
+            }
+            expected = cfg.AutoHookPresetName ?? "";
+            if (string.IsNullOrEmpty(expected))
+                return PresetCheck.Unknown; // 指定無し → 判定しない
+            return selected == expected ? PresetCheck.Ok : PresetCheck.Mismatch;
+        }
+
+        private static bool? VerifyFishingPreset(uint missionId)
+        {
+            if (CosmicHelper.CurrentLunarMission == 0)
+                return true;
+            var result = CheckFishingPreset(missionId, out var selected, out var expected);
+            string shown = selected ?? "Global Preset";
+            switch (result)
+            {
+                case PresetCheck.Ok:
+                    if (_presetRetryMission == missionId) _presetRetry = 0;
+                    IceLogging.Info($"AutoHook の選択中プリセット: '{shown}'(このミッション用)", "[AH Import]");
+                    if (_presetNotifiedMission != missionId)
+                    {
+                        _presetNotifiedMission = missionId;
+                        IceLogging.ChatInfo($"{Loc.T("AutoHook preset in use:")} {shown}", "[I.C.E.]");
+                    }
+                    return true;
+                case PresetCheck.Unknown:
+                    IceLogging.Debug("AutoHook の選択中プリセットを確認できないため、投入結果を信じて進めます", "[AH Import]");
+                    return true;
+                default:
+                    if (!TryScheduleFishingPresetRetry(missionId, shown, expected))
+                        IceLogging.ChatError($"{Loc.T("AutoHook did not select the fishing preset for this mission, so fishing will use:")} {shown}", "[I.C.E.]");
+                    return true;
+            }
+        }
+
+        // 期待するプリセットが選ばれていないとき、上限回数まで投入をやり直す。戻り値 false = 上限に達した(諦める)。
+        private static bool TryScheduleFishingPresetRetry(uint missionId, string shown, string expected)
+        {
+            if (_presetRetryMission != missionId)
+            {
+                _presetRetryMission = missionId;
+                _presetRetry = 0;
+            }
+            if (_presetRetry >= PresetMaxRetry)
+                return false;
+            _presetRetry++;
+            IceLogging.Warning($"AutoHook の選択中プリセットが '{shown}' で、期待する '{expected}…' ではありません。プリセットを再投入します({_presetRetry}/{PresetMaxRetry})", "[AH Import]");
+            FishingTask(missionId);
+            return true;
+        }
+
+        /// <summary>
+        /// 釣り開始前の確認。期待するプリセットが選ばれていなければ再投入を積んで false を返す(呼び元は今回の開始を見送る)。
+        /// 上限まで試しても直らなければ true(Global Preset のまま釣る)。
+        /// </summary>
+        public static bool EnsureFishingPresetSelected(uint missionId)
+        {
+            var result = CheckFishingPreset(missionId, out var selected, out var expected);
+            if (result != PresetCheck.Mismatch)
+                return true;
+            if (_presetRetryMission == missionId && _presetRetry >= PresetMaxRetry)
+                return true;
+            return !TryScheduleFishingPresetRetry(missionId, selected ?? "Global Preset", expected);
         }
 
         private static bool? ClearFishingPreset()

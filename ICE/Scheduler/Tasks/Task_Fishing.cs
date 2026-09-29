@@ -194,6 +194,15 @@ namespace ICE.Scheduler.Tasks
                         }
                     }
 
+                    // 釣りを始める前に、AutoHook がこのミッション用のプリセットを選んでいるか確かめる。
+                    // 選ばれていなければ再投入が積まれるので、今回の開始は見送る(次の周回で始める)。
+                    if (EzThrottler.Throttle("Fishing preset check", 5000)
+                        && !Task_ExecuteMission.EnsureFishingPresetSelected(CosmicHelper.CurrentLunarMission))
+                    {
+                        SafetyThrottle = 0;
+                        return true;
+                    }
+
                     if (EzThrottler.Throttle("Start Fishing: AH", 500))
                     {
                         IceLogging.Verbose("We are telling autohook to start fishing via IPC...", handle);

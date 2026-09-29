@@ -51,6 +51,34 @@ namespace ICE.IPC
         // 装備できず内部NREになる。swimbait は「アイテムIDではなくインデックス(0〜2)」で選択する(AutoHook実装に準拠)。
         [EzIPC] public Func<byte, bool> SwapSwimbaitByIndex;
 
+        /// <summary>
+        /// AutoHook が今釣りに使うプリセット名(選択中の独自プリセット)を反射で読む。IPC に取得口が無いため。
+        /// 戻り値 false = 読み取れなかった(AutoHook 未導入/内部構造の変更)。true で name が null なら未選択=Global Preset。
+        /// 参照: AutoHook.Configuration.C.HookPresets.SelectedPreset.PresetName(AutoHook 6.0.2 系で確認)。
+        /// </summary>
+        public bool TryGetSelectedPresetName(out string name)
+        {
+            name = null;
+            try
+            {
+                if (!DalamudReflector.TryGetDalamudPlugin(Name, out var plugin, false, true) || plugin == null)
+                    return false;
+                var cfgType = plugin.GetType().Assembly.GetType("AutoHook.Configuration");
+                var cfg = cfgType?.GetProperty("C", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)?.GetValue(null);
+                var hookPresets = cfg?.GetFoP("HookPresets");
+                if (hookPresets == null)
+                    return false;
+                var selected = hookPresets.GetFoP("SelectedPreset");
+                name = selected?.GetFoP("PresetName") as string;
+                return true;
+            }
+            catch (Exception ex)
+            {
+                ECommons.DalamudServices.Svc.Log.Debug($"[AutoHook] 選択中プリセットを読めませんでした: {ex.Message}");
+                return false;
+            }
+        }
+
         public void Ah_State(bool state)
         {
             bool stateEnabled = GetPluginState();
