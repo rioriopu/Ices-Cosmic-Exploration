@@ -16,6 +16,7 @@ namespace ICE.Scheduler.Tasks
             {
                 var missionId = CosmicHelper.CurrentLunarMission;
                 P.MissionTimer.StartMission(missionId);
+                Task_Craft.OnMissionStarted(missionId); // 同じミッション ID を続けて受けても、製作の停滞回数を持ち越さない
 
                 var mission = CosmicHelper.SheetMissionDict[missionId];
                 bool fishingMission = mission.Jobs.Contains(18);

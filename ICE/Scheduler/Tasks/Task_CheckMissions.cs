@@ -49,6 +49,15 @@ namespace ICE.Scheduler.Tasks
 
         public static void Enqueue()
         {
+            // 壊れた装備(耐久 0%)のまま受注しない。自己修理の後・待機からの再確認・ミッション境界の復帰など、HubActivityCheck を
+            // 通らずに受注へ来る経路があるため、ここでも確認して Start に戻す(HubActivityCheck がしきい値と関係なく修理か停止へ回す)
+            if (CosmicHelper.CurrentLunarMission == 0 && PlayerHelper.HasBrokenEquippedGear())
+            {
+                IceLogging.Warning($"装備が壊れている(耐久0%)ため受注せず、修理の判定へ戻ります {PlayerHelper.DescribeBrokenGear()}", "[Check Missions]");
+                SchedulerMain.State = IceState.Start;
+                return;
+            }
+
             P.TaskManager.EnqueueMulti
                 (
                     new(() => RefreshMissionLibrary(), "Refreshing the mission library"),
@@ -556,6 +565,8 @@ namespace ICE.Scheduler.Tasks
                 // 掲示板には受注レベル未満/ランク未解放のミッションも(ロック表示で)並ぶ。受けられないものは候補から外し、
                 // ランク判定(highestRank)も「受けられるミッション」で行う。受注に失敗したミッションも一定時間は除外する。
                 var lockedBasic = CosmicHandler.Basic_LockedMissions();
+                // ICE がレベル不足・機能未解放を足す前の、ゲーム自身のロック表示だけを控える(ランクがゲーム上開いているかの判定用)
+                var gameLocked = new HashSet<uint>(lockedBasic);
                 // ゲームはレベル不足をフラグに出さない(Locked はメニュー表示用、ConditionLocked はサーバ側の条件)ため、
                 // 受注レベル(ミッションの Level: 10/50/90/100)を満たさないものも ICE 側で「ロック中」として扱う
                 uint filterJob = Goldjob != 0 ? Goldjob : Mission_Settings.SelectedJob;
@@ -581,6 +592,12 @@ namespace ICE.Scheduler.Tasks
                 }
                 if (lockedBasic.Count > 0 && EzThrottler.Throttle("Locked missions log", 10000))
                     IceLogging.Info($"掲示板のロック中ミッション(受注不可): [{string.Join(",", lockedBasic)}] ロック中ランク: [{string.Join(",", lockedRanks.Select(RelicFallback.RankName))}]", tag);
+                // ゲーム上は開いているランク(ロック表示が無く、受注レベルも満たすミッションがある)。ICE 側の除外(能力値不足・受注失敗・
+                // 機能未解放)で候補から消えていても「ランクは解放済み」と分かるように、除外前の掲示板から求める
+                var openRanksOnBoard = basicMissionList
+                    .Where(x => !gameLocked.Contains(x) && CosmicHelper.SheetMissionDict.TryGetValue(x, out var so) && so.Level <= filterLv)
+                    .Select(x => CosmicHelper.SheetMissionDict[x].Rank)
+                    .ToHashSet();
                 basicMissionList = basicMissionList.Where(x => !lockedBasic.Contains(x) && !IsUnacceptable(x) && !IsInfeasible(x, filterJob)).ToList();
                 var specialMissionList = CosmicHandler.Provisional_AvailableMissions();
                 var criticalMissions = CosmicHandler.Critical_AvailableMissions();
@@ -608,7 +625,8 @@ namespace ICE.Scheduler.Tasks
 
                         IceLogging.Verbose($"We seem to have not found the mission. Going to double check to make sure we have the tab unlocked", tag);
 
-                        var highestRank = basicMissionList.Max(x => CosmicHelper.SheetMissionDict[x].Rank);
+                        // 掲示板に受けられるミッションが 1 つも無いと Max が例外になるので 0(=未解放扱い)にする
+                        var highestRank = basicMissionList.Count > 0 ? basicMissionList.Max(x => CosmicHelper.SheetMissionDict[x].Rank) : 0u;
                         var level = Player.GetLevel((Job)Mission_Settings.SelectedJob);
                         uint missionId = 0;
 
@@ -641,6 +659,40 @@ namespace ICE.Scheduler.Tasks
                             return true;
                         }
 
+                        // 次のランクの解放に必要な下位ランクの残りのミッションが、要求する機能(WKSFunction)の未解放ですべて受けられないか。
+                        // この状態では周回を続けてもランクは開かない(実機 2026-09-29〜30: 錬金術師 Lv90 台で B 未解放、残りの C 1544/1545 が
+                        // 機能 3 = クエスト「職人の新たなお仕事」(収集品)未解放。上の機能未解放の除外で候補から消え、下のフォールバックで
+                        // レリックの一時レベリングが C の 1542/1543 を約 24 時間周回し続けた)
+                        uint unlockTarget = level >= 90 ? 3u : level >= 50 ? 2u : 0u; // 上の解放処理(C/B)が狙うランク
+                        bool rankUnlockBlocked = false;
+                        if (unlockTarget > highestRank
+                            && RankUnlockGuard.TryDetect(job, Player.Territory.RowId, level, highestRank, unlockTarget, openRanksOnBoard, out var rankBlock))
+                        {
+                            rankUnlockBlocked = true;
+                            // レリックモードの一時レベリングが待っているランク(以下)が開かないなら、レベリングを続けてもレリックは進まない
+                            // (Lv90 通過のレベリング=RequiredRank 0 は対象外。通常のレベリングとして下で扱う)
+                            if (RelicFallback.Active && RelicFallback.Job == job && RelicFallback.RequiredRank >= rankBlock.TargetRank)
+                            {
+                                string neededTypes = RelicFallback.NeededTypes.Replace("(能力値不足)", "");
+                                RelicFallback.Reset();
+                                RankUnlockGuard.StopWithMessage(RankUnlockGuard.RelicStopMessage(rankBlock, neededTypes), $"レリックの一時レベリング: {rankBlock.LogText}", tag);
+                                return true;
+                            }
+                            // レベルが上限なら経験値も入らず、ランクも開けられないので止める
+                            if (level >= RankUnlockGuard.MaxLevel)
+                            {
+                                RankUnlockGuard.StopWithMessage($"{Loc.T("Leveling: the level is at the cap and the next mission rank cannot be unlocked, so ICE stopped.")} {rankBlock.Detail}",
+                                    $"レベリング: Lv{level}(上限)。{rankBlock.LogText}", tag);
+                                return true;
+                            }
+                            // 経験値は入るので周回は続ける。解放方法は 10 分に 1 回案内する(Start 直後は SchedulerMain で解除して 1 回目を出す)
+                            if (EzThrottler.Throttle(RankUnlockGuard.NoticeThrottle, 600_000))
+                            {
+                                IceLogging.Info($"レベリング: {rankBlock.LogText}。受けられるミッションで経験値稼ぎを続けます", tag);
+                                IceLogging.ChatInfo($"{Loc.T("Leveling: the next mission rank cannot be unlocked yet. ICE keeps running the missions it can accept for experience.")} {rankBlock.Detail}", "[I.C.E.]");
+                            }
+                        }
+
                         // レベリング用のミッション(上のランク)がまだ受けられず、ランク解放用の未達成ミッションも 1 つも受けられない
                         // (機能未解放で受注できない、受注に失敗して除外中、など)。ここで何もせずに戻ると、掲示板を読み直して
                         // リロールするだけの周回を延々と繰り返す(実機 2026-09-29: 調理師 Lv90 台で B 未解放、残りの C ランク 2 つが機能未解放)。
@@ -661,7 +713,9 @@ namespace ICE.Scheduler.Tasks
                             if (EzThrottler.Throttle("Leveling fallback log", 60000))
                             {
                                 IceLogging.Info($"レベリング: 上のランクの解放に必要なミッションが受けられないため、受けられる {RelicFallback.RankName(fb.Rank)}ランクのミッション {fallback} で経験値を稼ぎます(解放ランク {RelicFallback.RankName(highestRank)}, Lv{level})", tag);
-                                IceLogging.ChatInfo(Loc.T("Leveling: the missions needed to unlock the next rank cannot be accepted right now, so ICE will run the available lower-rank missions for experience."), "[I.C.E.]");
+                                // 機能未解放でランクが開かないときは、上の具体的な案内(10 分に 1 回、解放条件つき)に任せてチャットは出さない
+                                if (!rankUnlockBlocked)
+                                    IceLogging.ChatInfo(Loc.T("Leveling: the missions needed to unlock the next rank cannot be accepted right now, so ICE will run the available lower-rank missions for experience."), "[I.C.E.]");
                             }
                             LogInfo(fallback);
                             Insert_GrabMissionTask(fallback);
@@ -706,6 +760,14 @@ namespace ICE.Scheduler.Tasks
 
                         IceLogging.Verbose("Going to check to see if we need to complete a specific mission...", tag);
 
+                        // 受けられるミッションが 0 件 = ランクの解放状況が読めない。未解放扱いにして一時レベリングへ切り替えると、
+                        // 次の周で ShouldStay が以前の観測値を見てすぐ戻り、往復ループの検知で本当の原因と違う理由で止まるので、判定せずリロールする
+                        if (basicMissionList.Count == 0)
+                        {
+                            if (EzThrottler.Throttle("Relic empty board log", 60000))
+                                IceLogging.Info("レリックモード: 掲示板に受けられるミッションが無いため、ランク判定をせずにリロールします", tag);
+                            return true;
+                        }
                         var highestRank = basicMissionList.Max(x => CosmicHelper.SheetMissionDict[x].Rank);
 
                         // Lv90 は通過点として扱う: コスモデータ(金賞)を狙わず、レベリング(ブロンズ)で Lv91 まで上げる。
@@ -726,6 +788,11 @@ namespace ICE.Scheduler.Tasks
                             return true;
                         }
 
+                        // レリックの必要種類が A クラスでしか得られず、Lv は足りているので、レベリングせずにレリックモードのまま
+                        // A の解放(下の「jobLv >= 100 && highestRank < 4」の分岐: Bクラスの金賞/達成)を進めるか。レベリングモードには A を解放する処理が無い
+                        bool relicRankUnlockOnly = false;
+                        string relicBlockedTypes = "";
+
                         // 必要なコスモデータの種類が、未解放ランク(またはレベル不足)のミッションでしか得られないなら、
                         // そのミッションを受けに行こうとせず、条件を満たすまで一時的にレベリングモードへ切り替える。
                         if (C.SelectedMode == ModeSelect.RelicMode && classInfo.Stage_Current != classInfo.Stage_Next)
@@ -744,18 +811,63 @@ namespace ICE.Scheduler.Tasks
                                 .ToList();
                             uint reqRank = 0, reqLevel = 0;
                             string blockedTypes = "", detail = "";
+                            List<uint> functionOnly = new();
                             bool blocked = neededTypes.Count > 0
-                                && RelicFallback.IsBlocked(job, jobLv, highestRank, neededTypes, selectable, out reqRank, out reqLevel, out blockedTypes, out detail);
-                            IceLogging.Info($"レリック判定 v{P.GetType().Assembly.GetName().Version}: 必要種類=[{string.Join(",", neededTypes.Select(t => CosmicHelper.ExpDictionary.TryGetValue(t, out var n) ? n : t.ToString()))}] Lv{jobLv} 掲示板最高ランク={RelicFallback.RankName(highestRank)} 候補{selectable.Count}件 → {(blocked ? "受注できるミッションが無い → レベリングへ" : "続行")} {detail}", tag);
+                                && RelicFallback.IsBlocked(job, jobLv, highestRank, neededTypes, selectable, out reqRank, out reqLevel, out blockedTypes, out detail, out functionOnly);
+                            IceLogging.Info($"レリック判定 v{P.GetType().Assembly.GetName().Version}: 必要種類=[{string.Join(",", neededTypes.Select(t => CosmicHelper.ExpDictionary.TryGetValue(t, out var n) ? n : t.ToString()))}] Lv{jobLv} 掲示板最高ランク={RelicFallback.RankName(highestRank)} 候補{selectable.Count}件 → {(blocked ? "受注できるミッションが無い" : "続行")} {detail}", tag);
                             if (blocked)
                             {
+                                relicBlockedTypes = blockedTypes;
+
+                                // 必要な種類を与えるミッションが、すべて要求する機能(WKSFunction)の未解放で受注できない。
+                                // レベルを上げてもランクを開けても受けられないので、解放条件(前提クエスト)を案内して停止する
+                                if (functionOnly.Count > 0)
+                                {
+                                    RankUnlockGuard.StopWithMessage(RankUnlockGuard.RelicFunctionStopMessage(functionOnly, blockedTypes),
+                                        $"レリックモード: コスモデータ{blockedTypes}を得られるミッション[{string.Join(",", functionOnly)}]はすべて要求機能が未解放", tag);
+                                    return true;
+                                }
+
+                                // 必要ランクがゲーム上は開いているか。受けられる最高ランク(highestRank)は ICE 側の除外(能力値不足・受注失敗・機能未解放)の
+                                // 後の値なので、それだけで判断すると「開いているのに候補から消えているだけ」を未解放と取り違える
+                                bool reqRankOpen = highestRank >= reqRank || openRanksOnBoard.Contains(reqRank)
+                                    || CosmicHelper.SheetMissionDict.Values.Any(m => m.TerritoryId == Player.Territory.RowId && m.Jobs.Contains(job) && m.Rank == reqRank
+                                                                                     && !m.IsProvisional && !m.IsCritical && m.CompletionStatus != CosmicHelper.Status.None);
+
+                                // 必要ランクは開いているが、この周の掲示板に並んだそのランクがたまたま全部 ICE の除外対象(機能未解放・受注失敗で除外中・
+                                // 能力値不足)だっただけなら、止めずに掲示板の入れ替え(リロール)を待つ。受けられる候補がライブラリに残っているかで判断する
+                                if (jobLv >= reqLevel && reqRankOpen && highestRank < reqRank)
+                                {
+                                    bool waitBoard = MissionLibrary
+                                        .Where(kv => kv.Key is MissionKind.D or MissionKind.C or MissionKind.B or MissionKind.A or MissionKind.Ex)
+                                        .SelectMany(kv => kv.Value)
+                                        .Any(x => CosmicHelper.SheetMissionDict.TryGetValue(x, out var s) && s.Rank <= reqRank && s.Level <= jobLv
+                                                  && neededTypes.Any(t => s.RelicXpInfo.TryGetValue(t, out var xp) && xp > 0)
+                                                  && CosmicHandler.IsMissionFunctionUnlocked(x) && !IsUnacceptable(x) && !IsInfeasible(x, job));
+                                    if (waitBoard)
+                                    {
+                                        if (EzThrottler.Throttle("Relic rank open wait log", 60000))
+                                            IceLogging.Info($"レリックモード: {RelicFallback.RankName(reqRank)}クラスは解放済みですが、掲示板の該当ランクが今は受けられないものだけです。掲示板の入れ替えを待ちます", tag);
+                                        return true;
+                                    }
+                                }
+
                                 // レベルもランクも満たしているのに候補に入らない(受注失敗で除外中、設定で無効 等)ならレベリングでは解決しない。
                                 // 往復ループにせず、理由を通知して停止する
-                                if (jobLv >= reqLevel && highestRank >= reqRank && HasInfeasible(job))
+                                if (jobLv >= reqLevel && reqRankOpen && HasInfeasible(job))
                                 {
                                     // 候補が消えた理由が「現在の能力値では完成できない製作」なら、1 レベル上がるまでレベリングで能力値を上げる
                                     // (レベルが上がると装備の更新と再判定が入る)。停止せず自動で続ける
                                     uint retryLevel = (uint)jobLv + 1;
+                                    // Lv 上限ではレベルが上がらない。一時レベリングに入ると目標 Lv に届かず戻れなくなる(黙って周回し続ける)ので止める
+                                    if (jobLv >= RankUnlockGuard.MaxLevel)
+                                    {
+                                        RankUnlockGuard.StopWithMessage(Task_BuyLevelingGear.IsJapanese
+                                            ? $"レリックモード: {RelicFallback.RankName(reqRank)}クラスの製作が現在の能力値では完成できませんが、Lv{jobLv}(上限)のためレベリングでは能力値を上げられません。装備やマテリアを見直してから再開してください。停止します"
+                                            : $"Relic mode: rank {RelicFallback.RankName(reqRank)} crafts cannot be completed with the current stats, and Lv{jobLv} is the level cap, so leveling cannot raise them. Review your gear and materia, then restart. Stopping",
+                                            $"レリックモード: {RelicFallback.RankName(reqRank)}クラスが能力値不足で、Lv{jobLv}(上限)", tag);
+                                        return true;
+                                    }
                                     IceLogging.Info($"レリックモード: {RelicFallback.RankName(reqRank)}クラスの製作が現在の能力値では完成できないため、Lv{retryLevel} までレベリングモードで動きます", tag);
                                     if (!RelicFallback.Begin(job, reqRank, retryLevel, blockedTypes + "(能力値不足)"))
                                     {
@@ -768,7 +880,7 @@ namespace ICE.Scheduler.Tasks
                                     SchedulerMain.State = IceState.Start;
                                     return true;
                                 }
-                                if (jobLv >= reqLevel && highestRank >= reqRank)
+                                if (jobLv >= reqLevel && reqRankOpen)
                                 {
                                     IceLogging.ChatError(Task_BuyLevelingGear.IsJapanese
                                         ? $"レリックモード: コスモデータ{blockedTypes}を得られるミッションは Lv/ランクの条件を満たしていますが候補に入っていません（受注に失敗して除外中か、設定で無効）。設定とミッション一覧を確認してください。停止します"
@@ -777,18 +889,48 @@ namespace ICE.Scheduler.Tasks
                                     P.TaskManager.Tasks.Clear();
                                     return true;
                                 }
-                                IceLogging.Info($"レリックモード: 必要なコスモデータ{blockedTypes}を得られるミッションは{RelicFallback.RankName(reqRank)}クラス(Lv{reqLevel})以上で、現在は Lv{jobLv}/解放ランク{RelicFallback.RankName(highestRank)}。レベリングモードへ切り替えます", tag);
-                                if (!RelicFallback.Begin(job, reqRank, reqLevel, blockedTypes))
+
+                                // 必要ランクの解放に要る下位ランクの残りのミッションが、要求する機能の未解放ですべて受けられない(レベルは足りている)。
+                                // レベリングしても周回してもランクは開かないので、解放条件を案内して停止する
+                                // (実機 2026-09-29〜30: 錬金術師で Ⅴ が B でしか得られず、B の解放に要る C 1544/1545 が機能 3 未解放 → C を約 24 時間周回)
+                                // レベルが足りない間は判定しない(レベリングは必要。必要レベルに達した時点で LevelMode 側の判定で止まる)
+                                if (RankUnlockGuard.TryDetect(job, Player.Territory.RowId, jobLv, highestRank, reqRank, openRanksOnBoard, out var relicRankBlock))
                                 {
-                                    // 直前に復帰したばかりで同じ理由の再切替 → 往復ループなので停止
-                                    SchedulerMain.State = IceState.Idle;
-                                    P.TaskManager.Tasks.Clear();
+                                    RankUnlockGuard.StopWithMessage(RankUnlockGuard.RelicStopMessage(relicRankBlock, blockedTypes), $"レリックモード: {relicRankBlock.LogText}", tag);
                                     return true;
                                 }
-                                Mission_Settings.Mode = ModeSelect.LevelMode;
-                                P.TaskManager.Tasks.Clear();
-                                SchedulerMain.State = IceState.Start;
-                                return true;
+
+                                if (reqRank >= 5 && jobLv >= reqLevel)
+                                {
+                                    // EX 以上の解放処理は ICE に無い(レベリングモードにもレリックモードにも)。解放手段が無いので止める
+                                    RankUnlockGuard.StopWithMessage(Task_BuyLevelingGear.IsJapanese
+                                        ? $"レリックモード: コスモデータ{blockedTypes}は{RelicFallback.RankName(reqRank)}クラスのミッションでしか得られませんが、{RelicFallback.RankName(reqRank)}クラスは未解放で、ICE には解放する処理がありません。ゲーム内で解放してから再開してください。停止します"
+                                        : $"Relic mode: analysis {blockedTypes} only comes from rank {RelicFallback.RankName(reqRank)} missions, which are locked, and ICE has no routine to unlock that rank. Unlock it in game, then restart. Stopping",
+                                        $"レリックモード: {RelicFallback.RankName(reqRank)}クラス未解放(解放処理なし)", tag);
+                                    return true;
+                                }
+                                if (reqRank == 4 && jobLv >= reqLevel)
+                                {
+                                    // A クラスの解放はレベリングモードに処理が無い(レベリングの解放処理は C/B のみで、Lv100 では経験値も入らない)。
+                                    // レベルは足りているので切り替えず、下のランク解放処理(Bクラスの金賞/達成)で A を開ける
+                                    IceLogging.Info($"レリックモード: コスモデータ{blockedTypes}は{RelicFallback.RankName(reqRank)}クラスでしか得られません。Lv は足りているため、レベリングせずに{RelicFallback.RankName(reqRank)}クラスの解放(Bクラスの金賞/達成)を進めます", tag);
+                                    relicRankUnlockOnly = true;
+                                }
+                                else
+                                {
+                                    IceLogging.Info($"レリックモード: 必要なコスモデータ{blockedTypes}を得られるミッションは{RelicFallback.RankName(reqRank)}クラス(Lv{reqLevel})以上で、現在は Lv{jobLv}/解放ランク{RelicFallback.RankName(highestRank)}。レベリングモードへ切り替えます", tag);
+                                    if (!RelicFallback.Begin(job, reqRank, reqLevel, blockedTypes))
+                                    {
+                                        // 直前に復帰したばかりで同じ理由の再切替 → 往復ループなので停止
+                                        SchedulerMain.State = IceState.Idle;
+                                        P.TaskManager.Tasks.Clear();
+                                        return true;
+                                    }
+                                    Mission_Settings.Mode = ModeSelect.LevelMode;
+                                    P.TaskManager.Tasks.Clear();
+                                    SchedulerMain.State = IceState.Start;
+                                    return true;
+                                }
                             }
                         }
 
@@ -870,6 +1012,33 @@ namespace ICE.Scheduler.Tasks
                                 {
                                     IceLogging.Verbose($"We just need to complete more B Rank Missions (So close...).", tag);
                                     if (TryQueueFirstIncomplete(isBRank, "B Rank")) return true;
+                                }
+
+                                // レリックの必要種類が A クラスでしか得られず、レベリングせずにここへ来た(relicRankUnlockOnly)。
+                                // 上の目安(B の金賞 3/達成 5)を満たしても A が開かないことがあるので、残りの B も金賞を狙う。
+                                // 狙える B(金賞未満・機能解放済み・能力値不足でない)が 1 つも無ければ、ICE には A を解放する手段が無いので止める
+                                // (残りの B がすべて要求機能の未解放で受けられない場合は、上の RankUnlockGuard.TryDetect で先に止まっている)
+                                if (relicRankUnlockOnly)
+                                {
+                                    if (TryQueueFirstNonGold(isBRank, "B Rank (A unlock)")) return true;
+                                    var bLeft = CosmicHelper.SheetMissionDict.Values
+                                        .Where(m => m.TerritoryId == Player.Territory.RowId && m.BRank && m.Jobs.Contains(job) && !m.IsProvisional && !m.IsCritical
+                                                    && m.CompletionStatus < CosmicHelper.Status.Gold && CosmicHandler.IsMissionFunctionUnlocked(m.MissionId))
+                                        .ToList();
+                                    if (!bLeft.Any(m => !IsInfeasible(m.MissionId, job)))
+                                    {
+                                        string msg = bLeft.Count > 0
+                                            ? (Task_BuyLevelingGear.IsJapanese
+                                                ? $"レリックモード: コスモデータ{relicBlockedTypes}は Aクラスのミッションでしか得られませんが、Aクラスの解放に使える Bクラスの残り({string.Join(",", bLeft.Select(m => m.MissionId))})は現在の能力値では完成できません。装備やマテリアを見直してから再開してください。停止します"
+                                                : $"Relic mode: analysis {relicBlockedTypes} only comes from rank A missions, but the remaining rank B missions needed to unlock rank A ({string.Join(",", bLeft.Select(m => m.MissionId))}) cannot be completed with the current stats. Review your gear and materia, then restart. Stopping")
+                                            : (Task_BuyLevelingGear.IsJapanese
+                                                ? $"レリックモード: コスモデータ{relicBlockedTypes}は Aクラスのミッションでしか得られませんが、Bクラスのミッションをすべて金賞にしても Aクラスが解放されていません。解放する手段が見つからないため停止します"
+                                                : $"Relic mode: analysis {relicBlockedTypes} only comes from rank A missions, but rank A is still locked although every rank B mission is gold. No way to unlock it was found; stopping");
+                                        RankUnlockGuard.StopWithMessage(msg, $"レリックモード: Aクラス解放不可(Bの残り {bLeft.Count} 件)", tag);
+                                        return true;
+                                    }
+                                    if (EzThrottler.Throttle("Relic A unlock wait log", 60000))
+                                        IceLogging.Info("レリックモード: Aクラスの解放に使える金賞未満の Bクラスが掲示板に無いため、リロールで待ちます", tag);
                                 }
                             }
                         }

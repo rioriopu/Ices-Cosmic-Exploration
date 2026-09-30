@@ -538,13 +538,19 @@ namespace ICE.Scheduler.Tasks
             bool RepairVendor = false;
             bool TurninRelic = false;
 
-            bool repairSelfGear = PlayerHelper.NeedsRepair(Char_Info.RepairPercent);
-            bool repairAllGear = PlayerHelper.AnyNeedsRepair(Char_Info.RepairPercent) && Char_Info.RepairAllGear;
+            // 装備が壊れているか(耐久 0%)。壊れた装備のままでは Artisan が製作を拒否し(「You have broken gear」)、採集も進まない。
+            // しきい値(RepairPercent)や「赤警報中は拠点へ戻らない」設定と関係なく、受注前に必ず修理へ回す。
+            // 実機(2026-09-30 02:55〜07:51): 自己修理に失敗したまま受注を続け、壊れた装備で約 5 時間製作できなかった。
+            bool brokenGear = PlayerHelper.HasBrokenEquippedGear();
+            bool repairSelfGear = brokenGear || PlayerHelper.NeedsRepair(Char_Info.RepairPercent);
+            // 修理窓で直しきれなかった所持品(アーマリーチェスト)は、この Start の間は修理のきっかけにしない(毎回拠点へ戻るのを防ぐ)
+            bool repairAllGear = PlayerHelper.AnyNeedsRepair(Char_Info.RepairPercent) && Char_Info.RepairAllGear && !Task_Repair.ArmoryRepairSuppressed;
 
             var eventInfo = CosmicHandler.EventInfo();
             var worldState = eventInfo.Value.wksEvent;
 
-            if (C.DisableHub_Critical && worldState is CosmicHandler.WKSEvents.RedAlert_Progressing)
+            // 壊れた装備があるときは赤警報中でも修理を優先する(壊れたまま受注しても進まない)
+            if (C.DisableHub_Critical && worldState is CosmicHandler.WKSEvents.RedAlert_Progressing && !brokenGear)
             {
                 IceLogging.Info("We currently have a red alert up, and we were told NOT to go to the hub for hub related activities, so we're not going to do so\n" +
                     "Progressing to grabbing missions", tag);
@@ -553,33 +559,52 @@ namespace ICE.Scheduler.Tasks
                 return true;
             }
 
-            IceLogging.Verbose($"Repair Class: {repairSelfGear} | Repair All: {repairAllGear}", tag);
+            IceLogging.Verbose($"Repair Class: {repairSelfGear} | Repair All: {repairAllGear} | Broken: {brokenGear}", tag);
 
             bool selfRepairCraft = Char_Info.SelfRepairCrafter && CosmicHelper.CrafterJobList.Contains((uint)Player.Job);
             bool selfRepairGathering = Char_Info.SelfRepairGather && CosmicHelper.GatheringJobList.Contains((uint)Player.Job);
+            // この Start 中に自己修理で直せなかったジョブ(ダークマターの等級/修理担当ジョブのレベル不足)は、以降は修理 NPC を使う
+            bool selfRepairUsable = (selfRepairCraft || selfRepairGathering) && !Task_Repair.IsSelfRepairUnusable;
 
-            bool spiritbonded = C.SelfSpiritbondGather 
+            bool spiritbonded = C.SelfSpiritbondGather
                 && CosmicHelper.GatheringJobList.Contains((uint)Player.Job)
                 && Task_Spiritbond.IsSpiritbondReadyAny();
 
             if (repairSelfGear || repairAllGear)
             {
                 IceLogging.Verbose($"We were told we needed repairs, one of these should be true...", tag);
+                if (brokenGear && EzThrottler.Throttle("HubActivity: broken gear warn", 10000))
+                {
+                    IceLogging.Warning($"装備が壊れています(耐久0%)。しきい値({Char_Info.RepairPercent}%)と関係なく、受注前に修理します {PlayerHelper.DescribeBrokenGear()}", tag);
+                    IceLogging.ChatInfo(Loc.T("Your equipped gear is broken (0% durability). ICE will repair it before taking the next mission."), "[I.C.E.]");
+                }
+
+                IceLogging.Verbose($"Self Repair Crafter: {selfRepairCraft} | Self Repair Gathering: {selfRepairGathering} | Self repair unusable on this job: {Task_Repair.IsSelfRepairUnusable}");
                 if (Char_Info.RepairAtVendor)
                 {
                     IceLogging.Debug("We were told to repair at the vendor, so we'll add that to the list of hub activities", tag);
                     RepairVendor = true;
                 }
-                else
+                else if (selfRepairUsable)
                 {
-                    IceLogging.Verbose($"Self Repair Crafter: {selfRepairCraft} | Self Repair Gathering: {selfRepairGathering}");
-                    if (selfRepairCraft || selfRepairGathering)
-                    {
-                        IceLogging.Debug("We were told that we can repair at ONE of these. So going to exit -> self repair", tag);
-                        SchedulerMain.State = IceState.Repair;
-                        return true;
-                    }
+                    IceLogging.Debug("We were told that we can repair at ONE of these. So going to exit -> self repair", tag);
+                    SchedulerMain.State = IceState.Repair;
+                    return true;
                 }
+                else if (brokenGear || Task_Repair.IsSelfRepairUnusable)
+                {
+                    // 修理 NPC を使わない設定でも、壊れた装備・自己修理で直せない装備のまま受注すると止まるので、修理 NPC で直す
+                    IceLogging.Info($"自己修理が使えない(設定で無効、またはこの Start 中に失敗)ため、修理 NPC で修理します [broken={brokenGear}, selfRepairUnusable={Task_Repair.IsSelfRepairUnusable}]", tag);
+                    RepairVendor = true;
+                }
+            }
+
+            // 修理 NPC が登録されていない惑星では Repair_PathTo がエラーを出し続けて止まるので、ここで理由を出して止める
+            if (RepairVendor && !Task_Repair.HasRepairNpc())
+            {
+                Task_Repair.StopForRepair("この惑星の修理 NPC が登録されていません",
+                    Loc.T("ICE stopped because your gear needs repair but no repair NPC is registered for this planet. Repair your gear manually and press Start again."), tag);
+                return true;
             }
 
             if (spiritbonded)

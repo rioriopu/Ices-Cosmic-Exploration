@@ -196,13 +196,15 @@ namespace ICE.Scheduler.Tasks
             }
             else if ((uint)Player.Job == 16 || (uint)Player.Job == 17)
             {
-                bool selfRepairGather = Char_Info.SelfRepairGather && PlayerHelper.NeedsRepair(Char_Info.RepairPercent);
+                // この Start 中に自己修理で直せなかったジョブでは試さない(毎回失敗待ちになるだけ。壊れた装備は次の受注前に修理 NPC へ回る)
+                bool selfRepairGather = Char_Info.SelfRepairGather && !Task_Repair.IsSelfRepairUnusable && PlayerHelper.NeedsRepair(Char_Info.RepairPercent);
 
                 if (selfRepairGather)
                 {
                     IceLogging.Info("You have enabled self repair, and you are need in repair. throwing in task to repair self", handle);
                     P.TaskManager.EnqueueMulti
                     (
+                        new(Task_Repair.BeginSelfRepair, "Resetting the self repair watch"),
                         new(Task_Repair.OpenSelfRepair, "Opening the self repair window"),
                         new(Task_Repair.SelfRepair, "Executing the self repair"),
                         new(Task_Repair.CloseRepair, "Closing Self Repair")
@@ -218,13 +220,14 @@ namespace ICE.Scheduler.Tasks
             else if ((uint)Player.Job == 18)
             {
                 IceLogging.Info("We're on a fishing job, so going fishing.", handle);
-                bool selfRepairGather = Char_Info.SelfRepairGather && PlayerHelper.NeedsRepair(Char_Info.RepairPercent);
+                bool selfRepairGather = Char_Info.SelfRepairGather && !Task_Repair.IsSelfRepairUnusable && PlayerHelper.NeedsRepair(Char_Info.RepairPercent);
 
                 if (selfRepairGather)
                 {
                     IceLogging.Info("You have enabled self repair, and you are need in repair. throwing in task to repair self", "[Task_DualClass | Check Gather State]");
                     P.TaskManager.EnqueueMulti
                     (
+                        new(Task_Repair.BeginSelfRepair, "Resetting the self repair watch"),
                         new(Task_Repair.OpenSelfRepair, "Opening the self repair window"),
                         new(Task_Repair.SelfRepair, "Executing the self repair"),
                         new(Task_Repair.CloseRepair, "Closing Self Repair")
@@ -242,12 +245,20 @@ namespace ICE.Scheduler.Tasks
         {
             if (!P.Artisan.IsBusy())
             {
+                // 製作が終わり、装備も使える状態(耐久 0% でない)なら、装備破損の連続回数を戻す(Task_Craft 側の製作完了と同じ扱い)
+                if (PlayerHelper.GetMinEquippedConditionPercent() > 0)
+                    Task_Craft.ResetBrokenGearHits();
                 IceLogging.Info("Artisan is no longer running, continuing the process");
                 P.TaskManager.Tasks.Clear();
                 return true;
             }
             else
             {
+                // 壊れた装備(耐久 0%)で Artisan が製作を拒否している → 製作を中止してミッションを終え、修理へ回す
+                // (この待機には停滞監視が無く、以前は TaskManager の上限 30 分まで止まっていた)
+                if (Task_Craft.IsBrokenGearBlockingCraft())
+                    return Task_Craft.HandleBrokenGear("[Task_DualClass: Waiting for Artisan]", "Artisan の通知");
+
                 if (Svc.Condition[ConditionFlag.ExecutingCraftingAction])
                 {
                     // Need to add a timer check here. Make it configuarable maybe... 10s?

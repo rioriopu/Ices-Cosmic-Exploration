@@ -13,9 +13,12 @@ namespace ICE.Scheduler
             IceLogging.Info($"Setting State to: {State} / Enabling Plugin (ICE {P.GetType().Assembly.GetName().Version}, mode {C.SelectedMode})");
             Mission_Settings.SelectedJob = (uint)Player.Job;
             RelicFallback.Reset(); // 開始時はレリックモードの一時レベリングを解除(必要なら再判定される)
+            EzThrottler.Reset(RankUnlockGuard.NoticeThrottle); // ランクを解放できない旨の定期案内(10 分に 1 回)は、Start 直後の 1 回目をすぐ出す
             P.Artisan.RaphaelUnavailable = false; // Raphael CLI 不在の暫定措置は Start で解除(Artisan 側が直っていれば通常どおり Raphael を使う)
             P.Artisan.RaphaelBlockedJobs.Clear(); // マニピュレーション未習得ジョブの標準ソルバー置き換えも Start で解除(クエストを進めていれば Raphael に戻る)
             Task_AbandonMission.ResetAttempt();
+            Task_Craft.ResetCraftWatch(); // 製作の停滞監視(待機開始時刻・復旧回数・Artisan からの通知)を前回から持ち越さない
+            Task_Repair.ResetSession();   // 「自己修理では直せない」「所持品の修理は打ち切り」の判定は Start で解除(装備やダークマターを整えていれば自己修理に戻る)
             IceLogging.Info($"Player starting job upon pressing the start: {Mission_Settings.SelectedJob}");
             GenericManager.StorePandoraStates();
             return true;
@@ -29,6 +32,9 @@ namespace ICE.Scheduler
             if (Task_SellLevelingGear.Running)
                 Task_SellLevelingGear.Abort("stop");
             P.TaskManager.Abort();
+            // 待機中のタスクを途中で消したので、製作の停滞監視の時刻もここで捨てる
+            // (残すと、次の待機の最初の判定で「189 秒間アクションなし」のように即座に停滞扱いになる)
+            Task_Craft.ResetCraftWatch();
             State = IceState.Idle;
             GenericManager.RestorePandoraStates();
             if (P.Navmesh.Installed)

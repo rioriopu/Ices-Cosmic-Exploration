@@ -51,17 +51,21 @@ namespace ICE.Scheduler
         /// <summary>
         /// 必要な種類のコスモデータを得られるミッションが、いまのランク解放状況・レベルでは1つも受けられないか。
         /// 「受けられる」= レリックモードの候補(selectable: ミッションライブラリに残った通常ミッション。緊急/暫定は除く)に
-        /// その種類を与えるものがあり、かつ掲示板に出ているランク以下で、受注レベルを満たしている。
-        /// true のとき、最も条件の緩いミッション(通常ミッションのみ)のランクと必要レベルを返す。
+        /// その種類を与えるものがあり、かつ掲示板に出ているランク以下で、受注レベルを満たし、要求する機能(WKSFunction)が解放済み。
+        /// true のとき、最も条件の緩いミッション(通常ミッションのうち機能が解放済みのもの)のランクと必要レベルを返す。
+        /// ある種類を与えるミッションがすべて機能未解放なら、その ID を functionOnly に入れ、types をその種類だけにする
+        /// (レベルやランクでは解決しないので、呼び出し側は解放条件を案内して止める)。
         /// </summary>
         public static bool IsBlocked(uint job, int jobLv, uint highestRank, IEnumerable<int> neededTypes, IEnumerable<uint> selectable,
-            out uint reqRank, out uint reqLevel, out string types, out string detail)
+            out uint reqRank, out uint reqLevel, out string types, out string detail, out List<uint> functionOnly)
         {
             reqRank = 0; reqLevel = 0; types = ""; detail = "";
+            functionOnly = new List<uint>();
             var territory = Player.Territory.RowId;
             bool anyObtainable = false;
             uint minRank = uint.MaxValue, minLevel = uint.MaxValue;
             var blocked = new List<string>();
+            var fnOnlyNames = new List<string>();
             var lines = new List<string>();
             var selectableSet = new HashSet<uint>(selectable ?? Array.Empty<uint>());
 
@@ -82,26 +86,46 @@ namespace ICE.Scheduler
                     continue; // 判定対象外(レベリングでは解決しない)
                 }
 
-                var obtainable = givers.Where(m => selectableSet.Contains(m.MissionId) && m.Rank <= highestRank && m.Level <= jobLv).ToList();
+                // 要求する機能が未解放のミッションは、掲示板に並んでもロック表示が無いまま受注が拒否される(実機 2026-09-28/29)。
+                // 掲示板に出ていない間は lockedBasic に入らず selectable に残るため、ここで除く
+                // (除かないと「受注可」と数え、受けられないミッションを待ってリロールし続ける)
+                var reachable = givers.Where(m => CosmicHandler.IsMissionFunctionUnlocked(m.MissionId)).ToList();
+                int fnLockedCount = givers.Count - reachable.Count;
+
+                var obtainable = reachable.Where(m => selectableSet.Contains(m.MissionId) && m.Rank <= highestRank && m.Level <= jobLv).ToList();
                 if (obtainable.Count > 0)
                 {
                     anyObtainable = true;
                     lines.Add($"{typeName}: 受注可 {string.Join(",", obtainable.Take(5).Select(m => $"{m.MissionId}({RankName(m.Rank)}/Lv{m.Level})"))}");
                     continue;
                 }
-                var easiest = givers.OrderBy(m => m.Rank).ThenBy(m => m.Level).First();
+                if (reachable.Count == 0)
+                {
+                    // レベルを上げてもランクを開けても受けられない。解放条件(前提クエスト)の案内が要る
+                    functionOnly.AddRange(givers.Select(m => m.MissionId));
+                    fnOnlyNames.Add(typeName);
+                    blocked.Add(typeName);
+                    lines.Add($"{typeName}: 受注不可(候補{givers.Count}件すべて要求機能が未解放 機能[{string.Join(",", givers.Select(m => m.FunctionId).Distinct())}])");
+                    continue;
+                }
+                // 必要ランク/レベルは機能が解放済みのミッションから決める(機能未解放のものはランクを開けても受けられない)
+                var easiest = reachable.OrderBy(m => m.Rank).ThenBy(m => m.Level).First();
                 minRank = Math.Min(minRank, easiest.Rank);
                 minLevel = Math.Min(minLevel, easiest.Level);
                 blocked.Add(typeName);
-                lines.Add($"{typeName}: 受注不可(最低 {RankName(easiest.Rank)}クラス/Lv{easiest.Level}、候補{givers.Count}件、うちライブラリ内{givers.Count(m => selectableSet.Contains(m.MissionId))}件)");
+                lines.Add($"{typeName}: 受注不可(最低 {RankName(easiest.Rank)}クラス/Lv{easiest.Level}、候補{givers.Count}件、うちライブラリ内{givers.Count(m => selectableSet.Contains(m.MissionId))}件{(fnLockedCount > 0 ? $"、機能未解放{fnLockedCount}件" : "")})");
             }
 
             detail = string.Join(" | ", lines);
             if (anyObtainable || blocked.Count == 0)
+            {
+                functionOnly.Clear(); // 他の種類が受けられるうちは止めない(その種類が埋まった後の判定で止まる)
                 return false;
-            reqRank = minRank;
-            reqLevel = minLevel;
-            types = string.Join("/", blocked);
+            }
+            reqRank = minRank == uint.MaxValue ? 0 : minRank;
+            reqLevel = minLevel == uint.MaxValue ? 0 : minLevel;
+            // 機能未解放で止めるときは、その種類だけを文に出す(ランク/レベルで受けられないだけの種類は含めない)
+            types = functionOnly.Count > 0 ? string.Join("/", fnOnlyNames) : string.Join("/", blocked);
             return true;
         }
 
@@ -163,6 +187,12 @@ namespace ICE.Scheduler
         {
             if (RequiredRank == 0)
                 return IsJapanese ? $"Lv{RequiredLevel}に到達" : $"reached Lv{RequiredLevel}";
+            // A クラス以上はレベルだけで戻る(ShouldStay 参照)。ランクの解放はレリックモード側で進める
+            uint rank = ObservedHighestRank.TryGetValue(Job, out var r) ? r : 0;
+            if (RequiredRank >= 4 && rank < RequiredRank)
+                return IsJapanese
+                    ? $"Lv{RequiredLevel}に到達。{RankName(RequiredRank)}クラスの解放はレリックモードで Bクラスの金賞/達成を進めて行います"
+                    : $"reached Lv{RequiredLevel}; rank {RankName(RequiredRank)} will be unlocked in Relic mode by completing/golding rank B missions";
             return IsJapanese
                 ? $"Lv{RequiredLevel}に到達し{RankName(RequiredRank)}クラスが解放された"
                 : $"reached Lv{RequiredLevel} and rank {RankName(RequiredRank)} is unlocked";
@@ -185,6 +215,10 @@ namespace ICE.Scheduler
             if (!Active || job != Job) return false;
             int lv = Player.GetLevel((Job)job);
             uint rank = ObservedHighestRank.TryGetValue(job, out var r) ? r : 0;
+            // A クラス以上の解放はレベリングモードに処理が無い(レベリングの解放処理は C/B のみで、Lv100 では経験値も入らない)。
+            // 必要レベルに達したらレリックモードへ戻し、レリック側の解放処理(Bクラスの金賞/達成)で進める
+            if (RequiredRank >= 4 && lv >= RequiredLevel)
+                return false;
             return lv < RequiredLevel || rank < RequiredRank;
         }
 

@@ -120,7 +120,8 @@ public class PlayerHelper
         for (var i = 0; i < equipped->Size; i++)
         {
             var item = equipped->GetInventorySlot(i);
-            if (item == null)
+            // 空きスロット(ItemId=0。耐久も 0 と読める)は「要修理」と数えない
+            if (item == null || item->ItemId == 0)
                 continue;
 
             var itemCondition = Convert.ToInt32(Convert.ToDouble(item->Condition) / 30000.0 * 100.0);
@@ -180,7 +181,8 @@ public class PlayerHelper
             for (var i = 0; i < inventory->Size; i++)
             {
                 var item = inventory->GetInventorySlot(i);
-                if (item == null)
+                // 空きスロット(ItemId=0)は「要修理」と数えない
+                if (item == null || item->ItemId == 0)
                     continue;
 
                 var itemCondition = Convert.ToInt32(Convert.ToDouble(item->Condition) / 30000.0 * 100.0);
@@ -196,6 +198,80 @@ public class PlayerHelper
 
         IceLogging.Debug("Repair all check has concluded, no item can be repaired", tag);
         return false;
+    }
+
+    // 装備スロット 13 はソウルクリスタル(耐久を持たない)
+    private const int SoulCrystalSlot = 13;
+
+    /// <summary>
+    /// 装備中の品の耐久の最小値(%、切り捨て)。Artisan の RepairManager.GetMinEquippedPercent と同じ計算
+    /// (Condition 30000 = 100%。300 未満は 0% = Artisan が「You have broken gear」で製作を拒否する値)。
+    /// 空きスロットとソウルクリスタル枠は数えない。読めなければ -1。
+    /// </summary>
+    public static unsafe int GetMinEquippedConditionPercent()
+    {
+        try
+        {
+            var im = InventoryManager.Instance();
+            if (im == null)
+                return -1;
+            var equipped = im->GetInventoryContainer(InventoryType.EquippedItems);
+            if (equipped == null || !equipped->IsLoaded)
+                return -1;
+            int min = int.MaxValue;
+            for (var i = 0; i < equipped->Size; i++)
+            {
+                if (i == SoulCrystalSlot)
+                    continue;
+                var item = equipped->GetInventorySlot(i);
+                if (item == null || item->ItemId == 0)
+                    continue;
+                if (item->Condition < min)
+                    min = item->Condition;
+            }
+            return min == int.MaxValue ? -1 : min / 300;
+        }
+        catch
+        {
+            return -1;
+        }
+    }
+
+    /// <summary>
+    /// 装備中の品に「壊れ(耐久 0%)」があるか。しきい値(RepairPercent)とは無関係に、true なら修理しないとミッションが進まない
+    /// (Artisan は製作を拒否し、採集も能力が落ちて進まない)。
+    /// </summary>
+    public static bool HasBrokenEquippedGear() => GetMinEquippedConditionPercent() == 0;
+
+    /// <summary>ログ用: 壊れている装備の名前と耐久(無ければ空文字)</summary>
+    public static unsafe string DescribeBrokenGear()
+    {
+        try
+        {
+            var im = InventoryManager.Instance();
+            if (im == null)
+                return "";
+            var equipped = im->GetInventoryContainer(InventoryType.EquippedItems);
+            if (equipped == null || !equipped->IsLoaded)
+                return "";
+
+            var names = new List<string>();
+            for (var i = 0; i < equipped->Size; i++)
+            {
+                if (i == SoulCrystalSlot)
+                    continue;
+                var item = equipped->GetInventorySlot(i);
+                if (item == null || item->ItemId == 0 || item->Condition >= 300)
+                    continue;
+                var name = Svc.Data.GetExcelSheet<Item>().TryGetRow(item->ItemId, out var row) ? row.Name.ToString() : item->ItemId.ToString();
+                names.Add($"{name}({item->Condition / 300.0:F1}%)");
+            }
+            return names.Count == 0 ? "" : $"[壊れた装備: {string.Join(", ", names)}]";
+        }
+        catch
+        {
+            return "";
+        }
     }
 
     public class ManipInfo

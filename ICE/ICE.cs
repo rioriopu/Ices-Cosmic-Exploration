@@ -183,6 +183,10 @@ public sealed partial class ICE : IDalamudPlugin
                 Scheduler.Tasks.Task_Craft.NotifyRaphaelFailure(text);
             else if (text.Contains("Failed to solve"))
                 Scheduler.Tasks.Task_Craft.NotifyRaphaelFailure(text);
+            // Artisan が装備の破損(耐久 0%)を理由に製作を拒否した(「You have broken gear. Artisan will not continue.」。日本語クライアントでも英文)。
+            // 製作画面を開いたまま止まるので、Task_Craft が実際の耐久を確かめてから停滞監視を待たずに中止する
+            else if (text.Contains("You have broken gear"))
+                Scheduler.Tasks.Task_Craft.NotifyBrokenGear(text);
         }
         catch { }
     }

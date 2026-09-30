@@ -32,9 +32,13 @@ namespace ICE.Scheduler
                 P.TaskManager.EnqueueMulti
                 (
                     new(() => IceLogging.Info("Starting repair task at the npc", "Task_HubActivities")),
-                    new(Task_Repair.Repair_PathTo, "Pathing to the repair NPC"),
+                    new(Task_Repair.BeginNpcRepair, "Resetting the repair watch"),
+                    // 修理 NPC まで移動(5 分で打ち切って次へ。修理できたかは VerifyVendorRepair で判定する)
+                    new(Task_Repair.Repair_PathTo, "Pathing to the repair NPC", Task_Repair.NpcPathConfig),
                     new(Task_Repair.RepairAtNpc, "Repairing at the NPC Vendor"),
-                    new(Task_Repair.CloseRepair, "Closing the repair window")
+                    new(Task_Repair.CloseRepair, "Closing the repair window"),
+                    // 直っていなければ(ギル不足・NPC に届かない等)理由をチャットに出して停止する
+                    new(Task_Repair.VerifyVendorRepair, "Checking the repair result")
                 );
             }
             if (RelicTurnin)

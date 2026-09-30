@@ -29,7 +29,19 @@ namespace ICE.Scheduler.Tasks
             {
                 // ミッション中にレベルが上がっていたら、次の製作の前に最強装備へ更新する(製作スタンスを抜けてから)。
                 // コスモレシピは製作者のレベルに応じて難易度が上がるため、装備が追いつかないと Artisan が手順を組めない。
-                if (C.LevelingGear_AutoEquipBest && Task_RelicTurnin.NeedsEquipForLevel((uint)Player.Job))
+                bool equipPending = C.LevelingGear_AutoEquipBest && Task_RelicTurnin.NeedsEquipForLevel((uint)Player.Job);
+
+                // 装備が壊れている(耐久 0%)と、Artisan は製作開始時に「You have broken gear. Artisan will not continue.」を出して
+                // 製作画面を開いたまま何もしなくなる。指示する前に確認し、停滞監視(180 秒×やり直し)を待たずにミッションを終える
+                // (2026-09-30 02:55〜07:51 実機: 耐久 0% のまま「停滞→やり直し」を 95 回繰り返した)。
+                // 最強装備への更新を予定しているときは、新しい装備で直る可能性があるので先に着替えさせる(着替えても壊れていれば次で拾う)
+                if (!equipPending && PlayerHelper.HasBrokenEquippedGear())
+                {
+                    HandleBrokenGear("[Task Craft]", "製作前の耐久確認");
+                    return;
+                }
+
+                if (equipPending)
                 {
                     IceLogging.Info($"レベルが上がっているため、製作の前に最強装備を行います(Lv{Player.GetLevel(Player.Job)})", "[Task Craft]");
                     P.TaskManager.Enqueue(() => ExitCraftingStance(), "Exiting crafting stance before equipping", CleanupTaskConfig);
@@ -81,6 +93,102 @@ namespace ICE.Scheduler.Tasks
         {
             _raphaelFailedAt = DateTime.Now;
             _raphaelFailureText = text;
+        }
+
+        // ---- 装備の破損(耐久 0%)----
+        // Artisan は製作開始時に装備の最低耐久が 0% だと「You have broken gear. Artisan will not continue.」を出し(日本語クライアントでも英文)、
+        // 製作画面を開いたまま何もしなくなる(IsBusy=true のまま)。待っても直らないので、停滞監視を待たずに対処する。
+        private static DateTime _brokenGearAt = DateTime.MinValue;   // Artisan の通知を受けた時刻(MinValue=未通知)
+        private static string _brokenGearText = "";
+        private static int _brokenGearHits = 0;                       // 修理されないまま装備破損で製作を止めた回数(製作が進むか Start で 0)
+        private const int BrokenGearMaxHits = 2;                      // この回数に達したら ICE を止める(ミッション終了→修理の判定を挟んでも直っていない)
+
+        /// <summary>
+        /// Artisan が「You have broken gear. Artisan will not continue.」を出した(ICE.cs のチャット監視から呼ぶ)。
+        /// 次の WaitingForArtisan で実際の耐久と照らし合わせ、壊れていれば 180 秒の停滞監視を待たずに製作を中止してミッションを終える。
+        /// </summary>
+        public static void NotifyBrokenGear(string text)
+        {
+            _brokenGearAt = DateTime.Now;
+            _brokenGearText = text;
+        }
+
+        /// <summary>
+        /// 装備の破損で製作できないときの対処。製作を中止して後始末をしてから、1 回目はミッションを終えて(スコアがあれば報告、
+        /// なければ放棄。Task_AbandonMission が判定)Start → HubActivityCheck の修理へ戻す。能力値の問題ではないので MarkInfeasible はしない。
+        /// 修理されないまま BrokenGearMaxHits 回に達したら、ミッションは受注したまま ICE を止める(修理後に Start で再開できる)。
+        /// </summary>
+        internal static bool? HandleBrokenGear(string tag, string source)
+        {
+            var mission = CosmicHelper.CurrentLunarMission;
+            string text = string.IsNullOrEmpty(_brokenGearText) ? "-" : _brokenGearText;
+            _brokenGearAt = DateTime.MinValue;
+            _brokenGearText = "";
+            _raphaelFailedAt = DateTime.MinValue;
+            _brokenGearHits++;
+            ResetArtisanWatch();
+            _craftActionLockSince = DateTime.MinValue;
+            _artisanStallRecoveries = 0;
+            _artisanStallTotal = 0;
+            StopArtisan();
+
+            IceLogging.Warning($"装備が壊れているため製作できません({source}: 「{text}」 装備の最低耐久 {PlayerHelper.GetMinEquippedConditionPercent()}%、{_brokenGearHits}/{BrokenGearMaxHits} 回目)。停滞監視を待たずに製作を中止します {PlayerHelper.DescribeBrokenGear()}", tag);
+
+            // 製作画面・スタンスを閉じてから次へ(放棄も手動の修理も、製作の状態が残っていると拒否される)
+            P.TaskManager.Tasks.Clear();
+            P.TaskManager.EnqueueMulti(
+                new(() => CancelSynthesisIfOpen(), "Cancelling synthesis (broken gear)", CleanupTaskConfig),
+                new(() => ExitCraftingStance(), "Exiting crafting stance (broken gear)", CleanupTaskConfig),
+                new(() => WaitArtisanSettled(), "Waiting for Artisan to settle", CleanupTaskConfig));
+
+            if (_brokenGearHits >= BrokenGearMaxHits)
+            {
+                // ミッション終了→ハブでの修理判定を挟んでも直っていない。放置しても直らないので止める。
+                // DisablePlugin は TaskManager を Abort して上の後始末まで消すため使わない(Stop_DarkMatter と同じ止め方)
+                IceLogging.Error($"装備の破損が修理されないまま {_brokenGearHits} 回続いたため、ICE を停止します(ミッション {mission} は受注したまま)", tag);
+                IceLogging.ChatError(Loc.T("Your gear is still broken, so ICE stopped. Repair your gear (at a mender or with Dark Matter) and press Start again."), "[I.C.E.]");
+                _brokenGearHits = 0;
+                SchedulerMain.State = IceState.Idle;
+                return true;
+            }
+
+            IceLogging.ChatError(Loc.T("Your gear is broken (0% durability), so ICE stopped crafting and will end this mission, then repair your gear."), "[I.C.E.]");
+            SchedulerMain.State = IceState.AbandonMission;
+            return true;
+        }
+
+        /// <summary>
+        /// 装備が使える状態に戻ったことを確認したとき(修理の成功、デュアルミッションの製作完了)に呼ぶ。
+        /// 戻さないと、修理を挟んだ後の次の破損が「修理されないまま 2 回続いた」と数えられ、修理を試さずに止まる
+        /// </summary>
+        internal static void ResetBrokenGearHits() => _brokenGearHits = 0;
+
+        /// <summary>
+        /// Task_DualClass 用: Artisan から装備破損の通知があり、実際に装備が壊れているか。
+        /// 壊れていなければ(他のプレイヤーの発言・修理前の古い通知)通知を捨てる。
+        /// </summary>
+        internal static bool IsBrokenGearBlockingCraft()
+        {
+            if (_brokenGearAt == DateTime.MinValue)
+                return false;
+            if (PlayerHelper.GetMinEquippedConditionPercent() > 0)
+            {
+                _brokenGearAt = DateTime.MinValue;
+                _brokenGearText = "";
+                return false;
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// ミッションを新しく受注したとき(Task_ExecuteMission から呼ぶ)。同じミッション ID を続けて受けても、前回の停滞回数を持ち越さない
+        /// (ICE は同じミッションを何時間も繰り返し受けることが多く、ID だけで区別すると一時的な停滞が積み上がって正常なミッションを放棄してしまう)
+        /// </summary>
+        internal static void OnMissionStarted(uint missionId)
+        {
+            _artisanStallMission = missionId;
+            _artisanStallRecoveries = 0;
+            _artisanStallTotal = 0;
         }
 
         /// <summary>
@@ -151,6 +259,7 @@ namespace ICE.Scheduler.Tasks
             IceLogging.Warning($"ミッション {mission} は現在の能力値(Lv{Player.GetLevel((Job)job)} 作業精度 {craftsmanship})では完成できないと判断し、放棄して候補から外します(レベルか装備が変わるまで)", tag);
             IceLogging.ChatError(Loc.T("This craft cannot be completed with the current stats. The mission was abandoned and will be skipped until your level or gear changes."), "[I.C.E.]");
             _artisanStallRecoveries = 0;
+            _artisanStallTotal = 0;
             SchedulerMain.State = IceState.AbandonMission;
         }
 
@@ -258,21 +367,66 @@ namespace ICE.Scheduler.Tasks
         // レシピ帳を開いたまま(スタンスに入ったまま)Artisan が製作を始められないケースを検知できなかった
         // (実機: 前工程 x2 の直後に主製作へレシピを切り替えるところで、ログが「Telling Artisan to craft」で途切れて停止)。
         private static DateTime _artisanWaitSince = DateTime.MinValue;    // 今回の待機の開始時刻(MinValue=待機していない)
-        private static DateTime _lastCraftActionAt = DateTime.MinValue;   // 最後に製作アクションを観測した時刻(待機開始時に初期化)
-        private static int _artisanStallRecoveries = 0;                   // 同一ミッション内での復旧回数(上限を超えたら放棄)
+        private static DateTime _lastCraftActionAt = DateTime.MinValue;   // 最後に製作アクション(開始のアニメーションを含む)を観測した時刻(待機開始時に初期化)
+        private static DateTime _lastWaitPollAt = DateTime.MinValue;      // 最後に WaitingForArtisan が呼ばれた時刻(待機タスクが外部で打ち切られたかの判定用)
+        private static int _artisanStallRecoveries = 0;                   // 同一ミッション内の連続の復旧回数(実際に製作が進んだら 0 に戻す。上限を超えたら放棄)
+        private static int _artisanStallTotal = 0;                        // 同一ミッション内の通算の復旧回数(製作が進んでも戻さない。無限ループ防止)
         private static uint _artisanStallMission = 0;                     // 復旧回数を数えているミッション
         private const double ArtisanStallSeconds = 60;                    // 製作画面が開いていないときの許容秒数(レシピ選択・食事・開始は通常 10 秒以内)
         private const double ArtisanStallInCraftSeconds = 180;            // 製作画面(Synthesis)が開いているときの許容秒数(ソルバーの計算待ちを考慮)
         private const int ArtisanStallMaxRecoveries = 2;
+        private const int ArtisanStallMaxPerMission = 5;                  // 1 ミッションで許す通算のやり直し回数(6 回目の停滞で放棄)
+        private const double WaitSessionGapSeconds = 5;                   // これ以上呼ばれていなければ、前回の待機(指示)タスクは外部で打ち切られたとみなす
+
+        // ---- 「実際に製作が進んだか」の判定用 ----
+        // 製作開始のアニメーションでも ExecutingCraftingAction は立つため、それとは別に「工程が進んだ」「完成品が増えた」を見る
+        private static int _synthStepSeen = -1;           // この待機で最後に見た製作画面の工程(-1=まだ見ていない)
+        private static uint _craftTargetItemId = 0;       // 最後に Artisan へ指示した製作物(完成数で進行を判定する)
+        private static int _craftItemCountBaseline = -1;  // この待機での製作物の所持数の基準(-1=未取得)
         // 復旧時の後始末(製作の中止・スタンス解除)は、失敗しても次へ進めるよう時間制限付き・打ち切り無しで実行する
         private static readonly ECommons.Automation.NeoTaskManager.TaskManagerConfiguration CleanupTaskConfig = new(timeLimitMS: 20000, abortOnTimeout: false);
 
         private static bool? WaitingForArtisan()
         {
             string tag = "Craft: Waiting for Artisan";
+            var now = DateTime.Now;
+
+            // 前回の呼び出しから間が空いた = 前の待機タスクは外部(Stop / 別タスクの Tasks.Clear / TaskManager の Abort・時間切れ)で
+            // 打ち切られている。その時刻を引き継ぐと、次の待機の最初の判定で即座に停滞扱いになる
+            // (2026-09-30 11:14: 上限 60 秒のところ最初の判定が 189 秒。9/29〜30 には 832 秒・12874 秒・44940 秒も出ていた)
+            if (_artisanWaitSince != DateTime.MinValue && (now - _lastWaitPollAt).TotalSeconds > WaitSessionGapSeconds)
+            {
+                IceLogging.Info($"前回の Artisan 待機は {(now - _lastWaitPollAt).TotalSeconds:F0} 秒前に打ち切られていたため、停滞監視の時刻を数え直します(残っていた待機 {(now - _artisanWaitSince).TotalSeconds:F0} 秒)", tag);
+                ResetArtisanWatch();
+                _craftActionLockSince = DateTime.MinValue;
+            }
+            _lastWaitPollAt = now;
+
+            // Artisan が装備の破損を理由に製作を拒否した → 待っても始まらないので即座に中止する。
+            // チャットは他のプレイヤーの発言や修理前の古い通知の可能性もあるので、実際の耐久と照らし合わせる(読めなければ通知を信用する)
+            if (_brokenGearAt != DateTime.MinValue && _brokenGearAt >= _craftIssuedAt)
+            {
+                int pct = PlayerHelper.GetMinEquippedConditionPercent();
+                if (pct > 0)
+                {
+                    IceLogging.Info($"「{_brokenGearText}」を受けましたが、装備の最低耐久は {pct}% のため無視します", tag);
+                    _brokenGearAt = DateTime.MinValue;
+                    _brokenGearText = "";
+                }
+                else
+                    return HandleBrokenGear(tag, "Artisan の通知");
+            }
 
             if (!P.Artisan.IsBusy())
             {
+                // 1 アクションで完成するレシピなどで、待機中に進行を観測できないまま終わることがある。最後に完成数だけ確かめる
+                if (_craftTargetItemId != 0 && _craftItemCountBaseline >= 0
+                    && PlayerHelper.GetItemCount(_craftTargetItemId, out var endCount) && endCount > _craftItemCountBaseline)
+                {
+                    _brokenGearHits = 0;
+                    if (_artisanStallMission == CosmicHelper.CurrentLunarMission)
+                        _artisanStallRecoveries = 0;
+                }
                 _craftActionLockSince = DateTime.MinValue;
                 ResetArtisanWatch();
                 IceLogging.Info("Artisan is no longer running, continuing the process", tag);
@@ -280,7 +434,6 @@ namespace ICE.Scheduler.Tasks
             }
             else
             {
-                var now = DateTime.Now;
                 if (_artisanWaitSince == DateTime.MinValue)
                 {
                     _artisanWaitSince = now;
@@ -293,12 +446,22 @@ namespace ICE.Scheduler.Tasks
 
                 bool executing = Svc.Condition[ConditionFlag.ExecutingCraftingAction];
                 bool synthOpen = AddonHelper.IsAddonActive("Synthesis");
+                // 停止判定の時計は、製作アクション(開始のアニメーションを含む)が出ていれば進めない
                 if (executing)
+                    _lastCraftActionAt = now;
+
+                // 復旧回数を 0 に戻すのは「実際に製作が進んだ」ときだけ。製作開始のアニメーションでも ExecutingCraftingAction は立つため、
+                // それを進行とみなすと、開始直後に Artisan が止まり続ける状況(装備破損など)で毎回 (1/2) に戻り、放棄に届かない
+                // (2026-09-30 02:55〜07:51: 装備耐久 0% で Artisan が製作を拒否し、(1/2) のやり直しを 95 回繰り返した)
+                if (DetectRealCraftProgress(synthOpen, out var progressed))
                 {
                     _lastCraftActionAt = now;
-                    // 実際に製作が進んでいるので、このミッションの復旧回数はリセット
-                    if (_artisanStallMission == CosmicHelper.CurrentLunarMission)
+                    _brokenGearHits = 0; // 製作が進んだ = 装備は使える状態
+                    if (_artisanStallMission == CosmicHelper.CurrentLunarMission && _artisanStallRecoveries > 0)
+                    {
+                        IceLogging.Info($"製作が進んだため({progressed})、停止からの連続復旧回数を戻します({_artisanStallRecoveries}→0、このミッションの通算 {_artisanStallTotal} 回は維持)", tag);
                         _artisanStallRecoveries = 0;
+                    }
                 }
 
                 double idle = (now - _lastCraftActionAt).TotalSeconds;
@@ -348,25 +511,150 @@ namespace ICE.Scheduler.Tasks
         {
             _artisanWaitSince = DateTime.MinValue;
             _lastCraftActionAt = DateTime.MinValue;
+            // 「製作が進んだか」の基準も取り直す(次の待機で最初に見た値を基準にする)
+            _synthStepSeen = -1;
+            _craftItemCountBaseline = -1;
+        }
+
+        /// <summary>
+        /// 製作の監視状態をすべて初期化する(SchedulerMain.EnablePlugin / DisablePlugin から呼ぶ)。
+        /// Stop や外部の Abort で待機タスクが途中で消えると、待機開始時刻・最後のアクション時刻・Artisan からの通知が残り、
+        /// 次の待機の最初の判定で即座に停滞扱いになっていた(2026-09-30 11:14: 上限 60 秒のところ最初の判定が 189 秒)。
+        /// </summary>
+        internal static void ResetCraftWatch()
+        {
+            ResetArtisanWatch();
+            _lastWaitPollAt = DateTime.MinValue;
+            _lastIssuePollAt = DateTime.MinValue;
+            _craftActionLockSince = DateTime.MinValue;
+            _artisanStallRecoveries = 0;
+            _artisanStallTotal = 0;
+            _artisanStallMission = 0;
+            _raphaelFailedAt = DateTime.MinValue;
+            _raphaelFailureText = "";
+            _brokenGearAt = DateTime.MinValue;
+            _brokenGearText = "";
+            _brokenGearHits = 0;
+            _craftTargetItemId = 0;
+            _stanceExitSince = DateTime.MinValue;
+            throttleCounter = 0;
+        }
+
+        /// <summary>
+        /// 実際に製作が進んだか。製作画面の工程が 2 以上へ進んだ(=この製作で 1 つ以上アクションが実行された)か、
+        /// 指示した製作物の所持数が増えた(=完成した)ときだけ true。製作開始のアニメーション(ExecutingCraftingAction が一瞬立つ)や、
+        /// 製作画面が開いただけでは true にしない。
+        /// </summary>
+        private static bool DetectRealCraftProgress(bool synthOpen, out string what)
+        {
+            what = "";
+            bool advanced = false;
+
+            if (synthOpen)
+            {
+                if (TryReadSynthesis(out int step, out int progress, out int quality))
+                {
+                    if (_synthStepSeen < 0 || step < _synthStepSeen)
+                    {
+                        // この待機で初めて見た製作画面、または次の製作が始まった(工程が戻った)。基準を取るだけで進行とはみなさない
+                        _synthStepSeen = step;
+                    }
+                    else if (step > _synthStepSeen)
+                    {
+                        // 工程 1 は開始直後(まだアクションなし)。2 以上に上がって初めて「アクションが実行された」とみなす
+                        if (step >= 2)
+                        {
+                            advanced = true;
+                            what = $"工程 {_synthStepSeen}→{step}(工数 {progress} 品質 {quality})";
+                        }
+                        _synthStepSeen = step;
+                    }
+                }
+            }
+            else
+            {
+                // 製作画面が閉じた(完成・中止)。次に開いた製作は新しい基準で見る
+                _synthStepSeen = -1;
+            }
+
+            // 完成数(1 アクションで完成して工程 2 を観測できない場合や、工程が読めない場合の保険)
+            if (_craftTargetItemId != 0 && EzThrottler.Throttle("Craft progress: item count", 1000)
+                && PlayerHelper.GetItemCount(_craftTargetItemId, out int count))
+            {
+                if (_craftItemCountBaseline < 0)
+                    _craftItemCountBaseline = count;
+                else if (count > _craftItemCountBaseline)
+                {
+                    advanced = true;
+                    what += (what.Length > 0 ? " / " : "") + $"完成品 {_craftItemCountBaseline}→{count}";
+                    _craftItemCountBaseline = count;
+                }
+                else if (count < _craftItemCountBaseline)
+                {
+                    _craftItemCountBaseline = count; // 主製作の材料として使われた等で減った分は、基準を下げるだけ
+                }
+            }
+            return advanced;
+        }
+
+        /// <summary>
+        /// 製作画面(Synthesis)の工程・工数・品質を読む。Artisan(GameInterop/Crafting.cs)と同じ AtkValues の位置
+        /// ([15]=工程 [5]=工数 [9]=品質、AtkValuesCount 26 以上)を使う。
+        /// ECommons の AddonMaster.Synthesis.Reader は値の型が UInt 以外だと例外を投げるため、Int / UInt のどちらでも受け付けるよう直接読む。
+        /// 読めなければ false。
+        /// </summary>
+        private static unsafe bool TryReadSynthesis(out int step, out int progress, out int quality)
+        {
+            step = 0;
+            progress = 0;
+            quality = 0;
+            try
+            {
+                if (!GenericHelpers.TryGetAddonByName<AtkUnitBase>("Synthesis", out var addon) || !GenericHelpers.IsAddonReady(addon))
+                    return false;
+                if (addon->AtkValues == null || addon->AtkValuesCount < 26)
+                    return false;
+                var v = addon->AtkValues;
+                if (!IsNumber(v[15].Type) || !IsNumber(v[5].Type) || !IsNumber(v[9].Type))
+                    return false;
+                step = v[15].Int;
+                progress = v[5].Int;
+                quality = v[9].Int;
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+
+            static bool IsNumber(AtkValueType t) => t is AtkValueType.Int or AtkValueType.UInt;
         }
 
         // 停止を検知したときの復旧。上限回数までは Artisan を止めて後始末をしてから通常の流れ(スコア確認→材料確認→再指示)に戻し、
         // 超えたらミッションを放棄する。どちらも製作画面・レシピ帳を閉じてからでないと次の操作(再指示・放棄)ができない。
+        // 上限は 2 つ: 連続の復旧回数(実際に製作が進むと 0 に戻る)と、ミッション内の通算回数(戻らない)。
         private static bool? HandleArtisanStall(double idle, bool synthOpen, string tag)
         {
-            if (_artisanStallMission != CosmicHelper.CurrentLunarMission)
+            // 装備が壊れているなら、やり直しても Artisan は製作を拒否し続ける(チャットの通知を取りこぼしたときの保険)
+            if (PlayerHelper.HasBrokenEquippedGear())
+                return HandleBrokenGear(tag, $"{idle:F0} 秒の停滞");
+
+            var mission = CosmicHelper.CurrentLunarMission;
+            if (_artisanStallMission != mission)
             {
-                _artisanStallMission = CosmicHelper.CurrentLunarMission;
+                _artisanStallMission = mission;
                 _artisanStallRecoveries = 0;
+                _artisanStallTotal = 0;
             }
             _artisanStallRecoveries++;
+            _artisanStallTotal++;
             string state = ArtisanStateSummary(synthOpen);
             ResetArtisanWatch();
             _craftActionLockSince = DateTime.MinValue;
 
-            if (_artisanStallRecoveries <= ArtisanStallMaxRecoveries)
+            if (_artisanStallRecoveries <= ArtisanStallMaxRecoveries && _artisanStallTotal <= ArtisanStallMaxPerMission)
             {
-                IceLogging.Warning($"Artisan が {idle:F0} 秒間製作アクションを出していません。Artisan を停止して製作をやり直します({_artisanStallRecoveries}/{ArtisanStallMaxRecoveries}) {state}", tag);
+                IceLogging.Warning($"Artisan が {idle:F0} 秒間製作アクションを出していません。Artisan を停止して製作をやり直します({_artisanStallRecoveries}/{ArtisanStallMaxRecoveries}、このミッションで通算 {_artisanStallTotal}/{ArtisanStallMaxPerMission}) {state}", tag);
                 IceLogging.ChatInfo(Loc.T(synthOpen
                     ? "Artisan stopped making progress in the middle of a craft, so ICE cancelled it and will retry."
                     : "Artisan did not start crafting, so ICE stopped it and will retry the craft."), "[I.C.E.]");
@@ -380,7 +668,7 @@ namespace ICE.Scheduler.Tasks
                 return true;
             }
 
-            IceLogging.Warning($"Artisan の停止・再指示を {ArtisanStallMaxRecoveries} 回行っても製作が進まないため、ミッションを放棄して復帰します {state} {DescribeCraftFeasibility(_lastRecipeId)}", tag);
+            IceLogging.Warning($"Artisan の停止・再指示を続けても製作が進まないため(連続 {_artisanStallRecoveries - 1} 回・このミッションで通算 {_artisanStallTotal - 1} 回やり直し済み)、ミッションを放棄して復帰します {state} {DescribeCraftFeasibility(_lastRecipeId)}", tag);
             IceLogging.ChatError(Loc.T("Artisan kept failing to start crafting, so the mission was abandoned."), "[I.C.E.]");
             StopArtisan();
             P.TaskManager.Tasks.Clear();
@@ -389,16 +677,19 @@ namespace ICE.Scheduler.Tasks
                 new(() => CancelSynthesisIfOpen(), "Cancelling stalled synthesis", CleanupTaskConfig),
                 new(() => ExitCraftingStance(), "Exiting crafting stance", CleanupTaskConfig));
             // 同じ能力値で同じミッションを取り直しても同じ結果になるので、レベルか装備が変わるまで候補から外す
-            AbandonAsInfeasible(CosmicHelper.CurrentLunarMission, (uint)Player.Job, tag);
+            AbandonAsInfeasible(mission, (uint)Player.Job, tag);
             return true;
         }
 
         // ログ用: Artisan と製作関連の状態を一行にまとめる
         private static string ArtisanStateSummary(bool synthOpen)
         {
+            string synth = synthOpen && TryReadSynthesis(out var step, out var progress, out var quality)
+                ? $"工程={step}, 工数={progress}, 品質={quality}"
+                : "工程=-";
             return $"[busy={SafeArtisan(P.Artisan.IsBusy)}, endurance={SafeArtisan(P.Artisan.GetEnduranceStatus)}, list={SafeArtisan(P.Artisan.IsListRunning)}, stopReq={SafeArtisan(P.Artisan.GetStopRequest)}, "
                  + $"Crafting={Svc.Condition[ConditionFlag.Crafting]}, Preparing={Svc.Condition[ConditionFlag.PreparingToCraft]}, Executing={Svc.Condition[ConditionFlag.ExecutingCraftingAction]}, "
-                 + $"製作画面={synthOpen}, レシピ帳={AddonHelper.IsAddonActive("WKSRecipeNotebook")}, 選択中={SelectedNotebookItem() ?? "-"}]";
+                 + $"製作画面={synthOpen}, {synth}, レシピ帳={AddonHelper.IsAddonActive("WKSRecipeNotebook")}, 選択中={SelectedNotebookItem() ?? "-"}, 装備の最低耐久={PlayerHelper.GetMinEquippedConditionPercent()}%]";
         }
 
         // コスモレシピ帳で現在選択されているアイテム名(取得できなければ null)
@@ -532,6 +823,7 @@ namespace ICE.Scheduler.Tasks
         }
 
         private static uint throttleCounter = 0;
+        private static DateTime _lastIssuePollAt = DateTime.MinValue; // 最後に ThrottleArtisanTaskV2 が呼ばれた時刻(指示タスクが外部で打ち切られたかの判定用)
         private static void InsertArtisanWait(KeyValuePair<ushort, CosmicHelper.CraftingInfo> item, int amount)
         {
             P.TaskManager.InsertMulti(
@@ -542,6 +834,16 @@ namespace ICE.Scheduler.Tasks
 
         private static bool? ThrottleArtisanTaskV2(KeyValuePair<ushort, CosmicHelper.CraftingInfo> item, int amount)
         {
+            // 前回の指示タスクが Stop / 外部の Tasks.Clear で打ち切られていると、待ち回数とスタンス解除の開始時刻が残り、
+            // 「15 秒以内にスタンスを抜けられなかった」と誤判定してスタンスを抜けずに指示してしまう。間が空いていたら数え直す
+            var pollNow = DateTime.Now;
+            if ((pollNow - _lastIssuePollAt).TotalSeconds > WaitSessionGapSeconds)
+            {
+                throttleCounter = 0;
+                _stanceExitSince = DateTime.MinValue;
+            }
+            _lastIssuePollAt = pollNow;
+
             int delay = C.DelayCraft ? C.DelayCraftIncrease : 25;
 
             var craftId = item.Key;
@@ -600,6 +902,12 @@ namespace ICE.Scheduler.Tasks
                     _lastRecipeId = recipeId;
                     _craftIssuedAt = DateTime.Now;
                     _raphaelFailedAt = DateTime.MinValue;
+                    _brokenGearAt = DateTime.MinValue;
+                    // 新しい指示ごとに停滞監視と進行判定の基準を取り直す(前の待機の時刻を持ち越さない)。
+                    // 完成数で「製作が進んだ」を判定するため、指示した製作物を覚えておく
+                    _craftTargetItemId = itemId;
+                    ResetArtisanWatch();
+                    _craftActionLockSince = DateTime.MinValue;
                     P.Artisan.CraftItem(craftId, amount);
                 }
 
