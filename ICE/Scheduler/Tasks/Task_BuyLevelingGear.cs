@@ -41,12 +41,16 @@ namespace ICE.Scheduler.Tasks
 
         public static bool IsJapanese => Svc.ClientState.ClientLanguage == ClientLanguage.Japanese;
 
+        /// <summary>購入した品がどこに入ったか(アーマリーチェスト/かばん)。ゲーム側の設定や空き状況で変わる</summary>
+        public enum Landing { Unknown, Armoury, Bags }
+
         public class PlanEntry
         {
             public ShopGearItem Item;
             public int StepLevel;
             public bool Bought;
             public bool Failed;
+            public Landing LandedIn = Landing.Unknown;
         }
 
         public class PurchasePlan
@@ -171,6 +175,8 @@ namespace ICE.Scheduler.Tasks
         private static uint _verifyItem = 0;
         private static bool _verifyHq = false;
         private static int _verifyBefore = 0;
+        private static int _verifyArmouryBefore = 0;   // 購入前のアーマリーチェスト(該当部位)の所持数。格納先の判定用
+        private static int _verifyBagsBefore = 0;      // 購入前のかばんの所持数。格納先の判定用
         private static DateTime _verifyAt = DateTime.MinValue;
         private static int _retry = 0;
         // メニューの現在位置。-1=不明(閉じて NPC から辿り直す) / 0=NPC の最初のメニュー / 1=階層メニュー内 / 2=店舗が開くのを待つ
@@ -189,7 +195,8 @@ namespace ICE.Scheduler.Tasks
             plan.BoughtCount = 0;
             plan.SpentGil = 0;
             plan.Aborted = false;
-            foreach (var e in plan.ToBuy) { e.Bought = false; e.Failed = false; }
+            foreach (var e in plan.ToBuy) { e.Bought = false; e.Failed = false; e.LandedIn = Landing.Unknown; }
+            _verifyItem = 0; // 前回の中止時の確認待ちを持ち越さない
             _menuDepth = -1;
             _lastProgress = DateTime.Now;
 
@@ -298,6 +305,14 @@ namespace ICE.Scheduler.Tasks
             if (_plan != null) _plan.Aborted = true;
             Running = false;
             P.TaskManager.Abort();
+            // 購入を送って反映を待っている最中に止めた場合、その品はサーバー側で購入済みで、少し遅れて所持品に入る。
+            // かばんに入っても移せるよう記録しておく(届かなかった/アーマリーに入った場合は、後でかばんに無いことを確認して外す)
+            if (_verifyItem != 0 && (DateTime.Now - _verifyAt).TotalSeconds <= VerifySeconds)
+            {
+                Task_GearStorage.NotePurchasedInBags(_verifyItem);
+                IceLogging.Info($"中止時に購入の反映待ちだった品(ItemId {_verifyItem})は、あとで所持品に届く可能性があるため、かばんに入った場合の移動対象として記録しました", "[Leveling Gear]");
+            }
+            _verifyItem = 0;
             try
             {
                 if (GenericHelpers.TryGetAddonMaster<Shop>("Shop", out var shop) && shop.IsAddonReady)
@@ -309,6 +324,9 @@ namespace ICE.Scheduler.Tasks
             IceLogging.ChatInfo(IsJapanese
                 ? $"レベリング装備の購入を中止しました（{reason}）: 購入済み {_plan?.BoughtCount ?? 0} 点 / {_plan?.SpentGil ?? 0:N0} ギル"
                 : $"Leveling gear purchase aborted ({reason}): bought {_plan?.BoughtCount ?? 0} items / {_plan?.SpentGil ?? 0:N0} gil", "[I.C.E.]");
+            // 中止時は移動タスクを積まない(Stop の直後に TaskManager が破棄されるため)。格納先だけ記録して案内する
+            if (_plan != null)
+                ReportLanding(_plan, aborted: true);
         }
 
         // メニュー名「職人用装備の購入（Lv21～）」などから Lv を取り出して並び順にする
@@ -413,7 +431,21 @@ namespace ICE.Scheduler.Tasks
                     _plan.BoughtCount++;
                     _plan.SpentGil += next.Item.Price;
                     _lastProgress = DateTime.Now;
-                    IceLogging.Info($"購入完了: {next.Item.Name} ({next.Item.Price:N0}g) [{_plan.BoughtCount}/{_plan.ToBuy.Count}]", tag);
+                    // どこに入ったか(アーマリーチェスト/かばん)を所持数の増え方で判定する。ゲームは空きがあれば通常アーマリーへ入れるが、
+                    // 設定や状況でかばん(所持品)に入ることがある(実機 2026-09-27 23:59: 空きがあるのに 13 点が「所持品に入りました」)
+                    int armouryDelta = CountInArmoury(next.Item.ItemId, next.Item.Slot) - _verifyArmouryBefore;
+                    int bagsDelta = CountInBags(next.Item.ItemId) - _verifyBagsBefore;
+                    next.LandedIn = armouryDelta > 0 ? Landing.Armoury : bagsDelta > 0 ? Landing.Bags : Landing.Unknown;
+                    // かばんに入った(または判定できなかった)品は、移し終えるまで記録しておく(中止しても最強装備の前などで移せるように)
+                    if (next.LandedIn != Landing.Armoury)
+                        Task_GearStorage.NotePurchasedInBags(next.Item.ItemId);
+                    string landing = next.LandedIn switch
+                    {
+                        Landing.Armoury => "アーマリーチェスト",
+                        Landing.Bags => "かばん(所持品)",
+                        _ => $"格納先不明(アーマリー増分 {armouryDelta} / かばん増分 {bagsDelta})",
+                    };
+                    IceLogging.Info($"購入完了: {next.Item.Name} ({next.Item.Price:N0}g) → {landing} [{_plan.BoughtCount}/{_plan.ToBuy.Count}]", tag);
                     _verifyItem = 0;
                     _retry = 0;
                     return false;
@@ -480,6 +512,8 @@ namespace ICE.Scheduler.Tasks
                     _verifyItem = next.Item.ItemId;
                     _verifyHq = next.Item.IsHQ;
                     _verifyBefore = CountOwned(_verifyItem, _verifyHq);
+                    _verifyArmouryBefore = CountInArmoury(next.Item.ItemId, next.Item.Slot);
+                    _verifyBagsBefore = CountInBags(next.Item.ItemId);
                     _verifyAt = DateTime.Now;
                     IceLogging.Info($"購入: {next.Item.Name} Lv{next.Item.LevelEquip} {next.Item.Price:N0}g (index {idx})", tag);
                     items[idx].Select(1);
@@ -606,14 +640,53 @@ namespace ICE.Scheduler.Tasks
             return !GenericHelpers.IsOccupied();
         }
 
+        // 途中で打ち切ったとき(所持ギル不足など)に、店舗・メニュー・会話を閉じる(最大 10 秒。CloseAllMenus は打ち切り時は何もしないため)
+        private static unsafe bool? CloseMenusAfterStop()
+        {
+            if ((DateTime.Now - _groupStart).TotalSeconds > 10)
+                return true;
+            if (GenericHelpers.TryGetAddonMaster<Shop>("Shop", out var shop) && shop.IsAddonReady)
+            {
+                if (EzThrottler.Throttle("LGear close shop", 800)) ECommons.Automation.Callback.Fire(shop.Base, true, -1);
+                return false;
+            }
+            if (TryGetMenu(out _, out _, out var close))
+            {
+                if (EzThrottler.Throttle("LGear close menu", 800)) close();
+                return false;
+            }
+            if (GenericHelpers.TryGetAddonMaster<Talk>("Talk", out var talk) && talk.IsAddonReady)
+            {
+                if (EzThrottler.Throttle("LGear talk", 100)) talk.Click();
+                return false;
+            }
+            return !GenericHelpers.IsOccupied();
+        }
+
         private static bool? Finish()
         {
             if (_plan == null)
                 return true;
             bool wasRunning = Running;
             Running = false;
-            if (!wasRunning || _plan.Aborted)
+            if (!wasRunning)
+                return true; // 緊急停止(Abort)済み。タスクは破棄されている
+            if (_plan.Aborted)
+            {
+                // 所持ギル不足などで途中で打ち切った(緊急停止ではないのでタスクは生きている)。
+                // 買えた分の格納先を記録し、かばんに入った物(以前の中止で残った購入品を含む)はアーマリーチェストへ移す
+                if (_plan.BoughtCount > 0 || Task_GearStorage.PendingFromPurchase.Count > 0)
+                {
+                    ReportLanding(_plan, aborted: false);
+                    // 打ち切りの経路では CloseAllMenus が何もしないので、店舗のメニューが残っているとアイテムを動かせない。先に閉じる
+                    P.TaskManager.Enqueue(() => { _groupStart = DateTime.Now; return true; });
+                    P.TaskManager.Enqueue(() => CloseMenusAfterStop(), "Leveling gear: closing menus before moving items", Utils.TaskConfig);
+                    Task_GearStorage.EnqueuePurchased(_plan.Job,
+                        _plan.ToBuy.Where(e => e.Bought).Select(e => e.Item.ItemId).ToHashSet(),
+                        _plan.ToBuy.Count(e => e.Bought && e.LandedIn == Landing.Bags));
+                }
                 return true;
+            }
 
             var notBought = _plan.ToBuy.Where(e => e.Failed || !e.Bought).Select(e => e.Item.Name).Distinct().ToList();
             int failed = _plan.ToBuy.Count(e => e.Failed || !e.Bought);
@@ -621,9 +694,63 @@ namespace ICE.Scheduler.Tasks
                 ? $"レベリング装備の購入が終わりました: {_plan.BoughtCount} 点 / {_plan.SpentGil:N0} ギル" + (failed > 0 ? $"（未購入 {failed} 点: {string.Join("、", notBought)}）" : "")
                 : $"Leveling gear purchase finished: {_plan.BoughtCount} items / {_plan.SpentGil:N0} gil" + (failed > 0 ? $" ({failed} not bought: {string.Join(", ", notBought)})" : ""), "[I.C.E.]");
 
+            // 今回 1 点も買えなくても、以前の中止でかばんに残った購入品があれば移す(中止時の案内「次の購入完了時に移す」を守る)
+            if (_plan.BoughtCount > 0 || Task_GearStorage.PendingFromPurchase.Count > 0)
+            {
+                ReportLanding(_plan, aborted: false);
+                // かばんに入った購入品(この起動中に中止などで残った分を含む)をアーマリーチェストへ移す。
+                // Stylist / おすすめ装備はかばんの中を候補にしないため、最強装備の前に行う。
+                // かばんに 1 点も無ければ(ゲーム設定で全部アーマリーに入った場合)、その旨をログに残して何もしない
+                Task_GearStorage.EnqueuePurchased(_plan.Job,
+                    _plan.ToBuy.Where(e => e.Bought).Select(e => e.Item.ItemId).ToHashSet(),
+                    _plan.ToBuy.Count(e => e.Bought && e.LandedIn == Landing.Bags));
+            }
+
             if (C.LevelingGear_AutoEquipBest && _plan.BoughtCount > 0)
                 Task_RelicTurnin.EnqueueEquipBestGear();
             return true;
+        }
+
+        /// <summary>
+        /// 購入品の格納先(アーマリーチェスト/かばん)をまとめてログに残す。かばんに入った品があればチャットにも出す
+        /// (中止時は移動を行わないので、次回の購入完了時か最強装備の前に移すことを案内する)。
+        /// </summary>
+        private static void ReportLanding(PurchasePlan plan, bool aborted)
+        {
+            string tag = "[Leveling Gear]";
+            var bought = plan.ToBuy.Where(e => e.Bought).ToList();
+            if (bought.Count == 0)
+                return;
+            var bags = bought.Where(e => e.LandedIn == Landing.Bags).ToList();
+            int armoury = bought.Count(e => e.LandedIn == Landing.Armoury);
+            int unknown = bought.Count(e => e.LandedIn == Landing.Unknown);
+            IceLogging.Info($"購入品の格納先: アーマリーチェスト {armoury} 点 / かばん {bags.Count} 点 / 不明 {unknown} 点(計 {bought.Count} 点)"
+                + (bags.Count > 0 ? $" かばん: {string.Join(", ", bags.Select(e => e.Item.Name))}" : ""), tag);
+            if (bags.Count == 0)
+            {
+                // ゲーム側の設定や空き状況により、購入品はすべてアーマリーチェストに入った(かばんへの格納は検知されなかった)
+                IceLogging.Info(unknown == 0
+                    ? "購入品はすべてアーマリーチェストに入りました(かばんへの格納は検知されませんでした)"
+                    : aborted
+                        ? $"かばんへの格納は検知されませんでした(格納先が判定できなかった品が {unknown} 点あります。中止したため今は移動せず、最強装備の前か次の購入完了時にかばんを確認します)"
+                        : $"かばんへの格納は検知されませんでした(格納先が判定できなかった品が {unknown} 点あります。移動処理でかばんを走査して確認します)", tag);
+                return;
+            }
+            if (!aborted)
+            {
+                IceLogging.ChatInfo(IsJapanese
+                    ? $"購入品のうち {bags.Count} 点はかばん(所持品)に入ったため、アーマリーチェストへ移します"
+                    : $"{bags.Count} purchased item(s) went into your bags, so ICE will move them to the armoury chest", "[I.C.E.]");
+                return;
+            }
+            // 中止時は移動タスクを積めない。かばんに入った品は記録してあるので、最強装備の前(自動の最強装備が有効な場合)か次の購入完了時に移す
+            IceLogging.ChatInfo(IsJapanese
+                ? (C.LevelingGear_AutoEquipBest
+                    ? $"購入品のうち {bags.Count} 点はかばん(所持品)に入っています。中止したため今は移さず、次の最強装備の前か次の購入完了時にアーマリーチェストへ移します"
+                    : $"購入品のうち {bags.Count} 点はかばん(所持品)に入っています。中止したため今は移しません。次にレベリング装備を購入したときに移しますが、それまでに使う場合は手動でアーマリーチェストへ移してください")
+                : (C.LevelingGear_AutoEquipBest
+                    ? $"{bags.Count} purchased item(s) are in your bags. Since the purchase was stopped, ICE will move them to the armoury chest before the next best-gear equip or after the next purchase"
+                    : $"{bags.Count} purchased item(s) are in your bags. Since the purchase was stopped, ICE will move them after the next leveling gear purchase; move them to the armoury chest manually if you need them sooner"), "[I.C.E.]");
         }
     }
 }

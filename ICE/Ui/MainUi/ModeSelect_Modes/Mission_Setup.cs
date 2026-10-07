@@ -205,6 +205,7 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
 
             if (ImGui.Button(Loc.T("Yes"), new Vector2(120 * ImGuiHelpers.GlobalScale, 0)))
             {
+                bool started = false;
                 if (plan.Shortage.Count > 0)
                     IceLogging.ChatInfo(jp ? "アーマリーチェストに空き枠が足りないため、購入を中止しました" : "Purchase cancelled: not enough free Armoury Chest slots", "[I.C.E.]");
                 else if (plan.PlayerGil < plan.TotalGil)
@@ -212,7 +213,14 @@ namespace ICE.Ui.MainUi.ModeSelect_Modes
                 else if (plan.ToBuy.Count == 0)
                     IceLogging.ChatInfo(jp ? "購入する装備はありません（すべて所持済みです）" : "Nothing to buy: all gear is already owned", "[I.C.E.]");
                 else
+                {
                     Task_BuyLevelingGear.Enqueue(plan);
+                    started = true;
+                }
+                // 購入しない場合でも、以前の購入を中止してかばんに残った購入品があれば、アーマリーチェストへ移す
+                // (中止時の案内「次の購入完了時に移す」を、すべて所持済みで購入が始まらない場合にも守る)
+                if (!started && Task_GearStorage.PendingFromPurchase.Count > 0 && !P.TaskManager.IsBusy)
+                    Task_GearStorage.EnqueuePurchased(plan.Job, new System.Collections.Generic.HashSet<uint>(), 0);
                 ImGui.CloseCurrentPopup();
             }
             ImGui.SameLine();

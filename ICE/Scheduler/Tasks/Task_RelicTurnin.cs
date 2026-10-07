@@ -341,8 +341,8 @@ namespace ICE.Scheduler.Tasks
             // 旧レベル基準の装備のまま「更新済み」扱いになってしまう(実機: Lv91 到達直後に Lv90 装備のままだった)
             int levelAtDecision = Player.GetLevel((Job)jobId);
             int csBefore = 0;
-            // かばんに残っている現在ジョブの主道具/副道具を先にアーマリーチェストへ移す。
-            // Stylist / おすすめ装備はかばんの中を候補にしないため、移さないと新しい道具が装備されない(レリック強化直後と同じ事情)。
+            // かばんに残っている現在ジョブの主道具/副道具と、レベリング装備の購入でかばんに入った品(全部位。中止で残った分を含む)を先にアーマリーチェストへ移す。
+            // Stylist / おすすめ装備はかばんの中を候補にしないため、移さないと新しい装備が着けられない(レリック強化直後と同じ事情)。
             Task_GearStorage.Enqueue(jobId);
             P.TaskManager.Enqueue(() => { csBefore = ReadCraftsmanship(); return true; }, "Recording stats before equipping");
             if (Utils.HasPlugin("Stylist"))
