@@ -247,6 +247,7 @@ public sealed partial class ICE : IDalamudPlugin
 
     private void OnTerritoryChange(uint TerritoryId)
     {
+        SmoothNavBridge.Cancel(); // 前の地図で引いた経路の計画は使わない
         bool isInCosmic = PlayerHelper.IsInCosmicZone();
         if (isInCosmic && !overlayWindow.IsOpen && C.ShowOverlay)
             P.overlayWindow.IsOpen = true;
@@ -272,6 +273,7 @@ public sealed partial class ICE : IDalamudPlugin
         GenericHelpers.Safe(TextAdvancedManager.UnlockTA);
         GenericHelpers.Safe(YesAlreadyManager.Unlock);
         GenericHelpers.Safe(PictoService.Dispose);
+        GenericHelpers.Safe(SmoothNavBridge.Cancel); // 整えている途中の計画(裏のスレッドの処理)を取り消す。IPC が外れる前に
         ECommonsMain.Dispose();
         PictoService.Dispose();
     }

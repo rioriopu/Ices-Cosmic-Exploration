@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- SmoothNavDriver(野外の移動の角を曲線に整える部品)の単体試験。ゲームに触れない部品だけを組み立てて試す。
+       実行は README(tools/SmoothNavDriverTests/README.md)を見る -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="..\..\ICE\SmoothNav\Core\*.cs" Link="SmoothNav\%(Filename)%(Extension)" />
+    <Compile Include="..\..\ICE\Scheduler\Tasks\SmoothNavDriver.cs" Link="Driver\SmoothNavDriver.cs" />
+  </ItemGroup>
+</Project>

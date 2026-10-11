@@ -32,6 +32,8 @@ public partial class Config
     public bool UseHubReturn { get; set; } = true;
     public bool UseAethernet { get; set; } = true;
     public bool UseBoards { get; set; } = true; // 連絡ボード(乗り口へ歩くと自動発進する)を移動に使う
+    // 野外の移動で、vnavmesh の経路の角を曲線に整えて辿る(SmoothNav)。拠点の近くの移動・コスモライナーを含む経路は対象外
+    public bool SmoothNavMovement { get; set; } = true;
     // レベリング中(Leveling モードのミッション後/レベリング装備の購入後)に最強装備を自動で行う。
     // Stylist があればそれを、無ければゲームの「おすすめ装備」を使う。「レベリング装備を購入」ボタンで自動的に ON になる。
     public bool LevelingGear_AutoEquipBest { get; set; } = true;

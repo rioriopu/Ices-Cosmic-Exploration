@@ -930,3 +930,7 @@ Lv90 は通過点として扱います。"
 "ICE","","","","ICE stopped because your gear could not be repaired at the repair NPC (not enough gil, or the NPC could not be reached). Repair your gear manually and press Start again.","修理NPCで装備を修理できなかったため ICE を停止しました(ギル不足、またはNPCにたどり着けなかった可能性があります)。手動で修理してから、もう一度 Start を押してください。"
 "ICE","","","","Leveling: the next mission rank cannot be unlocked yet. ICE keeps running the missions it can accept for experience.","レベリング: 次のミッションランクをまだ解放できません。経験値は入るため、受けられるミッションの周回は続けます。"
 "ICE","","","","Leveling: the level is at the cap and the next mission rank cannot be unlocked, so ICE stopped.","レベリング: レベルが上限で、次のミッションランクも解放できないため停止しました。"
+"ICE","","","","Smooth curved movement in the field","野外の移動を曲線で滑らかにする"
+"ICE","","","","Rounds the corners of the navmesh path into curves while moving in the field, so the character turns smoothly instead of zig-zagging.
+Not used near the hub or on routes that include the cosmoliner. Corners that can't be curved safely keep the original path.","野外を移動するとき、vnavmesh の経路の角を曲線に整えて、カクカク曲がらずに滑らかに進みます。
+拠点の近くの移動と、コスモライナーを含む経路では使いません。安全に曲線にできない角は元の経路のままです。"

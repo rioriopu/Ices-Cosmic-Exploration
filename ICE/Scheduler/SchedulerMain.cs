@@ -35,6 +35,7 @@ namespace ICE.Scheduler
             // 待機中のタスクを途中で消したので、製作の停滞監視の時刻もここで捨てる
             // (残すと、次の待機の最初の判定で「189 秒間アクションなし」のように即座に停滞扱いになる)
             Task_Craft.ResetCraftWatch();
+            SmoothNavBridge.Cancel(); // 曲線の移動を整えている途中なら捨てる(探索中は vnavmesh が走っておらず、下の Stop では止まらない)
             State = IceState.Idle;
             GenericManager.RestorePandoraStates();
             if (P.Navmesh.Installed)
@@ -87,6 +88,7 @@ namespace ICE.Scheduler
             IceLogging.Info($"ジョブ手動切替を検知(job={job})。現ミッションを破棄し、SelectedJob を {job} へ追従して新ジョブのミッションを受注し直します", "[JobSwitch]");
             Mission_Settings.SelectedJob = job;
             P.TaskManager.Tasks.Clear();
+            SmoothNavBridge.Cancel();
             if (P.Navmesh.Installed && P.Navmesh.IsRunning())
                 P.Navmesh.Stop();
             // ランク未達なら放棄、到達済みなら報告(Task_AbandonMission 内で判定)。完了後は Start に戻り、

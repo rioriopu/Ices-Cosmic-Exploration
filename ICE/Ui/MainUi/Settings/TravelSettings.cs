@@ -139,6 +139,16 @@ namespace ICE.Ui.MainUi.Settings.Settings_Table
             }
             ImGuiEx.HelpMarker(Loc.T("乗り口へ歩くと自動発進してショートカット先へ運ばれる連絡ボードを移動に使います(アウクセシア)。"));
 
+            bool smoothNav = C.SmoothNavMovement;
+            if (ImGui.Checkbox(Loc.T("Smooth curved movement in the field"), ref smoothNav))
+            {
+                C.SmoothNavMovement = smoothNav;
+                if (!smoothNav)
+                    SmoothNavBridge.Cancel();
+                C.Save();
+            }
+            ImGuiEx.HelpMarker(Loc.T("Rounds the corners of the navmesh path into curves while moving in the field, so the character turns smoothly instead of zig-zagging.\nNot used near the hub or on routes that include the cosmoliner. Corners that can't be curved safely keep the original path."));
+
             bool useRedAlertNpc = C.UseRedAlertNpc;
             if (ImGui.Checkbox(Loc.T("Use Red Alert NPC for travel"), ref useRedAlertNpc))
             {

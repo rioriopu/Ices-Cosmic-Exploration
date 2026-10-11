@@ -80,6 +80,8 @@ namespace ICE.Scheduler.Tasks
             // Handle navmesh not ready
             if (!P.Navmesh.IsReady())
             {
+                // 地図の読み直し中は経路が消える。整えている途中の計画も捨て、読み終わったら頼み直す
+                SmoothNavBridge.Cancel();
                 if (EzThrottler.Throttle("Waiting on navmesh", waitingThrottleMs))
                 {
                     var navProgress = P.Navmesh.BuildProgress();
@@ -89,6 +91,15 @@ namespace ICE.Scheduler.Tasks
             }
 
             CloseExtraWindows();
+
+            // 曲線の移動(SmoothNav): 経路を探して整えている間は vnavmesh が走っていない(IsRunning が false)。
+            // ここで「移動中」として扱い、500ms ごとの頼み直し(HandleStartNavmesh)で上書きしない
+            if (SmoothNavBridge.Gate(pos, distanceToTarget < distance, usingCosmoliner) != SmoothGate.None)
+            {
+                whenStarted = DateTime.Now;
+                ResetInfo();
+                return false;
+            }
 
             // Handle running navmesh
             if (P.Navmesh.IsRunning())
@@ -130,6 +141,7 @@ namespace ICE.Scheduler.Tasks
 
             if (!P.Navmesh.IsReady())
             {
+                SmoothNavBridge.Cancel();
                 if (EzThrottler.Throttle("Waiting on navmesh", waitingThrottleMs))
                 {
                     var navProgress = P.Navmesh.BuildProgress();
@@ -168,6 +180,14 @@ namespace ICE.Scheduler.Tasks
             Vector3 cachedPos = _cachedGatherPositions[nodeKey];
             float distanceToTarget = Player.DistanceTo(nodePos);
 
+            // 曲線の移動(SmoothNav): 経路を整えている間は「移動中」(Task_NavTo と同じ)
+            if (SmoothNavBridge.Gate(cachedPos, distanceToTarget < distance, usingCosmoliner) != SmoothGate.None)
+            {
+                whenStarted = DateTime.Now;
+                ResetInfo();
+                return false;
+            }
+
             if (P.Navmesh.IsRunning())
             {
                 var result = HandleRunningNavmesh(cachedPos, waitForBusy, distance, stayMounted, nodePos, usingCosmoliner, mounted, useMount, minMountDistance, dismountDistance, distanceToTarget, handle);
@@ -203,6 +223,8 @@ namespace ICE.Scheduler.Tasks
             // Stop navmesh after jump completes
             if (!Player.IsJumping && isJumpInProgress)
             {
+                // ジャンプ後は今の位置から引き直す。詰まった所のそばで新しい曲線は作らず、この目的地は公式の経路で動かす
+                SmoothNavBridge.MarkStuck("詰まってジャンプした");
                 P.Navmesh.Stop();
                 isJumpInProgress = false;
                 return false;
@@ -305,7 +327,10 @@ namespace ICE.Scheduler.Tasks
 
                 var targetPos = pos;
 
-                P.Navmesh.PathfindAndMoveTo(targetPos, false);
+                // 野外の移動は、公式の経路の角を曲線に整えて辿らせる(SmoothNav)。曲線にしないとき(設定オフ・拠点の近く・
+                // コスモライナーを含む経路・詰まった後・探索の失敗など)は今までどおり vnavmesh 任せ
+                if (!SmoothNavBridge.TryBegin(targetPos))
+                    P.Navmesh.PathfindAndMoveTo(targetPos, false);
             }
 
             return false;
@@ -327,6 +352,7 @@ namespace ICE.Scheduler.Tasks
                 IceLogging.Debug($"Player Distance: {distanceToTarget:N2}");
                 IceLogging.Debug($"Expected Distance: {requiredDistance}");
             }
+            SmoothNavBridge.OnArrived();
             ResetInfo();
             return true;
         }
@@ -366,6 +392,8 @@ namespace ICE.Scheduler.Tasks
                 if (C.RetargetIfStuck && EzThrottler.Throttle("Retarget if stuck", 1000))
                 {
                     IceLogging.Debug("Stuck detected - stopping navmesh to trigger retarget");
+                    // 引き直しは公式の経路で(曲線の経路で詰まったなら、詰まった所のそばで新しい曲線を作らない)
+                    SmoothNavBridge.MarkStuck("詰まって引き直した");
                     P.Navmesh.Stop();
                     ResetInfo();
                     return;
@@ -373,6 +401,7 @@ namespace ICE.Scheduler.Tasks
 
                 if (C.JumpIfStuck_V2 && EzThrottler.Throttle("Using jump action"))
                 {
+                    SmoothNavBridge.MarkStuck("詰まってジャンプした");
                     isJumpInProgress = true;
                     ActionManager.Instance()->UseAction(ActionType.GeneralAction, 2);
                 }
