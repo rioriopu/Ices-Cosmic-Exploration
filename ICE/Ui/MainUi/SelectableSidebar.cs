@@ -27,6 +27,17 @@ namespace ICE.Ui.MainUi
             {
                 PluginIcon();
 
+                // Estell 版への支援(Patreon)。いつも見える位置に置き、押すと支援ページを開く
+                if (ImGui_Ice.Sidebar_AccentButton("##SupportPatreon", Loc.T("Support on Patreon"), FontAwesomeIcon.HandHoldingHeart,
+                        ImGui_Ice.PatreonColor, C.SelectedTab == WindowSelection.Support))
+                {
+                    C.SelectedTab = WindowSelection.Support;
+                    C.SaveDebounced();
+                }
+                if (ImGui.IsItemHovered())
+                    ImGui.SetTooltip(Loc.T("Opens the support page for ICE (forked by Estell)."));
+                ImGui.Dummy(new Vector2(0, 4));
+
                 // this is here to be running globally while window is loaded vs only while expanded
                 bool autoSelectMoon = C.AutoSelectMoon;
                 AutoSelectMoonUpdate(autoSelectMoon);

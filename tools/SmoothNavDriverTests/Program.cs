@@ -30,6 +30,32 @@ SmoothGate Settle(SmoothNavDriver d, Vector3 position, Vector3 goal, double now 
     }
 }
 
+// 点列の隣どうしの水平距離の最小
+float MinGap(IReadOnlyList<Vector3> p) => Enumerable.Range(1, p.Count - 1)
+    .Select(i => new Vector2(p[i].X - p[i - 1].X, p[i].Z - p[i - 1].Z).Length()).DefaultIfEmpty(float.MaxValue).Min();
+// 点から折れ線までの水平距離
+float ToPolyline(Vector3 point, IReadOnlyList<Vector3> line)
+{
+    Vector3 F(Vector3 v) => v with { Y = 0 };
+    return Enumerable.Range(1, line.Count - 1).Min(i => FollowerSimulation.DistanceToSegment(F(point), F(line[i - 1]), F(line[i])));
+}
+// 0.5m ごとの点で作った経路: 直線 10m → 半径 2m で 90 度曲がる → 直線 10m(SmoothNav の地上の曲線と同じ刻み)
+List<Vector3> DenseCorner()
+{
+    var p = new List<Vector3>();
+    for (var x = -10f; x < 0; x += .5f)
+        p.Add(new(x, 0, 0));
+    var steps = (int)MathF.Ceiling(2 * MathF.PI / 2 / .5f);
+    for (var k = 0; k <= steps; k++)
+    {
+        var phi = MathF.PI / 2 * k / steps;
+        p.Add(new(2 * MathF.Sin(phi), 0, 2 - 2 * MathF.Cos(phi)));
+    }
+    for (var z = 2.5f; z <= 12; z += .5f)
+        p.Add(new(2, 0, z));
+    return p;
+}
+
 // 経路を頼み、公式の探索の結果を返し、整え終わるまで回す
 SmoothGate Run(FakePort port, SmoothNavDriver d, List<Vector3> official)
 {
@@ -70,7 +96,11 @@ Test("L 字の経路の角を曲線に整えて渡す(出発点は含めず、�
     var moved = port.Moves.Single();
     Check(moved[^1] == end, "終点が公式の終点でない");
     Check(!moved.Contains(corner) && moved[0] != start, "角が残っているか、出発点を含めた: " + string.Join(" ", moved));
-    Check(d.LastSummary.StartsWith("曲線に整えた経路"), d.LastSummary);
+    Check(d.LastSummary.StartsWith("曲線に整えた経路") && d.LastSummary.Contains("間引く前"), d.LastSummary);
+    // 間引いてあるので、次の点が近すぎない(出発点から最初の点も含めて 1m 以上)
+    var withStart = new List<Vector3> { start };
+    withStart.AddRange(moved);
+    Check(MinGap(withStart) >= 1f, $"点の間隔が短い: {MinGap(withStart):F2}m");
     // 渡した後は vnavmesh の追従に任せる(Gate は何もしない)
     Check(!d.Planning && d.Gate(start, end, false, false, .2) == SmoothGate.None && port.Moves.Count == 1);
 });
@@ -238,6 +268,49 @@ Test("整え終わったときに vnavmesh 任せの探索が保留中なら、�
     port.Search.SetResult([start, corner, end]);
     Check(Settle(d, start, end) == SmoothGate.None && port.Moves.Count == 0);
     Check(d.LastSummary.Contains("保留中"), d.LastSummary);
+});
+
+Test("間引き: 0.5m ごとの曲線を、ずれ 0.2m 以内のまま点の間隔 1m 以上に減らす(始点・終点は残す)", () =>
+{
+    var dense = DenseCorner();
+    var official = new List<Vector3> { dense[0], new(2, 0, 0), dense[^1] };
+    var thin = PathThinner.Thin(dense, official, new MeshPointGround(Open()));
+    Check(thin[0] == dense[0] && thin[^1] == dense[^1], "始点か終点が変わった");
+    Check(thin.Length * 3 < dense.Count, $"減っていない: {dense.Count} → {thin.Length}");
+    Check(MinGap(thin) >= 1f, $"点の間隔が短い: {MinGap(thin):F2}m");
+    var worst = dense.Max(p => ToPolyline(p, thin));
+    Check(worst <= PathThinner.MaxDeviation + 1e-3f, $"元の曲線からのずれが大きい: {worst:F3}m");
+});
+
+Test("間引き: 公式の経路の点(曲線にしなかった角)は飛ばさない", () =>
+{
+    var dense = DenseCorner();
+    var corner = new Vector3(-5, 0, 0);
+    var thin = PathThinner.Thin(dense, [dense[0], corner, dense[^1]], new MeshPointGround(Open()));
+    Check(thin.Contains(corner), "公式の点を飛ばした");
+});
+
+Test("間引き: 歩ける面を通らない線は作らない(細い溝の先端を回る経路)", () =>
+{
+    // x 4.8〜5.2・z<0 が歩けない溝。経路は溝の先端(z>0)をかすめて回る。始点と終点を結ぶ線(ずれ 0.15m)は溝を横切る
+    var mesh = new RectMesh([(-100, 4.8f, -100, 100, flat), (5.2f, 100, -100, 100, flat), (4.8f, 5.2f, 0, 100, flat)]);
+    var ground = new MeshPointGround(mesh);
+    var dense = new List<Vector3>();
+    for (var x = 0f; x <= 10.001f; x += .25f)
+        dense.Add(new(x, 0, -.1f + .15f * (1 - MathF.Abs(x - 5) / 5)));
+    for (var i = 1; i < dense.Count; i++)
+        Check(ground.Segment(dense[i - 1], dense[i], false).Verdict == Verdict.Clear, "試験の経路そのものが溝を通っている");
+    Check(ground.Segment(dense[0], dense[^1], false).Verdict != Verdict.Clear, "試験の前提: 端どうしの線は溝を横切るはず");
+    var thin = PathThinner.Thin(dense, [dense[0], dense[^1]], ground);
+    for (var i = 1; i < thin.Length; i++)
+        Check(ground.Segment(thin[i - 1], thin[i], false).Verdict == Verdict.Clear, $"溝を横切る線を作った: {thin[i - 1]} → {thin[i]}");
+    Check(thin.Length < dense.Count, "まったく間引いていない");
+});
+
+Test("間引き: 地上の窓口が無ければ間引かない", () =>
+{
+    var dense = DenseCorner();
+    Check(PathThinner.Thin(dense, [dense[0], dense[^1]], null).SequenceEqual(dense));
 });
 
 var failed = 0;

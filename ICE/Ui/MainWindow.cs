@@ -29,6 +29,8 @@ namespace ICE.Ui
                 MinimumSize = new Vector2(500, 500),
                 MaximumSize = new Vector2(4000, 4000),
             };
+            // Estell 版への支援(Patreon)。押すと支援ページを開く
+            TitleBarButtons.Add(new() { ShowTooltip = () => ImGui.SetTooltip(Loc.T("Support on Patreon (ICE forked by Estell)")), Icon = FontAwesomeIcon.HandHoldingHeart, IconOffset = new(1, 1), Click = _ => helpSelect_Support.OpenPatreon() });
             TitleBarButtons.Add(new() { ShowTooltip = () => ImGui.SetTooltip(Loc.T("♥ Ko-fi (Buy me an ice coffee)")), Icon = FontAwesomeIcon.Heart, IconOffset = new(1, 1), Click = _ => GenericHelpers.ShellStart("https://ko-fi.com/ice643269") });
 
             P.windowSystem.AddWindow(this);
@@ -83,6 +85,9 @@ namespace ICE.Ui
             [WindowSelection.Plugin_Install] = () => helpSelect_Required.Draw(),
             [WindowSelection.Plugin_Logs] = () => helpSelect_Logs.Draw_Helper(),
             [WindowSelection.Plugin_Tips] = () => helpSelect_Tips.Draw(),
+
+            // Estell 版への支援
+            [WindowSelection.Support] = () => helpSelect_Support.Draw(),
         };
 
         private static void MainBody()

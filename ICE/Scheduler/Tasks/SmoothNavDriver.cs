@@ -49,6 +49,7 @@ namespace ICE.Scheduler.Tasks
 
         private readonly ISmoothNavPort port;
         private readonly RoutePlanner planner;
+        private readonly ThinningRefiner? thinning;
         private readonly List<(Vector3 Goal, double Until, string Why)> officialMarks = new();
         private bool planning;
         private Vector3 goal, beginPosition;
@@ -58,8 +59,11 @@ namespace ICE.Scheduler.Tasks
         public SmoothNavDriver(ISmoothNavPort port, IPathRefiner? refiner = null)
         {
             this.port = port;
-            // 地上の窓口は点の照会だけで作る(MeshPointGround)。覚えの辞書はスレッド安全でないので要求ごとに作る。飛行は使わない
-            this.planner = new RoutePlanner(refiner ?? new CurvePathRefiner(_ => [], () => new MeshPointGround(port)))
+            // 地上の窓口は点の照会だけで作る(MeshPointGround)。覚えの辞書はスレッド安全でないので要求ごとに作る。飛行は使わない。
+            // 整えた曲線は 0.5m ごとの点なので、間引いてから渡す(ThinningRefiner。視点が小刻みに振れるのを防ぐ)
+            if (refiner == null)
+                thinning = new ThinningRefiner(new CurvePathRefiner(_ => [], () => new MeshPointGround(port)), () => new MeshPointGround(port));
+            this.planner = new RoutePlanner(refiner ?? thinning)
             {
                 RefineBudgetSeconds = .25,
                 LateRefineSeconds = .25, // 予算と同じ = 途中からの乗り換えを使わない
@@ -246,7 +250,8 @@ namespace ICE.Scheduler.Tasks
             var decisions = plan.Refined?.Decisions;
             var changed = decisions?.Count(d => d.Changed) ?? 0;
             var kind = plan.Smoothed ? "曲線に整えた経路" : "公式の経路";
-            LastSummary = $"{kind}({plan.Reason}・変えた区間 {changed}/{decisions?.Length ?? 0}・点 {plan.Waypoints.Count}・{plan.Seconds:F2} 秒)";
+            var thinned = plan.Smoothed && thinning != null && thinning.LastDenseCount > 0 ? $"(間引く前 {thinning.LastDenseCount - 1})" : "";
+            LastSummary = $"{kind}({plan.Reason}・変えた区間 {changed}/{decisions?.Length ?? 0}・点 {plan.Waypoints.Count}{thinned}・{plan.Seconds:F2} 秒)";
             LastDetail = decisions == null ? "" : string.Join(" / ", decisions.Where(d => !d.Changed)
                 .GroupBy(d => d.Reason).OrderByDescending(g => g.Count()).Take(3).Select(g => $"{g.Key} ×{g.Count()}"));
         }

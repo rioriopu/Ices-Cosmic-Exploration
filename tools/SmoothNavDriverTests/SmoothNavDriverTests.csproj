@@ -12,5 +12,6 @@
   <ItemGroup>
     <Compile Include="..\..\ICE\SmoothNav\Core\*.cs" Link="SmoothNav\%(Filename)%(Extension)" />
     <Compile Include="..\..\ICE\Scheduler\Tasks\SmoothNavDriver.cs" Link="Driver\SmoothNavDriver.cs" />
+    <Compile Include="..\..\ICE\Scheduler\Tasks\SmoothNavThinning.cs" Link="Driver\SmoothNavThinning.cs" />
   </ItemGroup>
 </Project>

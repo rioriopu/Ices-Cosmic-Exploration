@@ -21,6 +21,7 @@ namespace ICE.Scheduler
             Task_Repair.ResetSession();   // 「自己修理では直せない」「所持品の修理は打ち切り」の判定は Start で解除(装備やダークマターを整えていれば自己修理に戻る)
             IceLogging.Info($"Player starting job upon pressing the start: {Mission_Settings.SelectedJob}");
             GenericManager.StorePandoraStates();
+            CameraReset.Request("開始");
             return true;
         }
         internal static bool DisablePlugin()
@@ -43,6 +44,7 @@ namespace ICE.Scheduler
                 if (P.Navmesh.IsRunning())
                     P.Navmesh.Stop();
             }
+            CameraReset.Request("停止");
 
             return true;
         }

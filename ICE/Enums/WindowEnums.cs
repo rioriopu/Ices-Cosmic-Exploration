@@ -26,6 +26,9 @@ namespace ICE.Enums
         Plugin_Tips,
 
         MountShopping,
+
+        // Estell 版への支援(Patreon)。設定ファイルに数値で残るので、既存の値を変えないよう末尾に足す
+        Support,
     }
 
     [Flags]

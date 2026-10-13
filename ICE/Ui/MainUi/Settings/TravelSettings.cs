@@ -149,6 +149,14 @@ namespace ICE.Ui.MainUi.Settings.Settings_Table
             }
             ImGuiEx.HelpMarker(Loc.T("Rounds the corners of the navmesh path into curves while moving in the field, so the character turns smoothly instead of zig-zagging.\nNot used near the hub or on routes that include the cosmoliner. Corners that can't be curved safely keep the original path."));
 
+            bool resetCamera = C.ResetCameraOnStartStop;
+            if (ImGui.Checkbox(Loc.T("Reset camera on Start / Stop"), ref resetCamera))
+            {
+                C.ResetCameraOnStartStop = resetCamera;
+                C.Save();
+            }
+            ImGuiEx.HelpMarker(Loc.T("When ICE starts or stops, turns the camera back behind your character (same as the game's camera reset).\nUseful if vnavmesh's \"Align camera to movement direction\" left the camera at an odd angle."));
+
             bool useRedAlertNpc = C.UseRedAlertNpc;
             if (ImGui.Checkbox(Loc.T("Use Red Alert NPC for travel"), ref useRedAlertNpc))
             {
